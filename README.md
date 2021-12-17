@@ -2,7 +2,7 @@
 
 ## Description
 
-pentestAD is a script that automates a large number of Active Directory Enumeration and Exploitation steps. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, enum4linux. 
+pentestAD is a script that automates a large number of Active Directory Enumeration and Exploitation steps. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, rpcclient. 
 
 ## Preparation and setup
 
@@ -49,16 +49,15 @@ For each of the cases described, the pentestAD script performs different checks 
 
 **Case 1: Unauthenticated**
 - [Module ad_enum] rid bruteforce
-- [Module ad_enum] rpclient user enumeration
+- [Module ad_enum] rpcclient user enumeration
 - [Module ad_enum] ldapdomaindump anonymous enumeration
 - [Module kerberos] kerbrute user spray
-- [Module kerberos] ASREPRoast using list of users collected from rid bruteforce (and cracking hashes using john-the-ripper and the rockyou wordlist)
+- [Module kerberos] ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - [Module scan_shares] SMB shares anonymous enumeration on all domain servers
 
 `./pentestAD.sh -M ad_enum,kerberos,scan_shares -d <AD_domain> -t <Domain_Controller_IP> -o <output_dir>`
 
 **Case 2: Standard Account (using password, NTLM hash or Kerberos ticket)**
-- [Module ad_enum] enum4linux enumeration (only if password is provided)
 - [Module ad_enum] BloodHound data collection
 - [Module ad_enum] ldapdomaindump enumeration
 - [Module ad_enum] Delegation information extraction
@@ -77,3 +76,8 @@ For each of the cases described, the pentestAD script performs different checks 
 - [Module pwd_dump] lsassy on on provided list of domain servers
 
 `sudo ./pentestAD.sh -M ad_enum,kerberos,scan_shares,pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -S <domain_servers_list> -o <output_dir>`
+
+### TO DO
+- Add AD CS checks
+- Add zerologon check
+- ...
