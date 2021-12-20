@@ -109,7 +109,7 @@ For each of the cases described, the pentestAD script performs different checks 
 
 ```bash
 sudo ./pentestAD.sh -M ad_enum,kerberos,scan_shares,pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -S <domain_servers_list> -o <output_dir>
-```bash
+```
 
 ### TO DO
 - Add AD CS checks
