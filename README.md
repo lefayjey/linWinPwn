@@ -43,6 +43,13 @@ Notes:
 
 `./pentestAD.sh -M ad_enum,kerberos,scan_shares,pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>`
 
+## Demos
+- HackTheBox Forest
+[![asciicast](https://asciinema.org/a/woYstknpNHIssf3sl4tJtNxid.svg)](https://asciinema.org/a/woYstknpNHIssf3sl4tJtNxid)
+
+- TryHackme AttacktiveDirectory
+[![asciicast](https://asciinema.org/a/cuVsMUUKeZX3HmW2pAQQ57N3o.svg)](https://asciinema.org/a/cuVsMUUKeZX3HmW2pAQQ57N3o)
+
 ### Use cases
 
 For each of the cases described, the pentestAD script performs different checks as shown below.

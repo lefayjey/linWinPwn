@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Author: lefayjey
-# Latest update : 07/12/2021
+# Latest update : 20/12/2021
 #
 
 RED='\033[1;31m'
@@ -18,7 +18,7 @@ fi
 install_tools() {
     echo -e "\n${BLUE}[Initiate]${NC} Install tools \n"
     
-    apt install install python3 python3-dev python3-pip python3-venv nmap smbmap john git ntpdate -y
+    apt install python3 python3-dev python3-pip python3-venv nmap smbmap john git -y
     python3 -m pip install --upgrade pip
     pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute --upgrade
     
