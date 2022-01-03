@@ -58,11 +58,11 @@ Notes:
 ## Demos
 - HackTheBox Forest
 
-[![asciicast](https://asciinema.org/a/woYstknpNHIssf3sl4tJtNxid.svg)](https://asciinema.org/a/woYstknpNHIssf3sl4tJtNxid)
+[![asciicast](https://asciinema.org/a/O7YnFOqvU3Ssd2lntzlEIuQIa.svg)](https://asciinema.org/a/O7YnFOqvU3Ssd2lntzlEIuQIa)
 
 - TryHackme AttacktiveDirectory
 
-[![asciicast](https://asciinema.org/a/cuVsMUUKeZX3HmW2pAQQ57N3o.svg)](https://asciinema.org/a/cuVsMUUKeZX3HmW2pAQQ57N3o)
+[![asciicast](https://asciinema.org/a/e5KyoRJyigiQM6nRqLF3nomrZ.svg)](https://asciinema.org/a/e5KyoRJyigiQM6nRqLF3nomrZ)
 
 ### Use cases
 
@@ -108,7 +108,7 @@ For each of the cases described, the pentestAD script performs different checks 
     - lsassy on on provided list of domain servers
 
 ```bash
-sudo ./pentestAD.sh -M ad_enum,kerberos,scan_shares,pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -S <domain_servers_list> -o <output_dir>
+./pentestAD.sh -M ad_enum,kerberos,scan_shares,pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -S <domain_servers_list> -o <output_dir>
 ```
 
 ### TO DO
