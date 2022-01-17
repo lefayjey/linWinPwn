@@ -47,7 +47,6 @@ Notes:
 - Use `-U` to override default username list
 - Use `-P` to override default password list
 - Use `-L` with pwd_dump to skip execution of lsassy
-- If the list of target servers' IPs was not provided, the pwd_dump module will use the list of all domain servers with SMB port open that were identified using the scan_shares module
 
 **Run all modules**
 
@@ -77,19 +76,21 @@ For each of the cases described, the pentestAD script performs different checks 
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_shares
-    - SMB shares anonymous enumeration on all domain servers
+    - SMB shares anonymous enumeration on domain controller
 
 ```bash
 ./pentestAD.sh -M ad_enum,kerberos,scan_shares -d <AD_domain> -t <Domain_Controller_IP> -o <output_dir>
 ```
 
 **Case 2: Standard Account (using password, NTLM hash or Kerberos ticket)**
+- DNS extraction using adidnsdump
 - Module ad_enum
     - BloodHound data collection
     - ldapdomaindump enumeration
+    - Extraction of MachineAccountQuota of user, and all users' descriptions 
     - Delegation information extraction
     - GPP Passwords extraction
-    - RPC enumeration for interesting protocols
+    - Enumeration for interesting services (WebDav, Spooler, etc.)
     - LAPS and gMSA dump
 - Module kerberos
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
