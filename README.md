@@ -70,8 +70,10 @@ For each of the cases described, the pentestAD script performs different checks 
 **Case 1: Unauthenticated**
 - Module ad_enum
     - rid bruteforce
-    - rpcclient user enumeration
+    - user enumeration
     - ldapdomaindump anonymous enumeration
+    - Enumeration for interesting services (WebDav, Spooler, etc.)
+    - Check for zerologon
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
@@ -87,10 +89,11 @@ For each of the cases described, the pentestAD script performs different checks 
 - Module ad_enum
     - BloodHound data collection
     - ldapdomaindump enumeration
-    - Extraction of MachineAccountQuota of user, and all users' descriptions 
     - Delegation information extraction
     - GPP Passwords extraction
     - Enumeration for interesting services (WebDav, Spooler, etc.)
+    - Check for zerologon, nopac, ADCS, ldap-signing
+    - Extraction of MachineAccountQuota of user, and all users' descriptions 
     - LAPS and gMSA dump
 - Module kerberos
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
