@@ -112,6 +112,5 @@ For each of the cases described, the pentestAD script performs different checks 
 ```
 
 ### TO DO
-- Add AD CS checks
-- Add zerologon check
+- Add MSSQL checks
 - ...
