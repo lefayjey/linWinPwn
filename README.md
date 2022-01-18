@@ -73,8 +73,8 @@ For each of the cases described, the pentestAD script performs different checks 
     - rid bruteforce
     - user enumeration
     - ldapdomaindump anonymous enumeration
-    - Enumeration for interesting services on DC (WebDav, Spooler, etc.)
-    - Check for zerologon
+    - Enumeration for WebDav and Spooler services on DC
+    - Check for zerologon, petitpotam
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
@@ -93,8 +93,8 @@ For each of the cases described, the pentestAD script performs different checks 
     - ldapdomaindump enumeration
     - Delegation information extraction
     - GPP Passwords extraction
-    - Enumeration for interesting services on DC (WebDav, Spooler, etc.)
-    - Check for zerologon, nopac, ADCS, ldap-signing
+    - Enumeration for WebDav and Spooler services on DC
+    - Check for zerologon, petitpotam, nopac, ADCS, ldap-signing
     - Extraction of MachineAccountQuota of user, and all users' descriptions 
     - LAPS and gMSA dump
 - Module kerberos
@@ -103,7 +103,7 @@ For each of the cases described, the pentestAD script performs different checks 
 - Module scan_servers
     - SMB shares enumeration on all domain servers
     - RPC dump anonymous login on all domain servers
-    - Enumeration for interesting services on all domain servers (WebDav, Spooler)
+    - Enumeration for WebDav and Spooler services on all domain servers
 
 ```bash
 ./pentestAD.sh -M user -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
@@ -121,4 +121,4 @@ For each of the cases described, the pentestAD script performs different checks 
 
 ### TO DO
 - Add MSSQL checks
-- ...
+- Resolve crackmapexec ldap's issue with DNS
