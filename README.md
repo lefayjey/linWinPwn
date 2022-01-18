@@ -80,7 +80,7 @@ For each of the cases described, the pentestAD script performs different checks 
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_servers
     - SMB shares anonymous enumeration on DC
-    - RPC dump anonymous login on DC
+    - Enumeration for Spooler service on DC
 
 ```bash
 ./pentestAD.sh -M user -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
@@ -102,7 +102,6 @@ For each of the cases described, the pentestAD script performs different checks 
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_servers
     - SMB shares enumeration on all domain servers
-    - RPC dump anonymous login on all domain servers
     - Enumeration for WebDav and Spooler services on all domain servers
 
 ```bash
