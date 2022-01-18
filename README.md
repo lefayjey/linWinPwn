@@ -22,36 +22,37 @@ The pentestAD script contains 4 modules that can be used either separately or si
 **Module 1: Active Directory Enumeration**
 
 ```bash
-./pentestAD.sh -M ad_enum -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+./pentestAD.sh -M ad_enum -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
 **Module 2: Kerberos Based Attacks**
 
 ```bash
-./pentestAD.sh -M kerberos -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+./pentestAD.sh -M kerberos -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
-**Module 3: SMB Shares Enumeration**
+**Module 3: SMB Shares and RPC Enumeration**
 
 ```bash
-./pentestAD.sh -M scan_shares -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP> -o <output_dir>
+./pentestAD.sh -M scan_servers -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
 **Module 4: Password Dump (secretsdump and lsassy)**
 
 ```bash
-./pentestAD.sh -M pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP> -S <domain_servers_list> -o <output_dir>
+./pentestAD.sh -M pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP_or_Target_Domain> -S <domain_servers_list> -o <output_dir>
 ```
 
 Notes:
-- Use `-U` to override default username list
-- Use `-P` to override default password list
+- Use `-U` Use -U to override default username list during anonymous checks
+- Use `-P` to override default password list during password cracking
+- Use `-S` to override default servers list during password dumping
 - Use `-L` with pwd_dump to skip execution of lsassy
 
 **Run all modules**
 
 ```bash
-./pentestAD.sh -M ad_enum,kerberos,scan_shares,pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+./pentestAD.sh -M ad_enum,kerberos,scan_servers,pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
 ```
 
 ## Demos
@@ -72,16 +73,17 @@ For each of the cases described, the pentestAD script performs different checks 
     - rid bruteforce
     - user enumeration
     - ldapdomaindump anonymous enumeration
-    - Enumeration for interesting services (WebDav, Spooler, etc.)
+    - Enumeration for interesting services on DC (WebDav, Spooler, etc.)
     - Check for zerologon
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
-- Module scan_shares
-    - SMB shares anonymous enumeration on domain controller
+- Module scan_servers
+    - SMB shares anonymous enumeration on DC
+    - RPC dump anonymous login on DC
 
 ```bash
-./pentestAD.sh -M ad_enum,kerberos,scan_shares -d <AD_domain> -t <Domain_Controller_IP> -o <output_dir>
+./pentestAD.sh -M user -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
 **Case 2: Standard Account (using password, NTLM hash or Kerberos ticket)**
@@ -91,28 +93,30 @@ For each of the cases described, the pentestAD script performs different checks 
     - ldapdomaindump enumeration
     - Delegation information extraction
     - GPP Passwords extraction
-    - Enumeration for interesting services (WebDav, Spooler, etc.)
+    - Enumeration for interesting services on DC (WebDav, Spooler, etc.)
     - Check for zerologon, nopac, ADCS, ldap-signing
     - Extraction of MachineAccountQuota of user, and all users' descriptions 
     - LAPS and gMSA dump
 - Module kerberos
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
-- Module scan_shares
+- Module scan_servers
     - SMB shares enumeration on all domain servers
+    - RPC dump anonymous login on all domain servers
+    - Enumeration for interesting services on all domain servers (WebDav, Spooler)
 
 ```bash
-./pentestAD.sh -M ad_enum,kerberos,scan_shares -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+./pentestAD.sh -M user -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
 **Case 3: Administrator Account (using password, NTLM hash or Kerberos ticket)**
 - All of the "Standard User" checks
 - Module pwd_dump
-    - secretsdump on provided list of domain servers 
-    - lsassy on on provided list of domain servers
+    - secretsdump on all domain servers or on provided list of servers
+    - lsassy on on all domain servers or on provided list of servers
 
 ```bash
-./pentestAD.sh -M ad_enum,kerberos,scan_shares,pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -S <domain_servers_list> -o <output_dir>
+./pentestAD.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -S <domain_servers_list> -o <output_dir>
 ```
 
 ### TO DO
