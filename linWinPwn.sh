@@ -1,7 +1,17 @@
 #!/bin/bash
 #
+# linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
+# Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 # Latest update : 19/01/2022
+#
+#      _        __        ___       ____                 
+#     | |(_)_ __\ \      / (_)_ __ |  _ \__      ___ __  
+#     | || | '_ \\ \ /\ / /| | '_ \| |_) \ \ /\ / | '_ \ 
+#     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
+#     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
+#  --> Automate some internal Penetration Testing processes
+#
 #
 
 RED='\033[1;31m'
@@ -33,7 +43,7 @@ kerbrute=$(which kerbrute)
 adidnsdump=$(which adidnsdump)
 scripts_dir="."
 
-help_pentest () {
+help_linWinPwn () {
     echo -e "${YELLOW}Usage (default) ${NC}"
     echo -e "./$(basename "$0") -t dc_ip_or_target_domain" >&2;
     echo -e "./$(basename "$0") -d domain -u user -p password_or_hash(LM:NT)_or_kerbticket(./krb5cc_ticket) -t dc_ip_or_target_domain" >&2;
@@ -68,7 +78,7 @@ while getopts ":d:u:p:t:M:o:U:P:S:Lh" opt; do
     U) users_list="${OPTARG}";;
     P) pass_list="${OPTARG}";;
     S) servers_list="${OPTARG}";;
-    h) help_pentest; exit;;
+    h) help_linWinPwn; exit;;
     \?) echo -e "Unknown option: -${OPTARG}" >&2; exit 1;;
   esac
 done
