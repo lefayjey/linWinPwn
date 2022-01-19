@@ -2,7 +2,7 @@
 
 ## Description
 
-pentestAD is a script that automates a large number of Active Directory Enumeration and Exploitation steps. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, rpcclient. 
+pentestAD is a script that automates a large number of Active Directory Enumeration and Exploitation steps. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump. 
 
 ## Preparation and setup
 
@@ -49,10 +49,16 @@ Notes:
 - Use `-S` to override default servers list during password dumping
 - Use `-L` with pwd_dump to skip execution of lsassy
 
+**Run default modules: ad_enum,kerberos (fastest)**
+
+```bash
+./pentestAD.sh -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+```
+
 **Run all modules**
 
 ```bash
-./pentestAD.sh -M ad_enum,kerberos,scan_servers,pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+./pentestAD.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
 ```
 
 ## Demos
@@ -74,7 +80,7 @@ For each of the cases described, the pentestAD script performs different checks 
     - user enumeration
     - ldapdomaindump anonymous enumeration
     - Enumeration for WebDav and Spooler services on DC
-    - Check for zerologon, petitpotam
+    - Check for zerologon, petitpotam weaknesses
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
@@ -93,8 +99,11 @@ For each of the cases described, the pentestAD script performs different checks 
     - ldapdomaindump enumeration
     - Delegation information extraction
     - GPP Passwords extraction
-    - Enumeration for WebDav and Spooler services on DC
-    - Check for zerologon, petitpotam, nopac, ADCS, ldap-signing
+    - Enumeration for WebDav and Spooler services on DCs
+    - Check for zerologon, petitpotam, nopac weaknesses
+    - Extract ADCS
+    - Check if ldap-signing is enforced
+    - Check mssql privilege escalation paths
     - Extraction of MachineAccountQuota of user, and all users' descriptions 
     - LAPS and gMSA dump
 - Module kerberos
@@ -119,5 +128,4 @@ For each of the cases described, the pentestAD script performs different checks 
 ```
 
 ### TO DO
-- Add MSSQL checks
 - Resolve crackmapexec ldap's issue with DNS
