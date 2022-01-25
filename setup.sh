@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Author: lefayjey
-# Latest update : 20/12/2021
+# Latest update : 20/01/2022
 #
 
 RED='\033[1;31m'
@@ -24,7 +24,9 @@ install_tools() {
     
 	echo -e "\tgMSADumper"
 	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./gMSADumper.py
-
+	echo -e "\tLdapRelayScan"
+	wget -q "https://raw.githubusercontent.com/zyn3rgy/LdapRelayScan/main/LdapRelayScan.py" -O ./LdapRelayScan.py
+	
     echo -e "\n${GREEN}[Success]${NC} Install tools \n"
 }
 

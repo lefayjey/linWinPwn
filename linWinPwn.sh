@@ -3,7 +3,7 @@
 # linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
-# Latest update : 19/01/2022
+# Latest update : 20/01/2022
 #
 #      _        __        ___       ____                 
 #     | |(_)_ __\ \      / (_)_ __ |  _ \__      ___ __  
@@ -467,6 +467,22 @@ ad_enum () {
             /usr/bin/python3 ${scripts_dir}/gMSADumper.py -d ${domain} -u ${user} -k 2>/dev/null > ${output_dir}/DomainRecon/gMSA_dump_${dc_domain}.txt
         else
             /usr/bin/python3 ${scripts_dir}/gMSADumper.py -d ${domain} -u ${user} -p ${password} -l ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/gMSA_dump_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+
+    echo -e "${BLUE}[*] LdapRelayScan checks${NC}"
+    if [ ! -f "${scripts_dir}/LdapRelayScan.py" ] ; then
+        echo -e "${RED}[-] Please verify the location of LdapRelayScan.py${NC}"
+    else
+        if [ "${anon_bool}" == true ] ; then
+            /usr/bin/python3 ${scripts_dir}/LdapRelayScan.py -method LDAPS -dc-ip ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
+        elif [ "${hash_bool}" == true ] ; then 
+            /usr/bin/python3 ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} -u ${user} -nthash $(echo ${hash} | cut -d ":" -f 2) 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
+        elif [ "${kerb_bool}" == true ] ; then
+                echo -e "${PURPLE}[-] LdapRelayScan does not support kerberos tickets${NC}"
+        else
+            /usr/bin/python3 ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} -u ${user} -p ${password} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
         fi
     fi
     echo -e ""

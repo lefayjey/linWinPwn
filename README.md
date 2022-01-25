@@ -80,7 +80,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - user enumeration
     - ldapdomaindump anonymous enumeration
     - Enumeration for WebDav and Spooler services on DC
-    - Check for zerologon, petitpotam weaknesses
+    - Check for zerologon, petitpotam, LDAP Relay weaknesses
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
@@ -102,7 +102,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Enumeration for WebDav and Spooler services on DCs
     - Check for zerologon, petitpotam, nopac weaknesses
     - Extract ADCS
-    - Check if ldap-signing is enforced
+    - Check if ldap-signing is enforced, check for LDAP Relay
     - Check mssql privilege escalation paths
     - Extraction of MachineAccountQuota of user, and all users' descriptions 
     - LAPS and gMSA dump
