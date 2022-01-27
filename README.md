@@ -44,7 +44,7 @@ The linWinPwn script contains 4 modules that can be used either separately or si
 ```
 
 Notes:
-- Use `-U` Use -U to override default username list during anonymous checks
+- Use `-U` to override default username list during anonymous checks
 - Use `-P` to override default password list during password cracking
 - Use `-S` to override default servers list during password dumping
 - Use `-L` with pwd_dump to skip execution of lsassy
@@ -64,11 +64,11 @@ Notes:
 ## Demos
 - HackTheBox Forest
 
-[![asciicast](https://asciinema.org/a/O7YnFOqvU3Ssd2lntzlEIuQIa.svg)](https://asciinema.org/a/O7YnFOqvU3Ssd2lntzlEIuQIa)
+[![asciicast](https://asciinema.org/a/464904.svg)](https://asciinema.org/a/464904)
 
 - TryHackme AttacktiveDirectory
 
-[![asciicast](https://asciinema.org/a/e5KyoRJyigiQM6nRqLF3nomrZ.svg)](https://asciinema.org/a/e5KyoRJyigiQM6nRqLF3nomrZ)
+[![asciicast](https://asciinema.org/a/459647.svg)](https://asciinema.org/a/459647)
 
 ### Use cases
 
