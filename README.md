@@ -68,7 +68,7 @@ Notes:
 
 - TryHackme AttacktiveDirectory
 
-[![asciicast](https://asciinema.org/a/459647.svg)](https://asciinema.org/a/459647)
+[![asciicast](https://asciinema.org/a/464901.svg)](https://asciinema.org/a/464901)
 
 ### Use cases
 
