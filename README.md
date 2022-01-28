@@ -101,7 +101,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - GPP Passwords extraction
     - Enumeration for WebDav and Spooler services on DCs
     - Check for zerologon, petitpotam, nopac weaknesses
-    - Extract ADCS
+    - Extract ADCS information using certipy
     - Check if ldap-signing is enforced, check for LDAP Relay
     - Check mssql privilege escalation paths
     - Extraction of MachineAccountQuota of user, and all users' descriptions 

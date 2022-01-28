@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Author: lefayjey
-# Latest update : 20/01/2022
+# Latest update : 28/01/2022
 #
 
 RED='\033[1;31m'
@@ -20,7 +20,7 @@ install_tools() {
     
     apt install python3 python3-dev python3-pip python3-venv nmap smbmap john git -y
     python3 -m pip install --upgrade pip
-    pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute certipy git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump --upgrade
+    pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute certipy git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump git+https://github.com/zer1t0/certi.git --upgrade
     
 	echo -e "\tgMSADumper"
 	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./gMSADumper.py

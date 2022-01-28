@@ -3,7 +3,7 @@
 # linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
-# Latest update : 27/01/2022
+# Latest update : 28/01/2022
 #
 #      _        __        ___       ____                 
 #     | |(_)_ __\ \      / (_)_ __ |  _ \__      ___ __  
@@ -43,6 +43,7 @@ nmap=$(which nmap)
 lsassy=$(which lsassy)
 kerbrute=$(which kerbrute)
 adidnsdump=$(which adidnsdump)
+certipy=$(which certipy)
 scripts_dir="."
 
 print_banner () {
@@ -486,6 +487,30 @@ ad_enum () {
         else
             /usr/bin/python3 ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} -u ${user} -p ${password} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
         fi
+    fi
+    echo -e ""
+
+    echo -e "${BLUE}[*] certipy enum${NC}"
+    if [[ ! -f "${certipy}" ]] && [[ ! -f "${impacket_dir}/getTGT.py)" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    else
+        current_dir=$(pwd)
+        cd ${output_dir}
+        if [ "${anon_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] impacket requires credentials${NC}"
+        elif [ "${hash_bool}" == true ] ; then
+            /usr/bin/python3 ${impacket_dir}/getTGT.py ${domain}/${user} -dc-ip ${dc_ip} -hashes ${hash}
+        elif [ "${kerb_bool}" == true ] ; then
+            /usr/bin/python3 ${impacket_dir}/getTGT.py ${domain}/${user} -dc-ip ${dc_ip} -k -no-pass 
+        else
+            /usr/bin/python3 ${impacket_dir}getTGT.py ${domain}/${user}:${password} -dc-ip ${dc_ip}
+        fi
+        cd ${current_dir}
+        export KRB5CCNAME="${output_dir}/${user}.ccache"
+        ${certipy} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class ca | tee ${output_dir}/DomainRecon/certipy_CA_output_${dc_domain}.txt
+        ${certipy} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class service | tee ${output_dir}/DomainRecon/certipy_CAServices_output_${dc_domain}.txt
+        ${certipy} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --vuln --enable | tee ${output_dir}/DomainRecon/certipy_vulntemplates_output_${dc_domain}.txt
+        export KRB5CCNAME=""
     fi
     echo -e ""
 }
