@@ -44,7 +44,7 @@ nmap=$(which nmap)
 lsassy=$(which lsassy)
 kerbrute=$(which kerbrute)
 adidnsdump=$(which adidnsdump)
-certipy=$(which certipy)
+certipy=$(which certi.py)
 scripts_dir="."
 
 print_banner () {
@@ -158,8 +158,8 @@ prepare (){
         echo -e "${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $kerb_ticket"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     else
-        echo -e "${YELLOW}[i]${NC} Authentication: password of ${user}}"
-        echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}}"
+        echo -e "${YELLOW}[i]${NC} Authentication: password of ${user}"
+        echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     fi
 
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${dc_FQDN}"
@@ -313,11 +313,14 @@ ad_enum () {
         if [ "${anon_bool}" == true ] ; then
             echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
         elif [ "${hash_bool}" == true ] ; then 
-            ${bloodhound} -d ${dc_domain} -u "${user}@${domain}" --hashes ${hash} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 15 --dns-tcp
+            ${bloodhound} -d ${dc_domain} -u "${user}@${domain}" --hashes ${hash} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp
+            #${bloodhound} -d ${dc_domain} -u "${user}@${domain}" --hashes ${hash} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp
         elif [ "${kerb_bool}" == true ] ; then
-            ${bloodhound} -d ${dc_domain} -u "${user}@${domain}" -k -c all,LoggedOn -ns ${dc_ip} --dns-timeout 15 --dns-tcp
+            ${bloodhound} -d ${dc_domain} -u "${user}@${domain}" -k -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp
+            #${bloodhound} -d ${dc_domain} -u "${user}@${domain}" -k -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp
         else
-            ${bloodhound} -d ${dc_domain} -u "${user}@${domain}" -p ${password} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 15 --dns-tcp
+            ${bloodhound} -d ${dc_domain} -u "${user}@${domain}" -p ${password} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp
+            #${bloodhound} -d ${dc_domain} -u "${user}@${domain}" -p ${password} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp
         fi
         cd ${current_dir}
         
@@ -507,7 +510,7 @@ ad_enum () {
         elif [ "${kerb_bool}" == true ] ; then
             ${python} ${impacket_dir}/getTGT.py ${domain}/${user} -dc-ip ${dc_ip} -k -no-pass 
         else
-            ${python} ${impacket_dir}getTGT.py ${domain}/${user}:${password} -dc-ip ${dc_ip}
+            ${python} ${impacket_dir}/getTGT.py ${domain}/${user}:${password} -dc-ip ${dc_ip}
         fi
         cd ${current_dir}
         export KRB5CCNAME="${output_dir}/${user}.ccache"
