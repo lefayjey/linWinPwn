@@ -361,7 +361,7 @@ ad_enum () {
             ${crackmapexec} smb ${dc_ip} -u "" -p "" --users > ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt
             /bin/cat ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] spooler check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -u '' -p '' -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -u '' -p '' -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] petitpotam check ${NC}"
             ${crackmapexec} smb ${dc_ip} -u '' -p '' -M petitpotam | tee ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] zerologon check ${NC}"
@@ -388,16 +388,16 @@ ad_enum () {
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
-            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M ldap-signing --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${dc_ip_list} -d ${domain} -u ${user} -H ${hash} -M ldap-signing --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] mssql_priv check ${NC}"
             ${crackmapexec} mssql ${sql_ip_list} -d ${domain} -u ${user} -H ${hash} -M mssql_priv | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
        elif [ "${kerb_bool}" == true ] ; then
             echo -e "${CYAN}[*] spooler check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -k -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -k -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] webdav check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -k -M webdav | tee ${output_dir}/DomainRecon/cme_webdav_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -k -M webdav | tee ${output_dir}/DomainRecon/cme_webdav_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] nopac check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p '' -k -M nopac | tee ${output_dir}/DomainRecon/cme_nopac_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p '' -k -M nopac | tee ${output_dir}/DomainRecon/cme_nopac_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] petitpotam check ${NC}"
             ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p '' -k -M petitpotam | tee ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] zerologon check ${NC}"
@@ -411,16 +411,16 @@ ad_enum () {
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
-            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M ldap-signing --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${dc_ip_list} -d ${domain} -u ${user} -p '' -k -M ldap-signing --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] mssql_priv check ${NC}"
             ${crackmapexec} mssql ${sql_ip_list} -d ${domain} -u ${user} -p '' -k -M mssql_priv | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
 		else
             echo -e "${CYAN}[*] spooler check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p ${password} -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p ${password} -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] webdav check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p ${password} -M webdav | tee ${output_dir}/DomainRecon/cme_webdav_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p ${password} -M webdav | tee ${output_dir}/DomainRecon/cme_webdav_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] nopac check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p ${password} -M nopac | tee ${output_dir}/DomainRecon/cme_nopac_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p ${password} -M nopac | tee ${output_dir}/DomainRecon/cme_nopac_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] petitpotam check ${NC}"
             ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p ${password} -M petitpotam | tee ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] zerologon check ${NC}"
@@ -434,7 +434,7 @@ ad_enum () {
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
-            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M ldap-signing --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${dc_ip_list} -d ${domain} -u ${user} -p ${password} -M ldap-signing --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] mssql_priv check ${NC}"
             ${crackmapexec} mssql ${sql_ip_list} -d ${domain} -u ${user} -p ${password} -M mssql_priv | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
         fi
