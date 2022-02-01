@@ -20,7 +20,8 @@ install_tools() {
     
     apt install python3 python3-dev python3-pip python3-venv nmap smbmap john git -y
     python3 -m pip install --upgrade pip
-    pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute certipy git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump git+https://github.com/zer1t0/certi.git --upgrade
+    pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute certipy \
+    git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump git+https://github.com/zer1t0/certi.git --upgrade
     
 	echo -e "\tgMSADumper"
 	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./gMSADumper.py

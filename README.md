@@ -104,9 +104,10 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Extract ADCS information using certipy
     - Check if ldap-signing is enforced, check for LDAP Relay
     - Check mssql privilege escalation paths
-    - Extraction of MachineAccountQuota of user, and all users' descriptions 
+    - Extraction of MachineAccountQuota of user, Password Policy and users' descriptions containing "pass"
     - LAPS and gMSA dump
 - Module kerberos
+    - kerbrute user=pass enumeration
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_servers
@@ -128,4 +129,4 @@ For each of the cases described, the linWinPwn script performs different checks 
 ```
 
 ### TO DO
-- Resolve crackmapexec ldap's issue with DNS
+...
