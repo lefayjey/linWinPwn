@@ -1,18 +1,17 @@
 #!/bin/bash
 #
-# linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
-# Author: lefayjey
-# Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
-# Latest update : 02/02/2022
-#
 #      _        __        ___       ____                 
 #     | |(_)_ __\ \      / (_)_ __ |  _ \__      ___ __  
 #     | || | '_ \\ \ /\ / /| | '_ \| |_) \ \ /\ / | '_ \ 
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
-#  --> Automate some internal Penetration Testing processes
 #
+# linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
+# Author: lefayjey
+# Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
+# Latest update : 02/02/2022
 #
+
 
 #Colors
 RED='\033[1;31m'
@@ -53,9 +52,8 @@ print_banner () {
       | || | '_  \ \ /\ / /| | '_ \| |_) \ \ /\ / | '_ \  
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
--->   Automate some internal Penetration Testing processes
 
-      ${BLUE}linWinPwn: ${CYAN}alpha version
+      ${BLUE}linWinPwn: ${CYAN} version 0.1
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey
 ${NC}
