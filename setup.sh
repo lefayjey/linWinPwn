@@ -1,7 +1,6 @@
 #!/bin/bash
 #
 # Author: lefayjey
-# Latest update : 28/01/2022
 #
 
 RED='\033[1;31m'
@@ -14,12 +13,11 @@ if [ "$EUID" -ne 0 ]
     exit
 fi
 
-# Function definitions
 install_tools() {
-    echo -e "\n${BLUE}[Initiate]${NC} Install tools \n"
+    apt install python3 python3-dev python3-pip python3-venv nmap smbmap john git seclists -y
     
-    apt install python3 python3-dev python3-pip python3-venv nmap smbmap john git -y
     python3 -m pip install --upgrade pip
+    
     pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute certipy \
     git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump git+https://github.com/zer1t0/certi.git --upgrade
     
@@ -27,11 +25,8 @@ install_tools() {
 	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./gMSADumper.py
 	echo -e "\tLdapRelayScan"
 	wget -q "https://raw.githubusercontent.com/zyn3rgy/LdapRelayScan/main/LdapRelayScan.py" -O ./LdapRelayScan.py
-	
-    echo -e "\n${GREEN}[Success]${NC} Install tools \n"
 }
 
-#### Calling functions
-install_tools      || { echo -e "\n\n${RED}[Failure]${NC} Intalling tools failed.. exiting script!\n"; exit 1; }
+install_tools || { echo -e "\n${RED}[Failure]${NC} Intalling tools failed.. exiting script!\n"; exit 1; }
 
-echo -e "\n${GREEN}[Success]${NC} Setup completed successfully ! \n"
+echo -e "\n${GREEN}[Success]${NC} Setup completed successfully!\n"

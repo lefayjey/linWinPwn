@@ -2,9 +2,9 @@
 
 ## Description
 
-linWinPwn is a script that automates a large number of Active Directory Enumeration and Exploitation steps. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump. 
+linWinPwn is a bash script that automates a number of Active Directory Enumeration and Exploitation steps. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump. 
 
-## Preparation and setup
+## Setup
 
 Git clone the repository and run the setup script
 
@@ -14,51 +14,51 @@ cd linWinPwn; chmod +x setup.sh; chmod +x linWinPwn.sh
 sudo ./setup.sh
 ```
 
-## Functionalities
+## Usage
 
 ### Modules
 The linWinPwn script contains 4 modules that can be used either separately or simultaneously.
 
-**Module 1: Active Directory Enumeration**
+**Default (fastest): ad_enum,kerberos** with OPSEC safe checks using `-O` 
+
+```bash
+./linWinPwn.sh -O -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+```
+
+**User modules: ad_enum,kerberos,scan_servers**
+
+```bash
+./linWinPwn.sh -M user -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+```
+
+**All modules: ad_enum,kerberos,scan_servers,pwd_dump**
+
+```bash
+./linWinPwn.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+```
+
+**Module ad_enum:** Active Directory Enumeration
 
 ```bash
 ./linWinPwn.sh -M ad_enum -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
-**Module 2: Kerberos Based Attacks**
+**Module kerberos:** Kerberos Based Attacks
 
 ```bash
 ./linWinPwn.sh -M kerberos -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
-**Module 3: SMB Shares and RPC Enumeration**
+**Module scan_servers:** SMB Shares and RPC Enumeration
 
 ```bash
 ./linWinPwn.sh -M scan_servers -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
-**Module 4: Password Dump (secretsdump and lsassy)**
+**Module pwd_dump:** Password Dump
 
 ```bash
 ./linWinPwn.sh -M pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP_or_Target_Domain> -S <domain_servers_list> -o <output_dir>
-```
-
-Notes:
-- Use `-U` to override default username list during anonymous checks
-- Use `-P` to override default password list during password cracking
-- Use `-S` to override default servers list during password dumping
-- Use `-O` to run only OPSEC Safe checks
-
-**Run default modules: ad_enum,kerberos (fastest)**
-
-```bash
-./linWinPwn.sh -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
-```
-
-**Run all modules**
-
-```bash
-./linWinPwn.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
 ```
 
 ## Demos
@@ -80,16 +80,17 @@ For each of the cases described, the linWinPwn script performs different checks 
     - user enumeration
     - ldapdomaindump anonymous enumeration
     - Enumeration for WebDav and Spooler services on DC
-    - Check for zerologon, petitpotam, LDAP Relay weaknesses
+    - Check for zerologon, petitpotam, nopac weaknesses
+    - Check if ldap-signing is enforced, check for LDAP Relay
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_servers
-    - SMB shares anonymous enumeration on DC
-    - Enumeration for Spooler service on DC
+    - SMB shares anonymous enumeration on identified servers
+    - Enumeration for WebDav and Spooler services on identified servers
 
 ```bash
-./linWinPwn.sh -M user -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
+./linWinPwn.sh -M user -t <Domain_Controller_IP_or_Target_Domain>
 ```
 
 **Case 2: Standard Account (using password, NTLM hash or Kerberos ticket)**
@@ -115,18 +116,34 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Enumeration for WebDav and Spooler services on all domain servers
 
 ```bash
-./linWinPwn.sh -M user -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
+./linWinPwn.sh -M user -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain>
 ```
 
 **Case 3: Administrator Account (using password, NTLM hash or Kerberos ticket)**
 - All of the "Standard User" checks
 - Module pwd_dump
-    - secretsdump on all domain servers or on provided list of servers
-    - lsassy on on all domain servers or on provided list of servers
+    - secretsdump on all domain servers or on provided list of servers with `-S`
+    - lsassy on on all domain servers or on provided list of servers with `-S`
 
 ```bash
-./linWinPwn.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -S <domain_servers_list> -o <output_dir>
+./linWinPwn.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -S <domain_servers_list>
 ```
 
-### TO DO
-...
+### Credits
+
+- [S3cur3Th1sSh1t](https://github.com/S3cur3Th1sSh1t) - WinPwn
+- [SecureAuth](https://github.com/SecureAuthCorp) - impacket
+- [byt3bl33d3r, mpgn, Porchetta Industries](https://porchetta.industries/) - crackmapexec
+- [Fox-IT](https://github.com/fox-it) - bloodhound-python
+- [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump
+- [Hackndo](https://github.com/Hackndo) - lsassy
+- [TarlogicSecurity](https://github.com/TarlogicSecurity) - kerbrute
+- [zer1t0](https://github.com/zer1t0) - certipy
+- [micahvandeusen](https://github.com/micahvandeusen) - gMSADumper
+- [n00py](https://github.com/n00py/) - LAPSDumper
+- [zyn3rgy](https://github.com/zyn3rgy) - LdapRelayScan
+- [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
+
+### Legal Disclamer
+
+Usage of linWinPwn for attacking targets without prior mutual consent is illegal. It's the end user's responsibility to obey all applicable local, state and federal laws. Developers assume no liability and are not responsible for any misuse or damage caused by this program. Only use for educational purposes.

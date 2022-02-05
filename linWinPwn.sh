@@ -27,7 +27,7 @@ password=""
 modules="ad_enum,kerberos"
 output_dir="."
 pass_list="/usr/share/wordlists/rockyou.txt"
-users_list="/usr/share/seclists/Usernames/top-usernames-shortlist.txt"
+users_list="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
 opsec_bool=false
 
 #Tools variables
