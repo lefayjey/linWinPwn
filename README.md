@@ -47,7 +47,7 @@ Notes:
 - Use `-U` to override default username list during anonymous checks
 - Use `-P` to override default password list during password cracking
 - Use `-S` to override default servers list during password dumping
-- Use `-L` with pwd_dump to skip execution of lsassy
+- Use `-O` to run only OPSEC Safe checks
 
 **Run default modules: ad_enum,kerberos (fastest)**
 

