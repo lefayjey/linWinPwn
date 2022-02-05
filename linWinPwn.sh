@@ -6,7 +6,7 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - version 0.1.1 (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.1.2 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 #
@@ -84,7 +84,7 @@ help_linWinPwn () {
     echo -e ""
 }
 
-while getopts ":d:u:p:O:M:o:U:P:S:Lh" opt; do
+while getopts ":d:u:p:t:M:o:U:P:S:Oh" opt; do
   case $opt in
     d) domain="${OPTARG}";;
     u) user="${OPTARG}";; #leave empty for anonymous login

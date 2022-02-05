@@ -70,7 +70,7 @@ The linWinPwn script contains 4 modules that can be used either separately or si
 
 [![asciicast](https://asciinema.org/a/464901.svg)](https://asciinema.org/a/464901)
 
-### Use cases
+## Use cases
 
 For each of the cases described, the linWinPwn script performs different checks as shown below.
 
@@ -129,7 +129,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 ./linWinPwn.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -S <domain_servers_list>
 ```
 
-### Credits
+## Credits
 
 - [S3cur3Th1sSh1t](https://github.com/S3cur3Th1sSh1t) - WinPwn
 - [SecureAuth](https://github.com/SecureAuthCorp) - impacket
@@ -144,6 +144,6 @@ For each of the cases described, the linWinPwn script performs different checks 
 - [zyn3rgy](https://github.com/zyn3rgy) - LdapRelayScan
 - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
 
-### Legal Disclamer
+## Legal Disclamer
 
 Usage of linWinPwn for attacking targets without prior mutual consent is illegal. It's the end user's responsibility to obey all applicable local, state and federal laws. Developers assume no liability and are not responsible for any misuse or damage caused by this program. Only use for educational purposes.
