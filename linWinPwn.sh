@@ -6,7 +6,7 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - version 0.1.3 (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.1.4 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 #
@@ -52,7 +52,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.1.1
+      ${BLUE}linWinPwn: ${CYAN} version 0.1.4
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey
 ${NC}
@@ -203,7 +203,7 @@ prepare (){
     fi
 
     if [ "${nullsess_bool}" == false ] ; then
-        auth_check=$(${crackmapexec} smb ${target_dc} ${argument_cme} | grep "\[-\]")
+        auth_check=$(${crackmapexec} smb ${target} ${argument_cme} | grep "\[-\]")
         if [ ! -z "$auth_check" ] ; then
             echo -e "${RED}[-] Authentication failed! Please check your credentials and try again... ${NC}"
             exit 1
@@ -226,10 +226,12 @@ dns_enum () {
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] adidnsdump requires credentials${NC}"
             echo ${dc_ip} >> ${servers_ip_list}
+            echo ${dc_ip} >> ${dc_ip_list}
             echo ${dc_FQDN} >> ${dc_hostname_list}
         elif [ "${kerb_bool}" == true ] ; then
             echo -e "${PURPLE}[-] adidnsdump does not support kerberos tickets${NC}"
             echo ${dc_ip} >> ${servers_ip_list}
+            echo ${dc_ip} >> ${dc_ip_list}
             echo ${dc_FQDN} >> ${dc_hostname_list}
         else
             ${adidnsdump} ${argument_ldapdns} --dns-tcp ${dc_ip}
@@ -388,7 +390,7 @@ ad_enum () {
             echo -e "${CYAN}[*] users enum ${NC}"
             ${crackmapexec} smb ${target} ${argument_cme} --users > ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt
             /bin/cat ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt 2>&1
-        fi         
+        fi
         echo -e "${CYAN}[*] spooler check ${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M spooler 2>/dev/null | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
         echo -e "${CYAN}[*] webdav check ${NC}"
