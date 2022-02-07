@@ -21,6 +21,10 @@ install_tools() {
     pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute certipy \
     git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump git+https://github.com/zer1t0/certi.git --upgrade
     
+    gunzip /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt.tar.gz
+    tar xf /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt.tar -C /usr/share/seclists/Passwords/Leaked-Databases/
+    chmod 644 /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt
+
 	echo -e "\tgMSADumper"
 	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./gMSADumper.py
 	echo -e "\tLdapRelayScan"

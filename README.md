@@ -6,12 +6,19 @@ linWinPwn is a bash script that automates a number of Active Directory Enumerati
 
 ## Setup
 
-Git clone the repository and run the setup script
+Git clone the repository and run the `setup` script
 
 ```bash
 git clone https://github.com/lefayjey/linWinPwn
 cd linWinPwn; chmod +x setup.sh; chmod +x linWinPwn.sh
 sudo ./setup.sh
+```
+
+If you're having DNS issues, run the `update_dns` script
+*WARNING: The script will update /etc/resolv.conf, make sure to backup it before running the script*
+```bash
+chmod +x update_dns.sh
+sudo ./update_dns.sh <DC_IP>
 ```
 
 ## Usage

@@ -26,7 +26,7 @@ user=""
 password=""
 modules="ad_enum,kerberos"
 output_dir="."
-pass_list="/usr/share/wordlists/rockyou.txt"
+pass_list="/usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt"
 users_list="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
 opsec_bool=false
 

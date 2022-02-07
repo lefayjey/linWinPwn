@@ -6,9 +6,9 @@
 # Please backup /etc/resolv.conf before execution and then revert it in case of issues
 
 if [ -z "$1" ]; then
-    echo "IP of Domain Controller/DNS server not supplied"
-    echo "Usage: $0 <IP>"
-    exit
+  echo "IP of Domain Controller/DNS server not supplied"
+  echo "Usage: $0 <IP>"
+  exit
 fi
 
 if [ "$EUID" -ne 0 ]; then
