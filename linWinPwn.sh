@@ -6,7 +6,7 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - version 0.1.2 (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.1.3 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 #
@@ -202,6 +202,14 @@ prepare (){
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     fi
 
+    if [ "${nullsess_bool}" == false ] ; then
+        auth_check=$(${crackmapexec} smb ${target_dc} ${argument_cme} | grep "\[-\]")
+        if [ ! -z "$auth_check" ] ; then
+            echo -e "${RED}[-] Authentication failed! Please check your credentials and try again... ${NC}"
+            exit 1
+        fi
+    fi
+    
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${dc_FQDN}"
     echo -e "${YELLOW}[i]${NC} Running modules: ${modules}"
     echo -e ""
