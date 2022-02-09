@@ -748,7 +748,6 @@ mssql_enum () {
         for i in $(/bin/cat ${sql_hostname_list}); do
             grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
         done
-        fi
     fi
     echo -e ""
 
