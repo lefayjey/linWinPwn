@@ -43,7 +43,7 @@ kerbrute=$(which kerbrute)
 adidnsdump=$(which adidnsdump)
 certi_py=$(which certi.py)
 certipy=$(which certipy)
-scripts_dir="."
+scripts_dir="./Scripts"
 
 print_banner () {
     echo -e "
