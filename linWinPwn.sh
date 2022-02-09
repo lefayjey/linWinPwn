@@ -132,15 +132,6 @@ prepare (){
     hash_bool=false
     kerb_bool=false
 
-    output_dir="${output_dir}/linWinPwn_$(date +%Y%m%d%H%M%S)"
-
-    servers_ip_list="${output_dir}/DomainRecon/ip_list_${dc_domain}.txt"
-    dc_ip_list="${output_dir}/DomainRecon/ip_list_dc_${dc_domain}.txt"
-    sql_ip_list="${output_dir}/DomainRecon/ip_list_sql_${dc_domain}.txt"
-    dc_hostname_list="${output_dir}/DomainRecon/server_list_dc_${dc_domain}.txt"
-    sql_hostname_list="${output_dir}/DomainRecon/server_list_sql_${dc_domain}.txt"
-    dns_records="${output_dir}/DomainRecon/dns_records_${dc_domain}.csv"
-
     #Check if null session is used
     if [ "${user}" == "" ]  && [ "${password}" == "" ]; then
         nullsess_bool=true
@@ -221,6 +212,15 @@ prepare (){
         fi
     fi
     
+    output_dir="${output_dir}/linWinPwn_$(date +%Y%m%d%H%M%S)_${dc_domain}_${user}"
+
+    servers_ip_list="${output_dir}/DomainRecon/ip_list_${dc_domain}.txt"
+    dc_ip_list="${output_dir}/DomainRecon/ip_list_dc_${dc_domain}.txt"
+    sql_ip_list="${output_dir}/DomainRecon/ip_list_sql_${dc_domain}.txt"
+    dc_hostname_list="${output_dir}/DomainRecon/server_list_dc_${dc_domain}.txt"
+    sql_hostname_list="${output_dir}/DomainRecon/server_list_sql_${dc_domain}.txt"
+    dns_records="${output_dir}/DomainRecon/dns_records_${dc_domain}.csv"
+
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${dc_FQDN}"
     echo -e "${YELLOW}[i]${NC} Running modules: ${modules}"
     echo -e ""
@@ -265,11 +265,11 @@ main () {
     echo -e ""
 
     prepare
-    dns_enum
 
     for i in $(echo $modules | sed "s/,/ /g"); do
         case $i in
             ad_enum)
+            dns_enum
             echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
             echo -e "${GREEN}------------------------------------------------${NC}"
             echo -e ""
@@ -286,6 +286,7 @@ main () {
             ;;
 
             scan_servers)
+            dns_enum
             echo -e "${GREEN}[+] Module Started: SMB Shares and RPC Scan${NC}"
             echo -e "${GREEN}-------------------------------------------${NC}"
             echo -e ""
@@ -293,6 +294,7 @@ main () {
             ;;
 
             pwd_dump)
+            dns_enum
             echo -e "${GREEN}[+] Module Started: Password Dump${NC}"
             echo -e "${GREEN}---------------------------------${NC}"
             echo -e ""
@@ -300,6 +302,7 @@ main () {
             ;;
 
             mssql_enum)
+            dns_enum
             echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
             echo -e "${GREEN}-------------------------------------${NC}"
             echo -e ""
@@ -308,6 +311,7 @@ main () {
             ;;
 
             all)
+            dns_enum
             echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
             echo -e "${GREEN}------------------------------------------------${NC}"
             echo -e ""
@@ -331,6 +335,7 @@ main () {
             ;;
 
             user)
+            dns_enum
             echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
             echo -e "${GREEN}------------------------------------------------${NC}"
             echo -e ""
@@ -370,8 +375,7 @@ ad_enum () {
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
     else
         current_dir=$(pwd)
-        mkdir -p ${output_dir}/DomainRecon/BloodHound/${dc_domain}
-        cd ${output_dir}/DomainRecon/BloodHound/${dc_domain}
+        cd ${output_dir}/DomainRecon/BloodHound
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
         elif [ "${opsec_bool}" == true ] ; then
@@ -388,13 +392,12 @@ ad_enum () {
     if [ ! -f "${ldapdomaindump}" ] ; then
         echo -e "${RED}[-] Please verify the installation of ldapdomaindump${NC}"
     else
-        mkdir -p ${output_dir}/DomainRecon/LDAPDump/${dc_domain}
         if [ "${nullsess_bool}" == true ] ; then
-            ${ldapdomaindump} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDump/${dc_domain} 2>/dev/null
+            ${ldapdomaindump} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDump 2>/dev/null
         elif [ "${kerb_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] ldapdomain does not support kerberos tickets${NC}"
         else
-            ${ldapdomaindump} ${argument_ldapdns} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDump/${dc_domain} 2>/dev/null
+            ${ldapdomaindump} ${argument_ldapdns} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDump 2>/dev/null
         fi
 
         #Parsing user and computer lists
@@ -738,18 +741,17 @@ pwd_dump () {
 
 mssql_enum () {
     if [ ! -f "${scripts_dir}/windapsearch.py" ] || [ ! -f "${impacket_dir}/GetUserSPNs.py" ]; then
-        echo -e "${RED}[-] Please verify the installation of windapsearch${NC}"
+        echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
     else
         if  [ "${kerb_bool}" == false ] && [ "${hash_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
             ${python} ${scripts_dir}/windapsearch.py ${argument_windap} --dc-ip ${dc_ip} --custom "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
-        else
+        elif [ "${nullsess_bool}" == false ]; then
             ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
+            for i in $(/bin/cat ${sql_hostname_list}); do
+                grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
+            done
         fi
-        for i in $(/bin/cat ${sql_hostname_list}); do
-            grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
-        done
     fi
-    echo -e ""
 
     echo -e "${BLUE}[*] MSSQL enum${NC}"
     if [ ! -f "${crackmapexec}" ] ; then
