@@ -14,11 +14,11 @@ if [ "$EUID" -ne 0 ]
 fi
 
 install_tools() {
-    apt install python3 python3-dev python3-pip python3-venv nmap smbmap john git seclists -y
+    apt install python3 python3-dev python3-pip python3-venv nmap smbmap john git seclists libsasl2-dev libldap2-dev -y
     
     python3 -m pip install --upgrade pip
     
-    pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute \
+    pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute python-ldap \
     git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump git+https://github.com/zer1t0/certi.git \
     git+https://github.com/ly4k/Certipy.git --upgrade
     
@@ -30,6 +30,8 @@ install_tools() {
 	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./gMSADumper.py
 	echo -e "\tLdapRelayScan"
 	wget -q "https://raw.githubusercontent.com/zyn3rgy/LdapRelayScan/main/LdapRelayScan.py" -O ./LdapRelayScan.py
+	echo -e "\twindapsearch"
+	wget -q "https://raw.githubusercontent.com/ropnop/windapsearch/master/windapsearch.py" -O ./windapsearch.py
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Intalling tools failed.. exiting script!\n"; exit 1; }

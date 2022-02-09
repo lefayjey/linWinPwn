@@ -32,13 +32,13 @@ The linWinPwn script contains 4 modules that can be used either separately or si
 ./linWinPwn.sh -O -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
 ```
 
-**User modules: ad_enum,kerberos,scan_servers**
+**User modules: ad_enum,kerberos,scan_servers,mssql_enum**
 
 ```bash
 ./linWinPwn.sh -M user -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
 ```
 
-**All modules: ad_enum,kerberos,scan_servers,pwd_dump**
+**All modules: ad_enum,kerberos,scan_servers,mssql_enum,pwd_dump**
 
 ```bash
 ./linWinPwn.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
@@ -60,6 +60,12 @@ The linWinPwn script contains 4 modules that can be used either separately or si
 
 ```bash
 ./linWinPwn.sh -M scan_servers -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
+```
+
+**Module mssql_enum:** MSSQL Enumeration
+
+```bash
+./linWinPwn.sh -M mssql_enum -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
 **Module pwd_dump:** Password Dump
@@ -111,7 +117,6 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Check for zerologon, petitpotam, nopac weaknesses
     - Extract ADCS information using certipy
     - Check if ldap-signing is enforced, check for LDAP Relay
-    - Check mssql privilege escalation paths
     - Extraction of MachineAccountQuota of user, Password Policy and users' descriptions containing "pass"
     - LAPS and gMSA dump
 - Module kerberos
@@ -121,6 +126,8 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Module scan_servers
     - SMB shares enumeration on all domain servers
     - Enumeration for WebDav and Spooler services on all domain servers
+- Module mssql_enum
+    - Check mssql privilege escalation paths
 
 ```bash
 ./linWinPwn.sh -M user -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain>
@@ -145,11 +152,13 @@ For each of the cases described, the linWinPwn script performs different checks 
 - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump
 - [Hackndo](https://github.com/Hackndo) - lsassy
 - [TarlogicSecurity](https://github.com/TarlogicSecurity) - kerbrute
-- [zer1t0](https://github.com/zer1t0) - certipy
+- [zer1t0](https://github.com/zer1t0) - certi.py
+- [ly4k](https://github.com/ly4k)- Certipy
 - [micahvandeusen](https://github.com/micahvandeusen) - gMSADumper
 - [n00py](https://github.com/n00py/) - LAPSDumper
 - [zyn3rgy](https://github.com/zyn3rgy) - LdapRelayScan
 - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
+- [ropnop](https://github.com/ropnop) - windapsearch
 
 ## Legal Disclamer
 

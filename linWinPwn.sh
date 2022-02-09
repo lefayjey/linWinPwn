@@ -6,7 +6,7 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - version 0.1.6 (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.1.7 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 #
@@ -53,7 +53,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.1.6
+      ${BLUE}linWinPwn: ${CYAN} version 0.1.7
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey
 ${NC}
@@ -70,7 +70,7 @@ help_linWinPwn () {
     echo -e "-u     Username (default: Guest)"
     echo -e "-p     Password or LM:NT Hash or location to Kerberos ticket './krb5cc_ticket' (default: empty)" 
     echo -e "-M     Comma separated modules to run (default: ad_enum,kerberos)"
-    echo -e "       ${CYAN}Modules available:${NC} ad_enum, kerberos, scan_servers, pwd_dump, user, all"
+    echo -e "       ${CYAN}Modules available:${NC} ad_enum, kerberos, scan_servers, pwd_dump, mssql_enum, user, all"
     echo -e "-o     Output directory (default: current dir)"
     echo -e ""
     echo -e "${YELLOW}Additional parameters${NC}"
@@ -159,6 +159,7 @@ prepare (){
         argument_smbmap="-d ${domain} -u ${user} -p ''"
         argument_imp="${domain}/${user}:''"
         argument_bhd="-u ${user}@${domain} -p ''"
+        argument_windap="-u ${user}@${domain} -p ''"
         argument_gMSA="-d ${domain} -u ${user} -p ''"
         argument_LRS="-u ${user} -p ''"
         argument_certipy="${domain}/${user}:''@${target}"
@@ -204,6 +205,7 @@ prepare (){
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
         argument_imp="${domain}/${user}:${password}"
         argument_bhd="-u ${user}@${domain} -p ${password}"
+        argument_windap="-u ${user}@${domain} -p ${password}"
         argument_gMSA="-d ${domain} -u ${user} -p ${password}"
         argument_LRS="-u ${user} -p ${password}"
         argument_certipy="${domain}/${user}:${password}@${target}"
@@ -248,10 +250,6 @@ dns_enum () {
             /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${servers_ip_list}
             /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "A," | cut -d "," -f 3 >> ${dc_ip_list}
             /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "NS," | cut -d "," -f 3 >> ${dc_hostname_list}
-            ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
-            for i in $(/bin/cat ${sql_hostname_list}); do
-                grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
-            done
         fi
     else
         echo -e "${YELLOW}[i] DNS dump found ${NC}"
@@ -301,6 +299,14 @@ main () {
             pwd_dump
             ;;
 
+            mssql_enum)
+            echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
+            echo -e "${GREEN}-------------------------------------${NC}"
+            echo -e ""
+            mssql_enum
+            echo -e ""
+            ;;
+
             all)
             echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
             echo -e "${GREEN}------------------------------------------------${NC}"
@@ -314,6 +320,10 @@ main () {
             echo -e "${GREEN}-------------------------------------------${NC}"
             echo -e ""
             scan_servers
+            echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
+            echo -e "${GREEN}-------------------------------------${NC}"
+            echo -e ""
+            mssql_enum
             echo -e "${GREEN}[+] Module Started: Password Dump${NC}"
             echo -e "${GREEN}---------------------------------${NC}"
             echo -e ""
@@ -333,6 +343,10 @@ main () {
             echo -e "${GREEN}-------------------------------------------${NC}"
             echo -e ""
             scan_servers
+            echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
+            echo -e "${GREEN}-------------------------------------${NC}"
+            echo -e ""
+            mssql_enum
             ;;
 
             *)
@@ -435,8 +449,6 @@ ad_enum () {
         ${crackmapexec} ldap ${target_dc} ${argument_cme} -M ldap-signing --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
         echo -e "${CYAN}[*] Trusted-for-delegation check ${NC}"
         ${crackmapexec} ldap ${target_dc} ${argument_cme} --trusted-for-delegation --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_trusted-for-delegation_output_${dc_domain}.txt 2>&1
-        echo -e "${CYAN}[*] mssql_priv check ${NC}"
-        ${crackmapexec} mssql ${sql_ip_list} ${argument_cme} -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
     fi
     echo -e ""
 
@@ -724,4 +736,29 @@ pwd_dump () {
     fi
 }
 
+mssql_enum () {
+    if [ ! -f "${scripts_dir}/windapsearch.py" ] || [ ! -f "${impacket_dir}/GetUserSPNs.py" ]; then
+        echo -e "${RED}[-] Please verify the installation of windapsearch${NC}"
+    else
+        if  [ "${kerb_bool}" == false ] && [ "${hash_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
+            ${python} ${scripts_dir}/windapsearch.py ${argument_windap} --dc-ip ${dc_ip} --custom "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
+        else
+            ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
+        fi
+        for i in $(/bin/cat ${sql_hostname_list}); do
+            grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
+        done
+        fi
+    fi
+    echo -e ""
+
+    echo -e "${BLUE}[*] MSSQL enum${NC}"
+    if [ ! -f "${crackmapexec}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of crackmapexec${NC}"
+    else
+       echo -e "${CYAN}[*] mssql_priv check ${NC}"
+        ${crackmapexec} mssql ${sql_ip_list} ${argument_cme} -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+    fi
+    echo -e ""
+}
 main
