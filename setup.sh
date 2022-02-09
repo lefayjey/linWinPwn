@@ -18,12 +18,13 @@ install_tools() {
     
     python3 -m pip install --upgrade pip
     
-    pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute certipy \
-    git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump git+https://github.com/zer1t0/certi.git --upgrade
+    pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute \
+    git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump git+https://github.com/zer1t0/certi.git \
+    git+https://github.com/ly4k/Certipy.git --upgrade
     
-    gunzip /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt.tar.gz
-    tar xf /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt.tar -C /usr/share/seclists/Passwords/Leaked-Databases/
-    chmod 644 /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt
+    gunzip /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt.tar.gz 2>/dev/null
+    tar xf /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt.tar -C /usr/share/seclists/Passwords/Leaked-Databases/ 2>/dev/null
+    chmod 644 /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt 2>/dev/null
 
 	echo -e "\tgMSADumper"
 	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./gMSADumper.py

@@ -6,7 +6,7 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - version 0.1.4 (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.1.5 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 #
@@ -41,7 +41,8 @@ smbmap=$(which smbmap)
 nmap=$(which nmap)
 kerbrute=$(which kerbrute)
 adidnsdump=$(which adidnsdump)
-certipy=$(which certi.py)
+certi_py=$(which certi.py)
+certipy=$(which certipy)
 scripts_dir="."
 
 print_banner () {
@@ -52,7 +53,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.1.4
+      ${BLUE}linWinPwn: ${CYAN} version 0.1.5
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey
 ${NC}
@@ -143,19 +144,24 @@ prepare (){
     #Check if null session is used
     if [ "${user}" == "" ]  && [ "${password}" == "" ]; then
         nullsess_bool=true
-        argument_cme=""
-        argument_smbmap=""
         target=${dc_ip}
         target_dc=${dc_ip_list}
+        argument_cme=""
+        argument_smbmap=""
         echo -e "${YELLOW}[i]${NC} Authentication method: null session ${NC}"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain} ${NC}"
     #Check if empty password is used
     elif [ "${password}" == "" ]; then
-        argument_cme="-d ${domain} -u ${user} -p ''"
-        argument_smbmap="-d ${domain} -u ${user} -p ''"
-        argument_imp="${domain}/${user}:''"
         target=${dc_ip}
         target_dc=${dc_ip_list}
+        argument_cme="-d ${domain} -u ${user} -p ''"
+        argument_ldapdns="-u ${domain}\\${user} -p ''"
+        argument_smbmap="-d ${domain} -u ${user} -p ''"
+        argument_imp="${domain}/${user}:''"
+        argument_bhd="-u ${user}@${domain} -p ''"
+        argument_gMSA="-d ${domain} -u ${user} -p ''"
+        argument_LRS="-u ${user} -p ''"
+        argument_certipy="${domain}/${user}:''@${target}"
         echo -e "${YELLOW}[i]${NC} Authentication method: ${user} with empty password ${NC}"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain} ${NC}"
     #Check if NTLM hash is used, and complete with empty LM hash
@@ -164,6 +170,8 @@ prepare (){
         if [ "$(echo $password | cut -d ":" -f 1)" == "" ]; then
             password="aad3b435b51404eeaad3b435b51404ee"$password
         fi
+        target=${dc_ip}
+        target_dc=${dc_ip_list}
         argument_cme="-d ${domain} -u ${user} -H ${password}"
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
@@ -171,24 +179,26 @@ prepare (){
         argument_bhd="-u ${user}@${domain} --hashes ${password}"
         argument_gMSA="-d ${domain} -u ${user} -p ${password}"
         argument_LRS="-u ${user} -nthash $(echo ${password} | cut -d ':' -f 2)"
-        target=${dc_ip}
-        target_dc=${dc_ip_list}
+        argument_certipy="-u ${user}@${target} --hashes ${password}"
         echo -e "${YELLOW}[i]${NC} Authentication method: NTLM hash of ${user}"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     #Check if kerberos ticket is used
     elif [ -f "${password}" ] ; then
         kerb_bool=true
+        target=${dc_domain}
+        target_dc=${dc_hostname_list}
         export KRB5CCNAME=$(realpath $password)
         argument_cme="-d ${domain} -u ${user} -k"
         argument_imp="${domain}/${user} -k -no-pass"
         argument_bhd="-u ${user}@${domain} -k"
         argument_gMSA="-d ${domain} -u ${user} -k"
-        target=${dc_domain}
-        target_dc=${dc_hostname_list}
+        argument_certipy="-u ${user}@${target} -k -no-pass"
         kdc="$(echo $dc_FQDN | cut -d '.' -f 1)."
         echo -e "${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $password)"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     else
+        target=${dc_ip}
+        target_dc=${dc_ip_list}
         argument_cme="-d ${domain} -u ${user} -p ${password}"
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
@@ -196,8 +206,7 @@ prepare (){
         argument_bhd="-u ${user}@${domain} -p ${password}"
         argument_gMSA="-d ${domain} -u ${user} -p ${password}"
         argument_LRS="-u ${user} -p ${password}"
-        target=${dc_ip}
-        target_dc=${dc_ip_list}
+        argument_certipy="${domain}/${user}:${password}@${target}"
         echo -e "${YELLOW}[i]${NC} Authentication: password of ${user}"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     fi
@@ -429,7 +438,7 @@ ad_enum () {
     fi
     echo -e ""
 
-    echo -e "${BLUE}[*] impacket enum${NC}"
+    echo -e "${BLUE}[*] impacket findDelegation enum${NC}"
     if [ ! -f "${impacket_dir}/findDelegation.py" ] ; then
         echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     else
@@ -461,20 +470,20 @@ ad_enum () {
         echo -e "${RED}[-] Please verify the location of LdapRelayScan.py${NC}"
     else
         if [ "${nullsess_bool}" == true ] ; then
-            ${python} ${scripts_dir}/LdapRelayScan.py -method LDAPS -dc-ip ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
+            ${python} ${scripts_dir}/LdapRelayScan.py -method LDAPS -dc-ip ${dc_ip} 2>/dev/null | tee ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
         elif [ "${kerb_bool}" == true ] ; then
             echo -e "${PURPLE}[-] LdapRelayScan does not support kerberos tickets${NC}"
         else
-            ${python} ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} ${argument_LRS} 2>/dev/null > ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
+            ${python} ${scripts_dir}/LdapRelayScan.py -method BOTH -dc-ip ${dc_ip} ${argument_LRS} 2>/dev/null | tee ${output_dir}/DomainRecon/LdapRelayScan_${dc_domain}.txt
         fi
     fi
     echo -e ""
 
-    echo -e "${BLUE}[*] certipy enum${NC}"
-    if [[ ! -f "${certipy}" ]] && [[ ! -f "${impacket_dir}/getTGT.py)" ]] ; then
-        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    echo -e "${BLUE}[*] certi.py enum${NC}"
+    if [[ ! -f "${certi_py}" ]] && [[ ! -f "${impacket_dir}/getTGT.py)" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certi.py${NC}"
     elif [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+        echo -e "${PURPLE}[-] certi.py requires credentials${NC}"
     else
         if  [ "${kerb_bool}" == false ] ; then
             current_dir=$(pwd)
@@ -483,9 +492,22 @@ ad_enum () {
             cd ${current_dir}
             export KRB5CCNAME="${output_dir}/${user}.ccache"
         fi
-        ${certipy} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class ca 2>/dev/null | tee ${output_dir}/DomainRecon/certipy_CA_output_${dc_domain}.txt
-        ${certipy} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class service 2>/dev/null | tee ${output_dir}/DomainRecon/certipy_CAServices_output_${dc_domain}.txt
-        ${certipy} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --vuln --enable 2>/dev/null | tee ${output_dir}/DomainRecon/certipy_vulntemplates_output_${dc_domain}.txt
+        ${certi_py} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class ca | tee ${output_dir}/DomainRecon/certi.py_CA_output_${dc_domain}.txt
+        ${certi_py} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class service | tee ${output_dir}/DomainRecon/certi.py_CAServices_output_${dc_domain}.txt
+        ${certi_py} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --vuln --enabled | tee ${output_dir}/DomainRecon/certi.py_vulntemplates_output_${dc_domain}.txt
+    fi
+    echo -e ""
+
+    echo -e "${BLUE}[*] Certipy enum${NC}"
+    if [[ ! -f "${certipy}" ]]  ; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    elif [ "${nullsess_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+    else
+        ${certipy} ${argument_certipy} find -vulnerable 2>/dev/null | tee ${output_dir}/DomainRecon/certipy_vuln_output_${dc_domain}.txt
+        ${certipy} ${argument_certipy} find -scheme ldap -vulnerable | tee -a ${output_dir}/DomainRecon/certipy_vuln_output_${dc_domain}.txt
+        ${certipy} ${argument_certipy} find 2>/dev/null > ${output_dir}/DomainRecon/certipy_all_output_${dc_domain}.txt
+        ${certipy} ${argument_certipy} find -scheme ldap >> ${output_dir}/DomainRecon/certipy_all_output_${dc_domain}.txt
     fi
     echo -e ""
 }
