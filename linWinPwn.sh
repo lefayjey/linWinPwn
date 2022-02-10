@@ -70,7 +70,7 @@ help_linWinPwn () {
     echo -e "-u     Username (default: Guest)"
     echo -e "-p     Password or LM:NT Hash or location to Kerberos ticket './krb5cc_ticket' (default: empty)" 
     echo -e "-M     Comma separated modules to run (default: ad_enum,kerberos)"
-    echo -e "       ${CYAN}Modules available:${NC} ad_enum, kerberos, scan_shares, pwd_dump, vuln_check, mssql_enum, user, all"
+    echo -e "       ${CYAN}Modules available:${NC} ad_enum, kerberos, scan_shares, vuln_checks, mssql_enum, pwd_dump, user, all"
     echo -e "-o     Output directory (default: current dir)"
     echo -e ""
     echo -e "${YELLOW}Additional parameters${NC}"
@@ -344,12 +344,12 @@ main () {
             echo -e ""
             ;;
 
-            vuln_check)
+            vuln_checks)
             dns_enum
             echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
             echo -e "${GREEN}----------------------------------------${NC}"
             echo -e ""
-            vuln_check
+            vuln_checks
             echo -e ""
             ;;
 
@@ -370,7 +370,7 @@ main () {
             echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
             echo -e "${GREEN}----------------------------------------${NC}"
             echo -e ""
-            vuln_check
+            vuln_checks
             echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
             echo -e "${GREEN}-------------------------------------${NC}"
             echo -e ""
@@ -398,7 +398,7 @@ main () {
             echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
             echo -e "${GREEN}----------------------------------------${NC}"
             echo -e ""
-            vuln_check
+            vuln_checks
             echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
             echo -e "${GREEN}-------------------------------------${NC}"
             echo -e ""
@@ -771,7 +771,7 @@ mssql_enum () {
     echo -e ""
 }
 
-vuln_check () {
+vuln_checks () {
     mkdir -p ${output_dir}/Vulns
     nmap_scan
 
