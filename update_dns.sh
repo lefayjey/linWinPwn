@@ -20,3 +20,5 @@ sed -i '/^#/! s/^/#/g' /etc/resolv.conf
 echo -e "nameserver $1" >> /etc/resolv.conf
 
 sed -i "s/^DNS_SERVER.*/DNS_SERVER=\${PROXYRESOLV_DNS:-$1}/g" /usr/lib/proxychains3/proxyresolv
+
+ntpdate $1

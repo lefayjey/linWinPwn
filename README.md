@@ -32,13 +32,13 @@ The linWinPwn script contains 4 modules that can be used either separately or si
 ./linWinPwn.sh -O -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
 ```
 
-**User modules: ad_enum,kerberos,scan_servers,mssql_enum**
+**User modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum**
 
 ```bash
 ./linWinPwn.sh -M user -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
 ```
 
-**All modules: ad_enum,kerberos,scan_servers,mssql_enum,pwd_dump**
+**All modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum,pwd_dump**
 
 ```bash
 ./linWinPwn.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
@@ -56,10 +56,16 @@ The linWinPwn script contains 4 modules that can be used either separately or si
 ./linWinPwn.sh -M kerberos -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
-**Module scan_servers:** SMB Shares and RPC Enumeration
+**Module scan_shares:** Network Shares Scan
 
 ```bash
-./linWinPwn.sh -M scan_servers -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
+./linWinPwn.sh -M scan_shares -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
+```
+
+**Module vuln_checks:** Vulnerability Checks
+
+```bash
+./linWinPwn.sh -M vuln_checks -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]>  -t <Domain_Controller_IP_or_Target_Domain> -o <output_dir>
 ```
 
 **Module mssql_enum:** MSSQL Enumeration
@@ -92,15 +98,15 @@ For each of the cases described, the linWinPwn script performs different checks 
     - rid bruteforce
     - user enumeration
     - ldapdomaindump anonymous enumeration
-    - Enumeration for WebDav and Spooler services on DC
-    - Check for zerologon, petitpotam, nopac weaknesses
     - Check if ldap-signing is enforced, check for LDAP Relay
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
-- Module scan_servers
+- Module scan_shares
     - SMB shares anonymous enumeration on identified servers
+- Module vuln_checks
     - Enumeration for WebDav and Spooler services on identified servers
+    - Check for zerologon, petitpotam, nopac weaknesses
 
 ```bash
 ./linWinPwn.sh -M user -t <Domain_Controller_IP_or_Target_Domain>
@@ -113,8 +119,6 @@ For each of the cases described, the linWinPwn script performs different checks 
     - ldapdomaindump enumeration
     - Delegation information extraction
     - GPP Passwords extraction
-    - Enumeration for WebDav and Spooler services on DCs
-    - Check for zerologon, petitpotam, nopac weaknesses
     - Extract ADCS information using certipy
     - Check if ldap-signing is enforced, check for LDAP Relay
     - Extraction of MachineAccountQuota of user, Password Policy and users' descriptions containing "pass"
@@ -123,9 +127,11 @@ For each of the cases described, the linWinPwn script performs different checks 
     - kerbrute user=pass enumeration
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
-- Module scan_servers
+- Module scan_shares
     - SMB shares enumeration on all domain servers
+- Module vuln_checks
     - Enumeration for WebDav and Spooler services on all domain servers
+    - Check for zerologon, petitpotam, nopac weaknesses
 - Module mssql_enum
     - Check mssql privilege escalation paths
 
@@ -143,6 +149,9 @@ For each of the cases described, the linWinPwn script performs different checks 
 ./linWinPwn.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -S <domain_servers_list>
 ```
 
+## To Do
+Improve kerberos authentication support
+
 ## Credits
 
 - [S3cur3Th1sSh1t](https://github.com/S3cur3Th1sSh1t) - WinPwn
@@ -153,7 +162,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - [Hackndo](https://github.com/Hackndo) - lsassy
 - [TarlogicSecurity](https://github.com/TarlogicSecurity) - kerbrute
 - [zer1t0](https://github.com/zer1t0) - certi.py
-- [ly4k](https://github.com/ly4k)- Certipy
+- [ly4k](https://github.com/ly4k) - Certipy
 - [micahvandeusen](https://github.com/micahvandeusen) - gMSADumper
 - [n00py](https://github.com/n00py/) - LAPSDumper
 - [zyn3rgy](https://github.com/zyn3rgy) - LdapRelayScan

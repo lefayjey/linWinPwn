@@ -14,7 +14,7 @@ if [ "$EUID" -ne 0 ]
 fi
 
 install_tools() {
-    apt install python3 python3-dev python3-pip python3-venv nmap smbmap john git seclists libsasl2-dev libldap2-dev -y
+    apt install python3 python3-dev python3-pip python3-venv nmap smbmap john git seclists libsasl2-dev libldap2-dev ntpdate -y
     
     python3 -m pip install --upgrade pip
     
