@@ -18,9 +18,9 @@ install_tools() {
     
     python3 -m pip install --upgrade pip
     
-    pip3 install impacket bloodhound crackmapexec ldapdomaindump lsassy kerbrute python-ldap \
+    pip3 install impacket crackmapexec ldapdomaindump lsassy kerbrute python-ldap \
     git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump git+https://github.com/zer1t0/certi.git \
-    git+https://github.com/ly4k/Certipy.git --upgrade
+    git+https://github.com/ly4k/Certipy.git git+https://github.com/fox-it/BloodHound.py.git --upgrade
     
     gunzip /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt.tar.gz 2>/dev/null
     tar xf /usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt.tar -C /usr/share/seclists/Passwords/Leaked-Databases/ 2>/dev/null

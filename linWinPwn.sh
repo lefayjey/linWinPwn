@@ -6,7 +6,7 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - version 0.1.8 (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.1.9 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 #
@@ -53,7 +53,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.1.8
+      ${BLUE}linWinPwn: ${CYAN} version 0.1.9
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey
 ${NC}
@@ -152,6 +152,10 @@ prepare (){
         argument_smbmap=""
         echo -e "${YELLOW}[i]${NC} Authentication method: null session ${NC}"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain} ${NC}"
+    #Check if username is not provided
+    elif [ "${user}" == "" ]; then
+        echo -e "${RED}[i]${NC} Please specify username and try again..."
+        exit 1
     #Check if empty password is used
     elif [ "${password}" == "" ]; then
         target=${dc_ip}
@@ -170,7 +174,6 @@ prepare (){
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain} ${NC}"
     #Check if NTLM hash is used, and complete with empty LM hash
     elif ([ "${#password}" -eq 65 ] && [ "$(expr substr $password 33 1)" == ":" ]) || ([ "${#password}" -eq 33 ] && [ "$(expr substr $password 1 1)" == ":" ]) ; then
-        if [ "${user}" == "" ]; then echo -e "${RED}[i]${NC} Please specify username and try again..."; exit 1; fi
         hash_bool=true
         if [ "$(echo $password | cut -d ":" -f 1)" == "" ]; then
             password="aad3b435b51404eeaad3b435b51404ee"$password
@@ -190,7 +193,6 @@ prepare (){
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     #Check if kerberos ticket is used
     elif [ -f "${password}" ] ; then
-        if [ "${user}" == "" ]; then echo -e "${RED}[i]${NC} Please specify username and try again..."; exit 1; fi
         kerb_bool=true
         target=${dc_domain}
         target_dc=${dc_hostname_list}
@@ -205,7 +207,6 @@ prepare (){
         echo -e "${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $password)"
         echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     else
-        if [ "${user}" == "" ]; then echo -e "${RED}[i]${NC} Please specify username and try again..."; exit 1; fi
         target=${dc_ip}
         target_dc=${dc_ip_list}
         target_sql=${sql_ip_list}
@@ -563,10 +564,11 @@ ad_enum () {
     elif [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] certipy requires credentials${NC}"
     else
-        ${certipy} ${argument_certipy} -nameserver ${dc_ip} find -vulnerable 2>/dev/null | tee ${output_dir}/DomainRecon/certipy_vuln_output_${dc_domain}.txt
-        ${certipy} ${argument_certipy} -nameserver ${dc_ip} find -scheme ldap -vulnerable | tee -a ${output_dir}/DomainRecon/certipy_vuln_output_${dc_domain}.txt
-        ${certipy} ${argument_certipy} -nameserver ${dc_ip} find 2>/dev/null > ${output_dir}/DomainRecon/certipy_all_output_${dc_domain}.txt
-        ${certipy} ${argument_certipy} -nameserver ${dc_ip} find -scheme ldap >> ${output_dir}/DomainRecon/certipy_all_output_${dc_domain}.txt
+        current_dir=$(pwd)
+        cd ${output_dir}
+        ${certipy} find ${argument_certipy} -ns ${dc_ip} -dns-tcp 2>/dev/null | tee ${output_dir}/DomainRecon/certipy_output_${dc_domain}.txt
+        ${certipy} find ${argument_certipy} -ns ${dc_ip} -dns-tcp -scheme ldap | tee -a ${output_dir}/DomainRecon/certipy_output_${dc_domain}.txt
+        cd ${current_dir}
     fi
     echo -e ""
 }
