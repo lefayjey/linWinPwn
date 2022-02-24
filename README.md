@@ -6,12 +6,28 @@ linWinPwn is a bash script that automates a number of Active Directory Enumerati
 
 ## Setup
 
-Git clone the repository and run the `setup` script
+Git clone the repository and make the script executable
 
 ```bash
 git clone https://github.com/lefayjey/linWinPwn
-cd linWinPwn; chmod +x setup.sh; chmod +x linWinPwn.sh
-sudo ./setup.sh
+cd linWinPwn; chmod +x linWinPwn.sh
+```
+
+Install Linux and Python packages
+
+```bash
+sudo apt update
+sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate -y
+sudo pip install -r requirements.txt
+wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./Scripts/gMSADumper.py
+wget -q "https://raw.githubusercontent.com/zyn3rgy/LdapRelayScan/main/LdapRelayScan.py" -O ./Scripts/LdapRelayScan.py
+wget -q "https://raw.githubusercontent.com/ropnop/windapsearch/master/windapsearch.py" -O ./Scripts/windapsearch.py
+```
+
+On non-Kali machines, uncomment the lines under `#Non-Kali variables` and run the following commands
+```bash
+sudo pip install impacket crackmapexec
+mkdir -p wordlists && wget https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Leaked-Databases/rockyou.txt.tar.gz -O ./wordlists/rockyou.txt.tar.gz && gunzip ./wordlists/rockyou.txt.tar.gz && tar xf ./wordlists/rockyou.txt.tar -C ./wordlists/ && chmod 644 ./wordlists/rockyou.txt && rm ./wordlists/rockyou.txt.tar && wget https://raw.githubusercontent.com/danielmiessler/SecLists/master/Usernames/cirt-default-usernames.txt -O ./wordlists/cirt-default-usernames.txt
 ```
 
 If you're having DNS issues, run the `update_dns` script

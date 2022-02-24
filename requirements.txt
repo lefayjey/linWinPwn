@@ -1,0 +1,8 @@
+ldapdomaindump
+lsassy
+kerbrute
+python-ldap
+git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump
+git+https://github.com/zer1t0/certi.git
+git+https://github.com/ly4k/Certipy.git
+git+https://github.com/fox-it/BloodHound.py.git

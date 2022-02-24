@@ -25,14 +25,14 @@ NC='\033[0m'
 user=""
 password=""
 modules="ad_enum,kerberos"
-output_dir="."
-pass_list="/usr/share/seclists/Passwords/Leaked-Databases/rockyou.txt"
+output_dir="$(pwd)"
+pass_list="/usr/share/wordlists/rockyou.txt"
 users_list="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
 opsec_bool=false
 
 #Tools variables
 python=$(which python3)
-impacket_dir="/usr/local/bin"
+impacket_dir="/usr/share/doc/python3-impacket/examples/"
 bloodhound=$(which bloodhound-python)
 ldapdomaindump=$(which ldapdomaindump)
 crackmapexec=$(which crackmapexec)
@@ -44,6 +44,11 @@ adidnsdump=$(which adidnsdump)
 certi_py=$(which certi.py)
 certipy=$(which certipy)
 scripts_dir="./Scripts"
+
+#Non-Kali variables - Uncomment if you're not using Kali
+#pass_list="./wordlists/rockyou.txt"
+#users_list="./wordlists/xato-net-10-million-usernames.txt"
+#impacket_dir="/usr/local/bin"
 
 print_banner () {
     echo -e "
@@ -110,7 +115,7 @@ prepare (){
     fi
 
     if [ ! -f "${crackmapexec}" ] ; then
-        echo -e "${RED}[-] Please run setup.sh and try again... ${NC}"
+        echo -e "${RED}[-] Please ensure crackmapexec is installed and try again... ${NC}"
         exit 1
     else
         dc_info=$(${crackmapexec} smb ${dc_ip})
@@ -565,7 +570,7 @@ ad_enum () {
         echo -e "${PURPLE}[-] certipy requires credentials${NC}"
     else
         current_dir=$(pwd)
-        cd ${output_dir}
+        cd ${output_dir}/DomainRecon
         ${certipy} find ${argument_certipy} -ns ${dc_ip} -dns-tcp 2>/dev/null | tee ${output_dir}/DomainRecon/certipy_output_${dc_domain}.txt
         ${certipy} find ${argument_certipy} -ns ${dc_ip} -dns-tcp -scheme ldap | tee -a ${output_dir}/DomainRecon/certipy_output_${dc_domain}.txt
         cd ${current_dir}
