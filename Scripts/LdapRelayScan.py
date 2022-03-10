@@ -103,7 +103,7 @@ def InternalDomainFromAnonymousLdap(nameserverIp):
     fqdn = ""
     for line in parsedServerInfo:
         if "$" in line:
-            fqdn = line.strip().split(":")[0]
+            fqdn = line.strip().split("@")[1]
     return fqdn
 
 

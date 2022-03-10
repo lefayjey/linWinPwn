@@ -6,7 +6,7 @@
 #     | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | |
 #     |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_|
 #
-# linWinPwn - version 0.1.9 (https://github.com/lefayjey/linWinPwn)
+# linWinPwn - version 0.2.0 (https://github.com/lefayjey/linWinPwn)
 # Author: lefayjey
 # Inspired by: S3cur3Th1sSh1t's WinPwn (https://github.com/S3cur3Th1sSh1t/WinPwn)
 #
@@ -58,7 +58,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.1.9
+      ${BLUE}linWinPwn: ${CYAN} version 0.2.0
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey
 ${NC}
@@ -138,7 +138,7 @@ prepare (){
     kerb_bool=false
 
     if [ "${user}" == "" ]; then user_out="null"; else user_out=${user}; fi
-    output_dir="${output_dir}/linWinPwn_$(date +%Y%m%d%H%M%S)_${dc_domain}_${user_out}"
+    output_dir="${output_dir}/linWinPwn_${dc_domain}_${user_out}"
 
     servers_ip_list="${output_dir}/DomainRecon/ip_list_${dc_domain}.txt"
     dc_ip_list="${output_dir}/DomainRecon/ip_list_dc_${dc_domain}.txt"
@@ -146,6 +146,14 @@ prepare (){
     dc_hostname_list="${output_dir}/DomainRecon/server_list_dc_${dc_domain}.txt"
     sql_hostname_list="${output_dir}/DomainRecon/server_list_sql_${dc_domain}.txt"
     dns_records="${output_dir}/DomainRecon/dns_records_${dc_domain}.csv"
+
+    if [ ! -f "${users_list}" ] ; then
+        echo -e "${RED}[-] Users list file not found${NC}"
+    fi
+
+    if [ ! -f "${pass_list}" ] ; then
+        echo -e "${RED}[-] Password list file not found${NC}"
+    fi
 
     #Check if null session is used
     if [ "${user}" == "" ]  && [ "${password}" == "" ]; then
@@ -279,21 +287,19 @@ nmap_scan () {
     echo -e "${BLUE}[*] nmap scan on port 445 ${NC}"
     if [ ! -f "${nmap}" ]; then
         echo -e "${RED}[-] Please verify the installation of nmap ${NC}"
-    else
-        if [ -z "${servers_list}" ] ; then
-            servers_smb_list="${output_dir}/Scans/servers_list_smb_${dc_domain}.txt"
-            if [ ! -f "${servers_smb_list}" ]; then
-                ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt 1>/dev/null 2>&1
-                grep -a "open" ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
-            else
-                echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
-            fi
+    elif [ -z "${servers_list}" ] ; then
+        servers_smb_list="${output_dir}/Scans/servers_list_smb_${dc_domain}.txt"
+        if [ ! -f "${servers_smb_list}" ]; then
+            ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt 1>/dev/null 2>&1
+            grep -a "open" ${output_dir}/Scans/nmap_smb_scan_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
         else
-            servers_ip_list="${servers_list}"
-            servers_smb_list="${output_dir}/Scans/servers_custom_list_smb_${dc_domain}.txt"
-            ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null 2>&1
-            grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
+            echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
         fi
+    else
+        servers_ip_list="${servers_list}"
+        servers_smb_list="${output_dir}/Scans/servers_custom_list_smb_${dc_domain}.txt"
+        ${nmap} -p 445 -Pn -sT -n -iL ${servers_ip_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null 2>&1
+        grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
     fi
     echo -e ""
 }
@@ -430,6 +436,8 @@ ad_enum () {
     echo -e "${BLUE}[*] BloodHound enum${NC}"
     if [ ! -f "${bloodhound}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
+    elif [ -n "$(ls -A ${output_dir}/DomainRecon/BloodHound/ 2>/dev/null)" ] ; then
+        echo -e "${YELLOW}[i] BloodHound results found ${NC}"
     else
         current_dir=$(pwd)
         cd ${output_dir}/DomainRecon/BloodHound
@@ -448,6 +456,8 @@ ad_enum () {
     echo -e "${BLUE}[*] ldapdomain enum${NC}"
     if [ ! -f "${ldapdomaindump}" ] ; then
         echo -e "${RED}[-] Please verify the installation of ldapdomaindump${NC}"
+    elif [ -n "$(ls -A ${output_dir}/DomainRecon/LDAPDump/ 2>/dev/null)" ] ; then
+        echo -e "${YELLOW}[i] ldapdomain results found ${NC}"
     else
         if [ "${nullsess_bool}" == true ] ; then
             ${ldapdomaindump} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDump 2>/dev/null
@@ -492,7 +502,7 @@ ad_enum () {
         ${crackmapexec} ldap ${target} ${argument_cme} -M laps --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
         echo -e "${CYAN}[*] adcs check ${NC}"
         ${crackmapexec} ldap ${target} ${argument_cme} -M adcs --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_adcs_output_${dc_domain}.txt 2>&1
-        echo -e "${CYAN}[*] users description dump ${NC}"
+        echo -e "${CYAN}[*] users description containing word: pass${NC}"
         ${crackmapexec} ldap ${target} ${argument_cme} -M get-desc-users --kdcHost "${kdc}${dc_domain}" 2>/dev/null | grep -i "pass" | tee ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>&1
         echo -e "${CYAN}[*] get MachineAccountQuota ${NC}"
         ${crackmapexec} ldap ${target} ${argument_cme} -M MAQ --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
