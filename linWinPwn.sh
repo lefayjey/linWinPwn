@@ -107,6 +107,8 @@ while getopts ":d:u:p:t:M:o:U:P:S:Oh" opt; do
   esac
 done
 
+ntpdate $dc_ip
+
 prepare (){
     if [ -z "$dc_ip" ] ; then
         echo -e "${RED}[-] Missing target... ${NC}"
