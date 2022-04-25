@@ -45,10 +45,9 @@ certi_py=$(which certi.py)
 certipy=$(which certipy)
 scripts_dir="./Scripts"
 
-#Non-Kali variables - Uncomment if you're not using Kali
-#pass_list="./wordlists/rockyou.txt"
-#users_list="./wordlists/xato-net-10-million-usernames.txt"
-#impacket_dir="/usr/local/bin"
+#pass_list="./wordlists/rockyou.txt" #Non-Kali-variables
+#users_list="./wordlists/xato-net-10-million-usernames.txt" #Non-Kali-variables
+#impacket_dir="/usr/local/bin" #Non-Kali-variables
 
 print_banner () {
     echo -e "

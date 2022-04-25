@@ -13,28 +13,25 @@ git clone https://github.com/lefayjey/linWinPwn
 cd linWinPwn; chmod +x linWinPwn.sh
 ```
 
-Install Linux and Python packages
-
+Install requirements on Kali machines using the `install.sh` script
 ```bash
-sudo apt update
-sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate -y
-sudo pip install -r requirements.txt
-wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./Scripts/gMSADumper.py
-wget -q "https://raw.githubusercontent.com/zyn3rgy/LdapRelayScan/main/LdapRelayScan.py" -O ./Scripts/LdapRelayScan.py
-wget -q "https://raw.githubusercontent.com/ropnop/windapsearch/master/windapsearch.py" -O ./Scripts/windapsearch.py
+chmod +x install.sh
+sudo ./install.sh
 ```
 
-On non-Kali machines, uncomment the lines under `#Non-Kali variables` and run the following commands
+On non-Kali machines, run the `install_nonkali.sh` script instead
 ```bash
-sudo pip install impacket crackmapexec
-mkdir -p wordlists && wget https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Leaked-Databases/rockyou.txt.tar.gz -O ./wordlists/rockyou.txt.tar.gz && gunzip ./wordlists/rockyou.txt.tar.gz && tar xf ./wordlists/rockyou.txt.tar -C ./wordlists/ && chmod 644 ./wordlists/rockyou.txt && rm ./wordlists/rockyou.txt.tar && wget https://raw.githubusercontent.com/danielmiessler/SecLists/master/Usernames/cirt-default-usernames.txt -O ./wordlists/cirt-default-usernames.txt
+chmod +x install_nonkali.sh
+sudo ./install_nonkali.sh
 ```
 
-If you're having DNS issues, run the `update_dns` script
-*WARNING: The script will update /etc/resolv.conf, make sure to backup it before running the script*
+If you're having DNS issues or time sync errors, run the `configure.sh` script
+
+*WARNING: The script will update /etc/resolv.conf*
+
 ```bash
-chmod +x update_dns.sh
-sudo ./update_dns.sh <DC_IP>
+chmod +x configure.sh
+sudo ./configure.sh <DC_IP>
 ```
 
 ## Usage
@@ -42,10 +39,10 @@ sudo ./update_dns.sh <DC_IP>
 ### Modules
 The linWinPwn script contains 4 modules that can be used either separately or simultaneously.
 
-**Default (fastest): ad_enum,kerberos** with OPSEC safe checks using `-O` 
+**Default (fastest): ad_enum,kerberos** (Optional: run OPSEC safe checks only by using `-O`) 
 
 ```bash
-./linWinPwn.sh -O -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
+./linWinPwn.sh -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP> -o <output_dir>
 ```
 
 **User modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum**
@@ -164,9 +161,6 @@ For each of the cases described, the linWinPwn script performs different checks 
 ```bash
 ./linWinPwn.sh -M all -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -t <Domain_Controller_IP_or_Target_Domain> -S <domain_servers_list>
 ```
-
-## To Do
-Improve kerberos authentication support
 
 ## Credits
 
