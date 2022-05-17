@@ -207,7 +207,7 @@ if __name__ == '__main__':
 
 
     dcList = ResolveDCs(options.dc_ip, fqdn)
-    print("\n~Domain Controllers identifed~")
+    print("\n~Domain Controllers identified~")
     for dc in dcList:
         print("   " + dc)
 

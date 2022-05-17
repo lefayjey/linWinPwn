@@ -25,13 +25,13 @@ chmod +x install_nonkali.sh
 sudo ./install_nonkali.sh
 ```
 
-If you're having DNS issues or time sync errors, run the `configure.sh` script
+If you're having DNS issues or time sync errors, run the `configure.sh` script with `-d` for DNS update and `-n` for NTP sync
 
 *WARNING: The script will update /etc/resolv.conf*
 
 ```bash
 chmod +x configure.sh
-sudo ./configure.sh <DC_IP>
+sudo ./configure.sh -t <DC_IP> -d -n
 ```
 
 ## Usage
