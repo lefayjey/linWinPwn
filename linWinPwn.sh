@@ -601,7 +601,7 @@ asrep_attack () {
         if grep -q 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt; then
             echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
         else
-            /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
+            /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' | tee ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         fi
     fi 
     echo -e ""
@@ -1744,7 +1744,7 @@ main_menu () {
         ;;
 
         99)
-        break
+        exit 1
         ;;
 
         I)

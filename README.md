@@ -96,6 +96,10 @@ The linWinPwn script contains 4 modules that can be used either separately or si
 ## Demos
 - HackTheBox Forest
 
+Interactive Mode:
+[![asciicast](https://asciinema.org/a/499893.svg)](https://asciinema.org/a/499893)
+
+Automated Mode:
 [![asciicast](https://asciinema.org/a/464904.svg)](https://asciinema.org/a/464904)
 
 - TryHackme AttacktiveDirectory
@@ -161,6 +165,13 @@ For each of the cases described, the linWinPwn script performs different checks 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -M all
 ```
+
+## TO DO
+
+- Add tools: ntlmrelayx, krbrelayx.py, responder, ldap_shell, enum4linux-ng, mitm6, pywhisker, DNSUpdate
+- Add exploitation module: AD CS, RBCD, PetitPotam, PrinterBug/dementor, shadowcoerce, PrintNightmare, PrivExchange, shadowcredentials, targetedKerberoast
+- Add persistence module: GoldenTicket, SilverTicket, DCShadow, 
+- Add remote shell module: psexec, smbexec, wmiexec, scshell
 
 ## Credits
 
