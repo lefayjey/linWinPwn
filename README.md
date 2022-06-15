@@ -168,10 +168,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 
 ## TO DO
 
-- Add tools: ntlmrelayx, krbrelayx.py, responder, ldap_shell, enum4linux-ng, mitm6, pywhisker, DNSUpdate
-- Add exploitation module: AD CS, RBCD, PetitPotam, PrinterBug/dementor, shadowcoerce, PrintNightmare, PrivExchange, shadowcredentials, targetedKerberoast
-- Add persistence module: GoldenTicket, SilverTicket, DCShadow, 
-- Add remote shell module: psexec, smbexec, wmiexec, scshell
+- Add enumeration and exploitation tools...
 
 ## Credits
 

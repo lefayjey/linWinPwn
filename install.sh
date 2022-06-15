@@ -21,6 +21,9 @@ install_tools() {
 	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./Scripts/gMSADumper.py
 	wget -q "https://raw.githubusercontent.com/zyn3rgy/LdapRelayScan/main/LdapRelayScan.py" -O ./Scripts/LdapRelayScan.py
 	wget -q "https://raw.githubusercontent.com/ropnop/windapsearch/master/windapsearch.py" -O ./Scripts/windapsearch.py
+	wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O ./Scripts/enum4linux-ng.py
+    wget -q "https://github.com/login-securite/DonPAPI/archive/master.zip" -O /opt/DonPAPI.zip
+    unzip -o  /opt/DonPAPI.zip -d /opt/
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Intalling tools failed.. exiting script!\n"; exit 1; }

