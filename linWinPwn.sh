@@ -1,7 +1,7 @@
 #!/bin/bash
 # Title: linWinPwn
 # Author: lefayjey
-# Version: 0.3.3
+# Version: 0.3.4
 
 #Colors
 RED='\033[1;31m'
@@ -50,7 +50,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.3.3
+      ${BLUE}linWinPwn: ${CYAN} version 0.3.4
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -251,6 +251,10 @@ prepare (){
     mkdir -p ${output_dir}/Vulns
     mkdir -p /tmp/shared
     echo -e ""
+    
+    echo ${dc_ip} >> ${servers_ip_list}
+    echo ${dc_ip} >> ${dc_ip_list}
+    echo ${dc_FQDN} >> ${dc_hostname_list}
 }
 
 dns_enum () {
@@ -260,21 +264,15 @@ dns_enum () {
     elif [ ! -f "${dns_records}" ]; then
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] adidnsdump requires credentials${NC}"
-            echo ${dc_ip} >> ${servers_ip_list}
-            echo ${dc_ip} >> ${dc_ip_list}
-            echo ${dc_FQDN} >> ${dc_hostname_list}
         elif [ "${kerb_bool}" == true ] ; then
             echo -e "${PURPLE}[-] adidnsdump does not support kerberos tickets${NC}"
-            echo ${dc_ip} >> ${servers_ip_list}
-            echo ${dc_ip} >> ${dc_ip_list}
-            echo ${dc_FQDN} >> ${dc_hostname_list}
         else
             echo -e "${BLUE}[*] DNS dump using adidnsdump${NC}"
             ${adidnsdump} ${argument_ldapdns} --dns-tcp ${dc_ip}
             mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> ${servers_ip_list}
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "A," | cut -d "," -f 3 >> ${dc_ip_list}
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "NS," | cut -d "," -f 3 >> ${dc_hostname_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 > ${servers_ip_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "A," | cut -d "," -f 3 > ${dc_ip_list}
+            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "NS," | cut -d "," -f 3 > ${dc_hostname_list}
         fi
     else
         echo -e "${YELLOW}[i] DNS dump found ${NC}"
@@ -474,6 +472,7 @@ macq_enum () {
 ldapsign_enum () {
     echo -e "${BLUE}[*] LDAP-signing check${NC}"
     ${crackmapexec} ldap ${target_dc} ${argument_cme} -M ldap-signing --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target_dc} ${argument_cme} -M ldap-checker --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-checker_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1033,6 +1032,14 @@ petitpotam_check () {
     echo -e ""
 }
 
+dfscoerce_check () {
+    echo -e "${BLUE}[*] dfscoerce check ${NC}"
+    for i in $(/bin/cat ${target_dc}); do
+        ${crackmapexec} smb ${i} ${argument_cme} -M dfscoerce 2>/dev/null | tee -a ${output_dir}/Vulns/cme_dfscoerce_output_${dc_domain}.txt 2>&1
+    done
+    echo -e ""
+}
+
 zerologon_check () {
     echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
     ${crackmapexec} smb ${target} ${argument_cme} -M zerologon 2>/dev/null | tee ${output_dir}/Vulns/cme_zerologon_output_${dc_domain}.txt 2>&1
@@ -1069,6 +1076,20 @@ webdav_check () {
 
     echo -e "${BLUE}[*] WebDAV check ${NC}"
     ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M webdav 2>/dev/null | tee ${output_dir}/Vulns/cme_webdav_output_${dc_domain}.txt 2>&1
+    echo -e ""
+}
+
+shadowcoerce_check_dc () {
+    echo -e "${BLUE}[*] shadowcoerce check on DC${NC}"
+    ${crackmapexec} smb ${target_dc} ${argument_cme} -M shadowcoerce 2>/dev/null | tee ${output_dir}/Vulns/cme_shadowcoerce_output_${dc_domain}.txt 2>&1
+    echo -e ""
+}
+
+shadowcoerce_check () {
+    smb_scan
+
+    echo -e "${BLUE}[*] shadowcoerce check ${NC}"
+    ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M shadowcoerce 2>/dev/null | tee ${output_dir}/Vulns/cme_shadowcoerce_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1121,6 +1142,8 @@ vuln_checks () {
     zerologon_check
     spooler_check
     webdav_check
+    dfscoerce_check
+    shadowcoerce_check
 }
 
 print_info() {
@@ -1382,13 +1405,17 @@ vulns_menu () {
     echo -e "A) ALL VULNERABILITY CHECKS"
     echo -e "1) NoPac check"
     echo -e "2) PetitPotam check"
-    echo -e "3) zerologon check"
-    echo -e "4) Print Spooler check on Domain Controllers"
-    echo -e "5) Print Spooler check on all domain servers"
-    echo -e "6) Print Spooler check on custom list of servers"
-    echo -e "7) WebDAV check on Domain Controllers"
-    echo -e "8) WebDAV check on all domain servers"
-    echo -e "9) WebDAV check on custom list of servers"
+    echo -e "3) dfscoerce check"
+    echo -e "4) zerologon check"
+    echo -e "5) Print Spooler check on Domain Controllers"
+    echo -e "6) Print Spooler check on all domain servers"
+    echo -e "7) Print Spooler check on custom list of servers"
+    echo -e "8) WebDAV check on Domain Controllers"
+    echo -e "9) WebDAV check on all domain servers"
+    echo -e "10) WebDAV check on custom list of servers"
+    echo -e "11) shadowcoerce check on Domain Controllers"
+    echo -e "12) shadowcoerce check on all domain servers"
+    echo -e "13) shadowcoerce check on custom list of servers"   
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1410,24 +1437,29 @@ vulns_menu () {
         vulns_menu
         ;;
 
-        3)
+		3)
+        dfscoerce_check
+        vulns_menu
+        ;;
+        
+        4)
         zerologon_check
         vulns_menu
         ;;
 
-        4)
+        5)
         spooler_check_dc
         vulns_menu
         ;;
 
-		5)
+		6)
         dns_enum
         allservers_bool=true        
         spooler_check
         vulns_menu
         ;;
         
-        6)
+        7)
         dns_enum
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
@@ -1438,19 +1470,19 @@ vulns_menu () {
         vulns_menu
         ;;
 
-        7)
+        8)
         webdav_check_dc
         vulns_menu
         ;;
 
-        8)
+        9)
         dns_enum
         allservers_bool=true
         webdav_check
         vulns_menu
         ;;
 
-        9)
+        10)
         dns_enum
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
@@ -1458,6 +1490,29 @@ vulns_menu () {
             read -p ">> " servers_list </dev/tty
         fi
         webdav_check
+        vulns_menu
+        ;;
+
+        11)
+        shadowcoerce_check_dc
+        vulns_menu
+        ;;
+
+        12)
+        dns_enum
+        allservers_bool=true
+        shadowcoerce_check
+        vulns_menu
+        ;;
+
+        13)
+        dns_enum
+        allservers_bool=false
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+            echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
+            read -p ">> " servers_list </dev/tty
+        fi
+        shadowcoerce_check
         vulns_menu
         ;;
 
