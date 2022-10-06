@@ -13,17 +13,20 @@ if [ "$EUID" -ne 0 ]
     exit
 fi
 
+scripts_dir="/opt/lwp-scripts"
+mkdir -p ${scripts_dir}
+
 install_tools() {
     apt update
     apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate -y
     pip install -r requirements.txt
 
-	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O ./Scripts/gMSADumper.py
-	wget -q "https://raw.githubusercontent.com/zyn3rgy/LdapRelayScan/main/LdapRelayScan.py" -O ./Scripts/LdapRelayScan.py
-	wget -q "https://raw.githubusercontent.com/ropnop/windapsearch/master/windapsearch.py" -O ./Scripts/windapsearch.py
-	wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O ./Scripts/enum4linux-ng.py
-    wget -q "https://github.com/login-securite/DonPAPI/archive/master.zip" -O /opt/DonPAPI.zip
-    unzip -o  /opt/DonPAPI.zip -d /opt/
+	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O "$scripts_dir/gMSADumper.py"
+	wget -q "https://raw.githubusercontent.com/zyn3rgy/LdapRelayScan/main/LdapRelayScan.py" -O "$scripts_dir/LdapRelayScan.py"
+	wget -q "https://raw.githubusercontent.com/ropnop/windapsearch/master/windapsearch.py" -O "$scripts_dir/windapsearch.py"
+	wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
+    wget -q "https://github.com/login-securite/DonPAPI/archive/master.zip" -O "$scripts_dir/DonPAPI.zip"
+    unzip -o "$scripts_dir/DonPAPI.zip" -d $scripts_dir
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Intalling tools failed.. exiting script!\n"; exit 1; }

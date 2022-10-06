@@ -2,7 +2,7 @@
 
 ## Description
 
-linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump. 
+linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, and others. 
 
 ## Setup
 
@@ -37,7 +37,7 @@ sudo ./configure.sh -t <DC_IP> -d -n
 ## Usage
 
 ### Modules
-The linWinPwn script contains 4 modules that can be used either separately or simultaneously.
+The linWinPwn script contains 6 modules that can be used either separately or simultaneously.
 
 **Default: interactive** - Open interactive menu to run checks separately  
 
@@ -168,7 +168,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 
 ## TO DO
 
-- Add enumeration and exploitation tools...
+- Add more enumeration and exploitation tools...
 
 ## Credits
 

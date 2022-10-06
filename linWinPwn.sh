@@ -1,7 +1,7 @@
 #!/bin/bash
 # Title: linWinPwn
 # Author: lefayjey
-# Version: 0.3.2
+# Version: 0.3.3
 
 #Colors
 RED='\033[1;31m'
@@ -34,11 +34,12 @@ kerbrute=$(which kerbrute)
 adidnsdump=$(which adidnsdump)
 certi_py=$(which certi.py)
 certipy=$(which certipy)
-donpapi_dir="/opt/DonPAPI-main"
-scripts_dir="./Scripts"
+scripts_dir="/opt/lwp-scripts"
+wordlists_dir="/opt/lwp-wordlists"
+donpapi_dir="$scripts_dir/DonPAPI-main"
 
-#pass_list="./wordlists/rockyou.txt" #Non-Kali-variables
-#users_list="./wordlists/xato-net-10-million-usernames.txt" #Non-Kali-variables
+#pass_list="$wordlists_dir/rockyou.txt" #Non-Kali-variables
+#users_list="$wordlists_dir/xato-net-10-million-usernames.txt" #Non-Kali-variables
 #impacket_dir="/usr/local/bin" #Non-Kali-variables
 
 print_banner () {
@@ -49,7 +50,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.3.2
+      ${BLUE}linWinPwn: ${CYAN} version 0.3.3
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -69,8 +70,8 @@ help_linWinPwn () {
     echo -e ""
     echo -e ""
     echo -e "${YELLOW}Example usages${NC}"
-    echo -e "./$(basename "$0") -t dc_ip_or_target_domain ${CYAN}(No password for anonymous login)${NC}" >&2;
-    echo -e "./$(basename "$0") -t dc_ip_or_target_domain -d domain -u user -p password_or_hash_or_kerbticket" >&2;
+    echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain ${CYAN}(No password for anonymous login)${NC}" >&2;
+    echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain -d domain -u user -p password_or_hash_or_kerbticket" >&2;
     echo -e ""
 }
 
