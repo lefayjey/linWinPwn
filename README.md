@@ -122,8 +122,8 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Module scan_shares
     - SMB shares anonymous enumeration on identified servers
 - Module vuln_checks
-    - Enumeration for WebDav and Spooler services on identified servers
-    - Check for zerologon, petitpotam, nopac weaknesses
+    - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on identified servers
+    - Check for ms17-010, zerologon, petitpotam, nopac, ntlmv1, runasppl weaknesses
 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -M user
@@ -145,9 +145,10 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_shares
     - SMB shares enumeration on all domain servers
+    - KeePass files and processes discovery on all domain servers
 - Module vuln_checks
-    - Enumeration for WebDav and Spooler services on all domain servers
-    - Check for zerologon, petitpotam, nopac weaknesses
+    - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers
+    - Check for ms17-010, zerologon, petitpotam, nopac, ntlmv1, runasppl weaknesses
 - Module mssql_enum
     - Check mssql privilege escalation paths
 
@@ -178,14 +179,11 @@ For each of the cases described, the linWinPwn script performs different checks 
 - [Fox-IT](https://github.com/fox-it) - bloodhound-python
 - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump
 - [Hackndo](https://github.com/Hackndo) - lsassy
-- [TarlogicSecurity](https://github.com/TarlogicSecurity) - kerbrute
 - [zer1t0](https://github.com/zer1t0) - certi.py
 - [ly4k](https://github.com/ly4k) - Certipy
 - [micahvandeusen](https://github.com/micahvandeusen) - gMSADumper
-- [n00py](https://github.com/n00py/) - LAPSDumper
-- [zyn3rgy](https://github.com/zyn3rgy) - LdapRelayScan
 - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
-- [ropnop](https://github.com/ropnop) - windapsearch
+- [ropnop](https://github.com/ropnop) - windapsearch, kerbrute
 
 ## Legal Disclamer
 

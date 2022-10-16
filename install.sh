@@ -22,10 +22,12 @@ install_tools() {
     pip install -r requirements.txt
 
 	wget -q "https://raw.githubusercontent.com/micahvandeusen/gMSADumper/main/gMSADumper.py" -O "$scripts_dir/gMSADumper.py"
-	wget -q "https://raw.githubusercontent.com/zyn3rgy/LdapRelayScan/main/LdapRelayScan.py" -O "$scripts_dir/LdapRelayScan.py"
-	wget -q "https://raw.githubusercontent.com/ropnop/windapsearch/master/windapsearch.py" -O "$scripts_dir/windapsearch.py"
-	wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
+	wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
+	wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
+    wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
     wget -q "https://github.com/login-securite/DonPAPI/archive/master.zip" -O "$scripts_dir/DonPAPI.zip"
+    chmod +x "$scripts_dir/windapsearch"
+    chmod +x "$scripts_dir/kerbrute"
     unzip -o "$scripts_dir/DonPAPI.zip" -d $scripts_dir
 }
 
