@@ -1,6 +1,4 @@
 ldap3
-#gMSADumper
-pycryptodomex
 #enum4linux-ng
 PyYAML>=5.1
 #DonPAPI
@@ -9,7 +7,6 @@ LnkParse3
 wheel
 #Tools
 ldapdomaindump
-lsassy
 git+https://github.com/dirkjanm/adidnsdump#egg=adidnsdump
 git+https://github.com/zer1t0/certi.git
 git+https://github.com/ly4k/Certipy.git

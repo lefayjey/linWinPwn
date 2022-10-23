@@ -175,13 +175,11 @@ For each of the cases described, the linWinPwn script performs different checks 
 
 - [S3cur3Th1sSh1t](https://github.com/S3cur3Th1sSh1t) - WinPwn
 - [SecureAuth](https://github.com/SecureAuthCorp) - impacket
-- [byt3bl33d3r, mpgn, Porchetta Industries](https://porchetta.industries/) - crackmapexec
+- [byt3bl33d3r, mpgn and all contributors](https://porchetta.industries/) - crackmapexec
 - [Fox-IT](https://github.com/fox-it) - bloodhound-python
 - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump
-- [Hackndo](https://github.com/Hackndo) - lsassy
 - [zer1t0](https://github.com/zer1t0) - certi.py
 - [ly4k](https://github.com/ly4k) - Certipy
-- [micahvandeusen](https://github.com/micahvandeusen) - gMSADumper
 - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
 - [ropnop](https://github.com/ropnop) - windapsearch, kerbrute
 

