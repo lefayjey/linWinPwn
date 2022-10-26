@@ -4,6 +4,18 @@
 
 linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, and others. 
 
+linWinPwn is particularly useful when you have access to an Active Directory environment for a limited time only, and you wish to automate the enumeration process and collect evidence efficiently.
+In addition, linWinPwn can replace the use of enumeration tools on Windows in the aim of reducing the number of created artifacts (e.g., PowerShell commands, Windows Events, created files on disk), and bypassing certain Anti-Virus or EDRs. This can be achieved by performing remote dynamic port forwarding through the creation of an SSH tunnel from the Windows host (e.g., VDI machine or workstation or laptop) to a remote Linux machine (e.g., Pentest laptop or VPS), and running linWinPwn with proxychains.
+
+On the Windows host, run using PowerShell:
+```
+ssh kali@<linux_machine> -R 1080 -NCqf
+```
+On the Linux machine, first update `/etc/proxychains4.conf` to include `socks5 127.0.0.1 1080`, then run:
+```
+proxychains ./linWinPwn.sh -t <Domain_Controller_IP>
+```
+
 ## Setup
 
 Git clone the repository and make the script executable
