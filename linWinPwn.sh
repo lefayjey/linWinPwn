@@ -1,7 +1,7 @@
 #!/bin/bash
 # Title: linWinPwn
 # Author: lefayjey
-# Version: 0.4.1
+# Version: 0.4.2
 
 #Colors
 RED='\033[1;31m'
@@ -49,7 +49,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.4.1
+      ${BLUE}linWinPwn: ${CYAN} version 0.4.2
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -1189,7 +1189,7 @@ kerberos () {
 
 scan_shares () {
     smb_map
-    keepass_discover
+    keepass_scan
 }
 
 pwd_dump () {
