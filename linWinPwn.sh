@@ -118,7 +118,7 @@ prepare (){
     kdc=""
 
     if [ -z "$dc_domain" ] ; then
-        echo -e "${RED}[-] Please ensure the target is a Domain Controller and try again... ${NC}"
+        echo -e "${RED}[-] Error connecting to target! Please ensure the target is a Domain Controller and try again... ${NC}"
         exit 1
     elif [ -z "$domain" ] ; then
         domain=${dc_domain}
@@ -230,7 +230,7 @@ prepare (){
     if [ "${nullsess_bool}" == false ] ; then
         auth_check=$(${crackmapexec} smb ${target} ${argument_cme} | grep "\[-\]")
         if [ ! -z "$auth_check" ] ; then
-            echo -e "${RED}[-] Authentication failed! Please check your credentials and try again... ${NC}"
+            echo -e "${RED}[-] Error authenticating to domain! Please check your credentials and try again... ${NC}"
             exit 1
         fi
     fi
