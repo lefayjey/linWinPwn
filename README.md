@@ -2,7 +2,7 @@
 
 ## Description
 
-linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script leverages and is dependent of a number of tools including: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, and others. 
+linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script uses a number of tools and serves as wrapper of them. Tools include: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, and others. 
 
 linWinPwn is particularly useful when you have access to an Active Directory environment for a limited time only, and you wish to automate the enumeration process and collect evidence efficiently.
 In addition, linWinPwn can replace the use of enumeration tools on Windows in the aim of reducing the number of created artifacts (e.g., PowerShell commands, Windows Events, created files on disk), and bypassing certain Anti-Virus or EDRs. This can be achieved by performing remote dynamic port forwarding through the creation of an SSH tunnel from the Windows host (e.g., VDI machine or workstation or laptop) to a remote Linux machine (e.g., Pentest laptop or VPS), and running linWinPwn with proxychains.
@@ -131,11 +131,13 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
+    - Blind Kerberoast
+    - CVE-2022-33679 exploit
 - Module scan_shares
     - SMB shares anonymous enumeration on identified servers
 - Module vuln_checks
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on identified servers
-    - Check for ms17-010, zerologon, petitpotam, nopac, ntlmv1, runasppl weaknesses
+    - Check for ms17-010, zerologon, petitpotam, nopac, smb-sigining, ntlmv1, runasppl weaknesses
 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -M user
@@ -146,6 +148,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Module ad_enum
     - BloodHound data collection
     - ldapdomaindump enumeration
+    - crackmapexec user=pass enumeration
     - Delegation information extraction
     - GPP Passwords extraction
     - Extract ADCS information using certipy
@@ -160,7 +163,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - KeePass files and processes discovery on all domain servers
 - Module vuln_checks
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers
-    - Check for ms17-010, zerologon, petitpotam, nopac, ntlmv1, runasppl weaknesses
+    - Check for ms17-010, zerologon, petitpotam, nopac, smb-sigining, ntlmv1, runasppl weaknesses
 - Module mssql_enum
     - Check mssql privilege escalation paths
 
@@ -173,7 +176,8 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Module pwd_dump
     - LAPS and gMSA dump
     - secretsdump on all domain servers
-    - lsassy on on all domain servers
+    - Dump lsass on all domain servers using: procdump, lsassy, nanodump, handlekatz, masky 
+    - Extract backup keys using DonPAPI
 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -M all
@@ -194,6 +198,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - [ly4k](https://github.com/ly4k) - Certipy
 - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
 - [ropnop](https://github.com/ropnop) - windapsearch, kerbrute
+- [login-securite](https://github.com/login-securite) - DonPAPI
 
 ## Legal Disclamer
 

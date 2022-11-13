@@ -63,5 +63,6 @@ fi
 
 if [ "$ntp" == true ] ; then
   echo -e "${BLUE}[*] ntp sync${NC}"
+  timedatectl set-ntp 0
   ntpdate ${dc_ip}
 fi

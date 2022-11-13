@@ -18,12 +18,13 @@ mkdir -p ${scripts_dir}
 
 install_tools() {
     apt update
-    apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate -y
+    apt install python3 python3-dev python3-pip python3-venv impacket nmap smbmap john libsasl2-dev libldap2-dev ntpdate -y
     pip install -r requirements.txt
     
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
     wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
+    wget -q "https://raw.githubusercontent.com/Bdenneu/CVE-2022-33679/main/CVE-2022-33679.py" -O "$scripts_dir/CVE-2022-33679.py"
     wget -q "https://github.com/login-securite/DonPAPI/archive/master.zip" -O "$scripts_dir/DonPAPI.zip"
     chmod +x "$scripts_dir/windapsearch"
     chmod +x "$scripts_dir/kerbrute"
