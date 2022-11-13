@@ -382,9 +382,9 @@ windapsearch_enum () {
             ${scripts_dir}/windapsearch ${argument_windap} --dc ${dc_ip} -m groups > ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt
             ${scripts_dir}/windapsearch ${argument_windap} --dc ${dc_ip} -m privileged-users > ${output_dir}/DomainRecon/windapsearch_privusers_${dc_domain}.txt
             #Parsing user and computer lists
-            /bin/cat ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt 2>/dev/null | grep "cn:" | sed "s/cn: //g" | sort -u  > ${output_dir}/DomainRecon/users_list_windap_${dc_domain}.txt 2>&1
-            /bin/cat ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt 2>/dev/null | grep "cn:" | sed "s/cn: //g" | sort -u  > ${output_dir}/DomainRecon/servers_list_windap_${dc_domain}.txt 2>&1
-            /bin/cat ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt 2>/dev/null | grep "cn:" | sed "s/cn: //g" | sort -u  > ${output_dir}/DomainRecon/groups_list_windap_${dc_domain}.txt 2>&1
+            /bin/cat ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt 2>/dev/null | grep "cn:" | sed "s/cn: //g" | sort -u > ${output_dir}/DomainRecon/users_list_windap_${dc_domain}.txt 2>&1
+            /bin/cat ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt 2>/dev/null | grep "cn:" | sed "s/cn: //g" | sort -u > ${output_dir}/DomainRecon/servers_list_windap_${dc_domain}.txt 2>&1
+            /bin/cat ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt 2>/dev/null | grep "cn:" | sed "s/cn: //g" | sort -u > ${output_dir}/DomainRecon/groups_list_windap_${dc_domain}.txt 2>&1
             echo ${dc_FQDN} >> ${output_dir}/DomainRecon/servers_list_${dc_domain}.txt 2>&1
             echo -e "${GREEN}[+] windapsearch enumeration of users, servers, groups complete.${NC}"
         else
@@ -461,7 +461,7 @@ userpass_cme_check () {
     fi
     echo -e "${BLUE}[*] Crackmapexec User=Pass Check (Noisy!)${NC}"
     echo -e "${YELLOW}[i] Finding users with Password = username using crackmapexec. This may take a while...${NC}"
-    ${crackmapexec} smb ${target} -u ${known_users_list} -p ${known_users_list} --no-bruteforce --continue-on-success 2>/dev/null > ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1    
+    ${crackmapexec} smb ${target} -u ${known_users_list} -p ${known_users_list} --no-bruteforce --continue-on-success 2>/dev/null > ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1
     /bin/cat ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1 | grep "\[+\]" | cut -d "\\" -f 2 | cut -d " " -f 1 > "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt"
     if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt" ] ; then
         echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
@@ -562,7 +562,7 @@ certi_py_enum () {
 }
 
 certipy_enum () {
-    if [[ ! -f "${certipy}" ]]  ; then
+    if [[ ! -f "${certipy}" ]] ; then
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
     elif [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] certipy requires credentials${NC}"
@@ -580,7 +580,7 @@ certipy_enum () {
 kerbrute_enum () {
     echo -e "${BLUE}[*] kerbrute User Enumeration (Null session)${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        if [ ! -f "${scripts_dir}/kerbrute"  ] ; then
+        if [ ! -f "${scripts_dir}/kerbrute" ] ; then
             echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
         else
             echo -e "${YELLOW}[i] Using $users_list wordlist for user enumeration. This may take a while...${NC}"
@@ -597,7 +597,7 @@ kerbrute_enum () {
 }
 
 userpass_kerbrute_check () {
-    if [ ! -f "${scripts_dir}/kerbrute"  ] ; then
+    if [ ! -f "${scripts_dir}/kerbrute" ] ; then
         echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
     else
         known_users_list="${output_dir}/DomainRecon/users_list_sorted_${dc_domain}.txt"
@@ -658,7 +658,7 @@ asrep_attack () {
 
 asreprc4_attack () {
     echo -e "${BLUE}[*] CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)${NC}"
-    if [ ! -f "${scripts_dir}/CVE-2022-33679.py"  ] ; then
+    if [ ! -f "${scripts_dir}/CVE-2022-33679.py" ] ; then
         echo -e "${RED}[-] Please verify the location of CVE-2022-33679.py${NC}"
     else
         if [ "${nullsess_bool}" == true ] ; then
@@ -813,7 +813,7 @@ smb_map () {
 
 shares_cme_dc () {
     echo -e "${BLUE}[*] Enumerating Shares on DC using crackmapexec${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} --shares 2>/dev/null | tee ${output_dir}/Shares/cme_shares_dc_output${dc_domain}.txt 2>&1      
+    ${crackmapexec} smb ${target_dc} ${argument_cme} --shares 2>/dev/null | tee ${output_dir}/Shares/cme_shares_dc_output${dc_domain}.txt 2>&1 
     echo -e ""
 }
 
@@ -824,7 +824,7 @@ shares_cme () {
         shares_cme_dc
     else
         smb_scan
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} --shares 2>/dev/null | tee ${output_dir}/Shares/cme_shares_output${dc_domain}.txt 2>&1      
+        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} --shares 2>/dev/null | tee ${output_dir}/Shares/cme_shares_output${dc_domain}.txt 2>&1
     fi
     echo -e ""
 }
@@ -839,7 +839,7 @@ keepass_scan_dc () {
     echo ""
 }
 
-keepass_scan () {    
+keepass_scan () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] keepass_discover requires credentials${NC}"
     else
@@ -1441,7 +1441,7 @@ ad_menu () {
 
     read -p "> " option_selected </dev/tty
 
-	case ${option_selected} in
+    case ${option_selected} in
         A)
         dns_enum
         ad_enum
@@ -1453,7 +1453,7 @@ ad_menu () {
         ad_menu
         ;;
 
-		2)
+        2)
         bhd_enum_dconly
         ad_menu
         ;;
@@ -1477,11 +1477,11 @@ ad_menu () {
         ridbrute_attack
         ad_menu;;
 
-		7)
+        7)
         users_enum
         ad_menu;;
 
-		8)
+        8)
         users_enum
         ad_menu;;
 
@@ -1549,7 +1549,7 @@ kerberos_menu () {
     echo -e "1) kerbrute User Enumeration (Null session)"
     echo -e "2) kerbrute User=Pass Check (Noisy!)"
     echo -e "3) AS REP Roasting Attack"
-    echo -e "4) CVE-2022-33679 exploit / AS-REP with RC4 session key  (Null session)"
+    echo -e "4) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)"
     echo -e "5) Kerberoast Attack"
     echo -e "6) Cracking AS REP Roast hashes using john the ripper"
     echo -e "7) Cracking Kerberoast hashes using john the ripper"
@@ -1557,7 +1557,7 @@ kerberos_menu () {
 
     read -p "> " option_selected </dev/tty
 
-	case ${option_selected} in
+    case ${option_selected} in
         A)
         kerberos
         kerberos_menu
@@ -1568,7 +1568,7 @@ kerberos_menu () {
         kerberos_menu
         ;;
 
-		2)
+        2)
         userpass_kerbrute_check
         kerberos_menu
         ;;
@@ -1588,7 +1588,7 @@ kerberos_menu () {
         kerberos_menu
         ;;
 
-		6)
+        6)
         john_crack_asrep
         kerberos_menu
         ;;
@@ -1627,7 +1627,7 @@ shares_menu () {
 
     read -p "> " option_selected </dev/tty
 
-	case ${option_selected} in
+    case ${option_selected} in
         1)
         dns_enum
         smb_map_dc
@@ -1745,7 +1745,7 @@ vulns_menu () {
 
     read -p "> " option_selected </dev/tty
 
-	case ${option_selected} in
+    case ${option_selected} in
         A)
         dns_enum
         vuln_checks
@@ -1757,16 +1757,16 @@ vulns_menu () {
         vulns_menu
         ;;
 
-		2)
+        2)
         petitpotam_check
         vulns_menu
         ;;
 
-		3)
+        3)
         dfscoerce_check
         vulns_menu
         ;;
-        
+
         4)
         zerologon_check
         vulns_menu
@@ -1777,9 +1777,9 @@ vulns_menu () {
         vulns_menu
         ;;
 
-		6)
+        6)
         dns_enum
-        allservers_bool=true        
+        allservers_bool=true
         ms17-010_check
         vulns_menu
         ;;
@@ -1787,7 +1787,7 @@ vulns_menu () {
         7)
         dns_enum
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -1800,17 +1800,17 @@ vulns_menu () {
         vulns_menu
         ;;
 
-		9)
+        9)
         dns_enum
-        allservers_bool=true        
+        allservers_bool=true
         spooler_check
         vulns_menu
         ;;
-        
+
         10)
         dns_enum
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -1833,7 +1833,7 @@ vulns_menu () {
         13)
         dns_enum
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -1856,7 +1856,7 @@ vulns_menu () {
         16)
         dns_enum
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -1886,7 +1886,7 @@ vulns_menu () {
         20)
         dns_enum
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -1909,7 +1909,7 @@ vulns_menu () {
         23)
         dns_enum
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -1965,7 +1965,7 @@ pwd_menu () {
 
     read -p "> " option_selected </dev/tty
 
-	case ${option_selected} in
+    case ${option_selected} in
         A)
         dns_enum
         pwd_dump
@@ -1977,7 +1977,7 @@ pwd_menu () {
         pwd_menu
         ;;
 
-		2)
+        2)
         gmsa_dump
         pwd_menu
         ;;
@@ -1992,7 +1992,7 @@ pwd_menu () {
         pwd_menu
         ;;
 
-		5)
+        5)
         sam_dump
         allservers_bool=true
         pwd_menu
@@ -2001,7 +2001,7 @@ pwd_menu () {
         6)
         sam_dump
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -2022,7 +2022,7 @@ pwd_menu () {
         9)
         lsa_dump
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -2043,7 +2043,7 @@ pwd_menu () {
         12)
         lsassy_dump
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -2064,7 +2064,7 @@ pwd_menu () {
         15)
         handlekatz_dump
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -2085,7 +2085,7 @@ pwd_menu () {
         18)
         procdump_dump
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -2106,7 +2106,7 @@ pwd_menu () {
         21)
         nanodump_dump
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -2127,7 +2127,7 @@ pwd_menu () {
         24)
         masky_dump
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -2144,11 +2144,11 @@ pwd_menu () {
         allservers_bool=true
         pwd_menu
         ;;
-        
+
         27)
         donpapi_dump
         allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ]  ; then
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
@@ -2188,7 +2188,7 @@ config_menu () {
 
     read -p "> " option_selected </dev/tty
 
-	case ${option_selected} in
+    case ${option_selected} in
         1)
         output_dir_old=$output_dir
         echo -e "Please specify new output folder:"
@@ -2199,7 +2199,7 @@ config_menu () {
         config_menu
         ;;
 
-		2)
+        2)
         echo -e ""
         sudo timedatectl set-ntp 0
         sudo ntpdate ${dc_ip}
@@ -2233,14 +2233,14 @@ config_menu () {
         config_menu
         ;;
 
-		6)
+        6)
         echo -e "Please specify new passwords wordlist file:"
         read -p ">> " pass_list </dev/tty
         echo -e "${GREEN}[+] Passwords wordlist file updated${NC}"
-        echo -e ""        
+        echo -e ""
         config_menu
         ;;
-        
+
         7)
         echo -e "Please specify new custom servers list file:"
         read -p ">> " servers_list </dev/tty
@@ -2278,7 +2278,7 @@ main_menu () {
 
     read -p "> " option_selected </dev/tty
 
-	case ${option_selected} in
+    case ${option_selected} in
         C)
         config_menu
         ;;
@@ -2292,7 +2292,7 @@ main_menu () {
         ad_menu
         ;;
 
-		3)
+        3)
         kerberos_menu
         ;;
 
@@ -2300,14 +2300,14 @@ main_menu () {
         shares_menu
         ;;
 
-		5)
+        5)
         vulns_menu
         ;;
-        
+
         6)
         pwd_menu
         ;;
-        
+
         7)
         mssql_enum
         main_menu
