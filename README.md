@@ -1,4 +1,4 @@
-# linWinPwn
+# linWinPwn - Active Directory Vulnerability Scanner
 
 ## Description
 
@@ -25,10 +25,10 @@ git clone https://github.com/lefayjey/linWinPwn
 cd linWinPwn; chmod +x linWinPwn.sh
 ```
 
-Install requirements using the `install.sh` script
+Install requirements using the `install.sh` script (using standard account)
 ```bash
 chmod +x install.sh
-sudo ./install.sh
+./install.sh
 ```
 
 ## Usage
