@@ -1,7 +1,6 @@
 #!/bin/bash
 # Title: linWinPwn
 # Author: lefayjey
-# Version: 0.5.1
 
 #Colors
 RED='\033[1;31m'
@@ -49,7 +48,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.5.1
+      ${BLUE}linWinPwn: ${CYAN} version 0.5.2
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -2083,18 +2082,18 @@ pwd_menu () {
         ;;
 
         5)
-        sam_dump
         allservers_bool=true
+        sam_dump
         pwd_menu
         ;;
         
         6)
-        sam_dump
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
+        sam_dump
         pwd_menu
         ;;
 
@@ -2104,18 +2103,18 @@ pwd_menu () {
         ;;
 
         8)
-        lsa_dump
         allservers_bool=true
+        lsa_dump
         pwd_menu
         ;;
 
         9)
-        lsa_dump
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
+        lsa_dump
         pwd_menu
         ;;
 
@@ -2125,18 +2124,18 @@ pwd_menu () {
         ;;
 
         11)
-        lsassy_dump
         allservers_bool=true
         pwd_menu
+        lsassy_dump
         ;;
 
         12)
-        lsassy_dump
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
+        lsassy_dump
         pwd_menu
         ;;
 
@@ -2146,18 +2145,18 @@ pwd_menu () {
         ;;
 
         14)
-        handlekatz_dump
         allservers_bool=true
         pwd_menu
+        handlekatz_dump
         ;;
 
         15)
-        handlekatz_dump
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
+        handlekatz_dump
         pwd_menu
         ;;
 
@@ -2167,18 +2166,18 @@ pwd_menu () {
         ;;
 
         17)
-        procdump_dump
         allservers_bool=true
+        procdump_dump
         pwd_menu
         ;;
 
         18)
-        procdump_dump
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
+        procdump_dump
         pwd_menu
         ;;
 
@@ -2188,18 +2187,18 @@ pwd_menu () {
         ;;
 
         20)
-        nanodump_dump
         allservers_bool=true
+        nanodump_dump
         pwd_menu
         ;;
 
         21)
-        nanodump_dump
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
+        nanodump_dump
         pwd_menu
         ;;
 
@@ -2209,18 +2208,18 @@ pwd_menu () {
         ;;
 
         23)
-        masky_dump
         allservers_bool=true
+        masky_dump
         pwd_menu
         ;;
 
         24)
-        masky_dump
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
+        masky_dump
         pwd_menu
         ;;
 
@@ -2230,18 +2229,18 @@ pwd_menu () {
         ;;
 
         26)
-        donpapi_dump
         allservers_bool=true
+        donpapi_dump
         pwd_menu
         ;;
 
         27)
-        donpapi_dump
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
+        donpapi_dump
         pwd_menu
         ;;
 
@@ -2261,7 +2260,7 @@ config_menu () {
     echo -e ""
     echo -e "${CYAN}[Config menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------"
-    echo -e "M) Main Menu"
+    echo -e "ENTER) Go to Main Menu"
     echo -e "1) Check installation of tools and dependencies"
     echo -e "2) Change output folder"
     echo -e "3) Synchronize time with Domain Controller (requires root)"
@@ -2271,6 +2270,7 @@ config_menu () {
     echo -e "7) Change users wordlist file"
     echo -e "8) Change passwords wordlist file"
     echo -e "9) Define custom servers list"
+    echo -e "10) Show session information"
 
     read -p "> " option_selected </dev/tty
 
@@ -2374,7 +2374,13 @@ config_menu () {
         config_menu
         ;;
 
-        M)
+        10)
+        echo ""
+        print_info
+        config_menu
+        ;;
+
+        "")
         main_menu
         ;;
 
