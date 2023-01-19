@@ -22,11 +22,11 @@ allservers_bool=true
 
 #Tools variables
 python=$(which python3)
-impacket_findDelegation=$(which findDelegation.py)
-impacket_GetUserSPNs=$(which GetUserSPNs.py)
-impacket_secretsdump=$(which secretsdump.py)
-impacket_GetNPUsers=$(which GetNPUsers.py)
-impacket_getTGT=$(which getTGT.py)
+impacket_findDelegation=$(which impacket-findDelegation)
+impacket_GetUserSPNs=$(which impacket-GetUserSPNs)
+impacket_secretsdump=$(which impacket-secretsdump)
+impacket_GetNPUsers=$(which impacket-GetNPUsers)
+impacket_getTGT=$(which impacket-getTGT)
 bloodhound=$(which bloodhound-python)
 ldapdomaindump=$(which ldapdomaindump)
 crackmapexec=$(which crackmapexec)
