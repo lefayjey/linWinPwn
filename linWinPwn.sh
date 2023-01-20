@@ -35,7 +35,7 @@ if [ ! -f "${impacket_GetNPUsers}" ]; then impacket_GetNPUsers=$(which impacket-
 impacket_getTGT=$(which getTGT.py)
 if [ ! -f "${impacket_getTGT}" ]; then impacket_getTGT=$(which impacket-getTGT); fi
 enum4linux_path=$(which enum4linux-ng)
-if [ ! -f "${impacket_getTGT}" ]; then enum4linux_path="${scripts_dir}/enum4linux-ng.py"; fi
+if [ ! -f "${enum4linux_path}" ]; then enum4linux_path="${python} ${scripts_dir}/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
 ldapdomaindump=$(which ldapdomaindump)
 crackmapexec=$(which crackmapexec)
@@ -428,26 +428,26 @@ windapsearch_enum () {
         fi
     fi
     echo -e ""
-}
+}   
 
 enum4linux_enum () {
-    if [ -e "${enum4linux_path}" ] ; then
+    if [ ! -f "${enum4linux_path}" ] ; then
         echo -e "${RED}[-] Please verify the installation of enum4linux-ng${NC}"
     else
         echo -e "${BLUE}[*] enum4linux Enumeration${NC}"
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${CYAN}[*] Empty username/password${NC}"
-            ${python} ${scripts_dir}/${enum4linux_path} -A ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt 2>&1
+            ${enum4linux_path} -A ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt 2>&1
             #Parsing user lists
             /bin/cat ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt 2>/dev/null | grep "username:" | sed "s/  username: //g" | sort -u > ${output_dir}/DomainRecon/users_list_enum4linux_nullsess_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] Guest with empty password${NC}"
-            ${python} ${scripts_dir}/${enum4linux_path} -A ${dc_ip} -u 'Guest' -p '' | tee ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>&1
+            ${enum4linux_path} -A ${dc_ip} -u 'Guest' -p '' | tee ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>&1
             #Parsing user lists
             /bin/cat ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>/dev/null | grep "username:" | sed "s/  username: //g" | sort -u > ${output_dir}/DomainRecon/users_list_enum4linux_guest_${dc_domain}.txt 2>&1
         elif [ "${kerb_bool}" == true ] || [ "${hash_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] enum4linux does not support kerberos tickets nor PtH${NC}"
         else
-            ${python} ${scripts_dir}/${enum4linux_path} -A ${argument_enum4linux} ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
+            ${enum4linux_path} -A ${argument_enum4linux} ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
             #Parsing user lists
             /bin/cat ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>/dev/null | grep "username:" | sed "s/  username: //g" | sort -u > ${output_dir}/DomainRecon/users_list_enum4linux_${dc_domain}.txt 2>&1
         fi
