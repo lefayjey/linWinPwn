@@ -22,6 +22,8 @@ allservers_bool=true
 
 #Tools variables
 python=$(which python3)
+scripts_dir="/opt/lwp-scripts"
+wordlists_dir="/opt/lwp-wordlists"
 impacket_findDelegation=$(which findDelegation.py)
 if [ ! -f "${impacket_findDelegation}" ]; then impacket_findDelegation=$(which impacket-findDelegation); fi
 impacket_GetUserSPNs=$(which GetUserSPNs.py)
@@ -32,6 +34,8 @@ impacket_GetNPUsers=$(which GetNPUsers.py)
 if [ ! -f "${impacket_GetNPUsers}" ]; then impacket_GetNPUsers=$(which impacket-GetNPUsers); fi
 impacket_getTGT=$(which getTGT.py)
 if [ ! -f "${impacket_getTGT}" ]; then impacket_getTGT=$(which impacket-getTGT); fi
+enum4linux_path=$(which enum4linux-ng)
+if [ ! -f "${impacket_getTGT}" ]; then enum4linux_path="${scripts_dir}/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
 ldapdomaindump=$(which ldapdomaindump)
 crackmapexec=$(which crackmapexec)
@@ -41,9 +45,8 @@ nmap=$(which nmap)
 adidnsdump=$(which adidnsdump)
 certi_py=$(which certi.py)
 certipy=$(which certipy)
-scripts_dir="/opt/lwp-scripts"
-wordlists_dir="/opt/lwp-wordlists"
 donpapi_dir="$scripts_dir/DonPAPI-main"
+
 
 print_banner () {
     echo -e "
@@ -428,24 +431,23 @@ windapsearch_enum () {
 }
 
 enum4linux_enum () {
-    enum4linux_path=$(which enum4linux-ng 2>/dev/null || echo "${scripts_dir}/enum4linux-ng.py")
-    if [ ! -f "${scripts_dir}/enum4linux-ng.py" ] ; then
+    if [ -e "${enum4linux_path}" ] ; then
         echo -e "${RED}[-] Please verify the installation of enum4linux-ng${NC}"
     else
         echo -e "${BLUE}[*] enum4linux Enumeration${NC}"
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${CYAN}[*] Empty username/password${NC}"
-            ${python} ${scripts_dir}/enum4linux-ng.py -A ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt 2>&1
+            ${python} ${scripts_dir}/${enum4linux_path} -A ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt 2>&1
             #Parsing user lists
             /bin/cat ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt 2>/dev/null | grep "username:" | sed "s/  username: //g" | sort -u > ${output_dir}/DomainRecon/users_list_enum4linux_nullsess_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] Guest with empty password${NC}"
-            ${python} ${scripts_dir}/enum4linux-ng.py -A ${dc_ip} -u 'Guest' -p '' | tee ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>&1
+            ${python} ${scripts_dir}/${enum4linux_path} -A ${dc_ip} -u 'Guest' -p '' | tee ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>&1
             #Parsing user lists
             /bin/cat ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>/dev/null | grep "username:" | sed "s/  username: //g" | sort -u > ${output_dir}/DomainRecon/users_list_enum4linux_guest_${dc_domain}.txt 2>&1
         elif [ "${kerb_bool}" == true ] || [ "${hash_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] enum4linux does not support kerberos tickets nor PtH${NC}"
         else
-            ${python} ${scripts_dir}/enum4linux-ng.py -A ${argument_enum4linux} ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
+            ${python} ${scripts_dir}/${enum4linux_path} -A ${argument_enum4linux} ${dc_ip} | tee ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
             #Parsing user lists
             /bin/cat ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>/dev/null | grep "username:" | sed "s/  username: //g" | sort -u > ${output_dir}/DomainRecon/users_list_enum4linux_${dc_domain}.txt 2>&1
         fi
@@ -2299,7 +2301,7 @@ config_menu () {
         if [ ! -f "${certi_py}" ] ; then echo -e "${RED}[-] certi_py is not installed${NC}"; else echo -e "${GREEN}[+] certi_py is installed${NC}"; fi
         if [ ! -f "${certipy}" ] ; then echo -e "${RED}[-] certipy is not installed${NC}"; else echo -e "${GREEN}[+] certipy is installed${NC}"; fi
         if [ ! -f "${scripts_dir}/windapsearch" ] ; then echo -e "${RED}[-] windapsearch is not installed${NC}"; else echo -e "${GREEN}[+] windapsearch is installed${NC}"; fi
-        if [ ! -f "${scripts_dir}/enum4linux-ng.py" ] ; then echo -e "${RED}[-] enum4linux-ng is not installed${NC}"; else echo -e "${GREEN}[+] enum4linux-ng is installed${NC}"; fi
+        if [ ! -f "${enum4linux_path}" ] ; then echo -e "${RED}[-] enum4linux-ng is not installed${NC}"; else echo -e "${GREEN}[+] enum4linux-ng is installed${NC}"; fi
         if [ ! -f "${scripts_dir}/kerbrute" ] ; then echo -e "${RED}[-] kerbrute is not installed${NC}"; else echo -e "${GREEN}[+] kerbrute is installed${NC}"; fi
         if [ ! -f "${scripts_dir}/CVE-2022-33679.py" ] ; then echo -e "${RED}[-] CVE-2022-33679 is not installed${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is installed${NC}"; fi
         config_menu
