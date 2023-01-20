@@ -428,6 +428,7 @@ windapsearch_enum () {
 }
 
 enum4linux_enum () {
+    enum4linux_path=$(which enum4linux-ng 2>/dev/null || echo "${scripts_dir}/enum4linux-ng.py")
     if [ ! -f "${scripts_dir}/enum4linux-ng.py" ] ; then
         echo -e "${RED}[-] Please verify the installation of enum4linux-ng${NC}"
     else
