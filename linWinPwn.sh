@@ -1552,7 +1552,7 @@ ad_menu () {
         ad_menu;;
 
         9)
-        users_enum
+        userpass_cme_check
         ad_menu;;
 
         10)
