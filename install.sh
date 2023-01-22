@@ -32,7 +32,11 @@ install_tools() {
     sudo wget -q "https://github.com/login-securite/DonPAPI/archive/master.zip" -O "$scripts_dir/DonPAPI.zip"
     sudo chmod +x "$scripts_dir/windapsearch"
     sudo chmod +x "$scripts_dir/kerbrute"
+    sudo chmod +x "$scripts_dir/enum4linux-ng.py"
+    sudo chmod +x "$scripts_dir/CVE-2022-33679.py"
+    sudo chmod +x "$scripts_dir/silenthound.py"
     sudo unzip -o "$scripts_dir/DonPAPI.zip" -d $scripts_dir
+    sudo chmod +x "$scripts_dir/DonPAPI-main/DonPAPI.py"
     sudo chown -R $(whoami) ${scripts_dir}
 }
 
