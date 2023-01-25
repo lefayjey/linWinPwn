@@ -14,7 +14,10 @@ sudo mkdir -p ${scripts_dir}
 install_tools() {
     sudo apt update
     sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate -y
-    sudo pip install --user pipx PyYAML LnkParse3 --upgrade
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    exec "$SHELL"
+    sudo pip3 install --user pipx PyYAML LnkParse3 --upgrade
+    exec "$SHELL"
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
     pipx install git+https://github.com/Porchetta-Industries/CrackMapExec.git --force
@@ -23,6 +26,7 @@ install_tools() {
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
     pipx install git+https://github.com/fox-it/BloodHound.py.git --force
+    exec "$SHELL"
 
     sudo wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     sudo wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"

@@ -55,7 +55,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.5.5
+      ${BLUE}linWinPwn: ${CYAN} version 0.5.6
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -274,8 +274,8 @@ prepare (){
     fi
     if ! grep -q ${dc_FQDN} ${dc_hostname_list} 2>/dev/null; then
         echo ${dc_FQDN} >> ${dc_hostname_list}
-    fi    
-    
+    fi
+
 }
 
 dns_enum () {
@@ -1518,7 +1518,6 @@ ad_menu () {
 
     case ${option_selected} in
         A)
-        dns_enum
         ad_enum
         ad_menu
         ;;
@@ -1712,20 +1711,17 @@ shares_menu () {
 
     case ${option_selected} in
         1)
-        dns_enum
         smb_map_dc
         shares_menu
         ;;
 
         2)
-        dns_enum
         allservers_bool=true
         smb_map
         shares_menu
         ;;
 
         3)
-        dns_enum
         allservers_bool=false
         while [ ! -f "${servers_list}" ] ; do
             echo -e "${RED}Error finding custom servers list.${NC} Please specify file containing list of target servers:"
@@ -1736,20 +1732,17 @@ shares_menu () {
         ;;
 
         4)
-        dns_enum
         shares_cme_dc
         shares_menu
         ;;
 
         5)
-        dns_enum
         allservers_bool=true
         shares_cme
         shares_menu
         ;;
 
         6)
-        dns_enum
         allservers_bool=false
         while [ ! -f "${servers_list}" ] ; do
             echo -e "${RED}Error finding custom servers list.${NC} Please specify file containing list of target servers:"
@@ -1760,20 +1753,17 @@ shares_menu () {
         ;;
 
         7)
-        dns_enum
         allservers_bool=true
         spider_cme_dc
         shares_menu
         ;;
 
         8)
-        dns_enum
         spider_cme
         shares_menu
         ;;
 
         9)
-        dns_enum
         allservers_bool=false
         while [ ! -f "${servers_list}" ] ; do
             echo -e "${RED}Error finding custom servers list.${NC} Please specify file containing list of target servers:"
@@ -1784,20 +1774,17 @@ shares_menu () {
         ;;
 
         10)
-        dns_enum
         keepass_scan_dc
         shares_menu
         ;;
 
         11)
-        dns_enum
         allservers_bool=true
         keepass_scan
         shares_menu
         ;;
 
         12)
-        dns_enum
         allservers_bool=false
         while [ ! -f "${servers_list}" ] ; do
             echo -e "${RED}Error finding custom servers list.${NC} Please specify file containing list of target servers:"
@@ -1854,7 +1841,6 @@ vulns_menu () {
 
     case ${option_selected} in
         A)
-        dns_enum
         vuln_checks
         vulns_menu
         ;;
@@ -1885,14 +1871,12 @@ vulns_menu () {
         ;;
 
         6)
-        dns_enum
         allservers_bool=true
         ms17-010_check
         vulns_menu
         ;;
         
         7)
-        dns_enum
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -1908,14 +1892,12 @@ vulns_menu () {
         ;;
 
         9)
-        dns_enum
         allservers_bool=true
         spooler_check
         vulns_menu
         ;;
 
         10)
-        dns_enum
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -1931,14 +1913,12 @@ vulns_menu () {
         ;;
 
         12)
-        dns_enum
         allservers_bool=true
         webdav_check
         vulns_menu
         ;;
 
         13)
-        dns_enum
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -1954,14 +1934,12 @@ vulns_menu () {
         ;;
 
         15)
-        dns_enum
         allservers_bool=true
         shadowcoerce_check
         vulns_menu
         ;;
 
         16)
-        dns_enum
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -1972,7 +1950,6 @@ vulns_menu () {
         ;;
 
         17)
-        dns_enum
         allservers_bool=true
         smbsigning_check
         vulns_menu
@@ -1984,14 +1961,12 @@ vulns_menu () {
         ;;
 
         19)
-        dns_enum
         allservers_bool=true
         ntlmv1_check
         vulns_menu
         ;;
 
         20)
-        dns_enum
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -2007,14 +1982,12 @@ vulns_menu () {
         ;;
 
         22)
-        dns_enum
         allservers_bool=true
         runasppl_check
         vulns_menu
         ;;
 
         23)
-        dns_enum
         allservers_bool=false
         if [ ! -f ${servers_list} ] || [ -z ${servers_list} ] ; then
             echo -e "${YELLOW}[i]${NC} Error finding custom servers list. Please specify file containing list of target servers:"
@@ -2076,7 +2049,6 @@ pwd_menu () {
 
     case ${option_selected} in
         A)
-        dns_enum
         pwd_dump
         pwd_menu
         ;;
@@ -2161,8 +2133,8 @@ pwd_menu () {
 
         13)
         allservers_bool=true
-        pwd_menu
         lsassy_dump
+        pwd_menu
         ;;
 
         14)
@@ -2182,8 +2154,8 @@ pwd_menu () {
 
         16)
         allservers_bool=true
-        pwd_menu
         handlekatz_dump
+        pwd_menu
         ;;
 
         17)
@@ -2386,7 +2358,7 @@ config_menu () {
         gunzip "$wordlists_dir/rockyou.txt.tar.gz"
         tar xf "$wordlists_dir/rockyou.txt.tar" -C "$wordlists_dir/"
         chmod 644 "$wordlists_dir/rockyou.txt"
-        rm "$wordlists_dir/rockyou.txt.tar"
+        /bin/rm "$wordlists_dir/rockyou.txt.tar"
         wget -q "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Usernames/cirt-default-usernames.txt" -O "$wordlists_dir/cirt-default-usernames.txt"
         pass_list="$wordlists_dir/rockyou.txt"
         users_list="$wordlists_dir/xato-net-10-million-usernames.txt"
@@ -2437,7 +2409,7 @@ main_menu () {
     echo -e "${PURPLE}[Main menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------"
     echo -e "C) Configuration Menu"
-    echo -e "1) Run DNS Enumeration using adidnsdump"
+    echo -e "1) Re-run DNS Enumeration using adidnsdump"
     echo -e "2) Active Directory Enumeration Menu"
     echo -e "3) Kerberos Attacks Menu"
     echo -e "4) SMB shares Enumeration Menu"
@@ -2454,6 +2426,7 @@ main_menu () {
         ;;
 
         1)
+        /bin/rm ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
         dns_enum
         main_menu
         ;;
@@ -2500,6 +2473,8 @@ main () {
     prepare
     print_info
     echo -e ""
+    dns_enum
+
     if [[ "$modules" == *"interactive"* ]]; then
         modules="interactive"
         config_menu
@@ -2507,7 +2482,6 @@ main () {
         for i in $(echo $modules | sed "s/,/ /g"); do
             case $i in
                 ad_enum)
-                dns_enum
                 echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
                 echo -e "${GREEN}------------------------------------------------${NC}"
                 echo -e ""
@@ -2524,7 +2498,6 @@ main () {
                 ;;
 
                 scan_shares)
-                dns_enum
                 echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
                 echo -e "${GREEN}---------------------------------------${NC}"
                 echo -e ""
@@ -2532,7 +2505,6 @@ main () {
                 ;;
 
                 pwd_dump)
-                dns_enum
                 echo -e "${GREEN}[+] Module Started: Password Dump${NC}"
                 echo -e "${GREEN}---------------------------------${NC}"
                 echo -e ""
@@ -2540,7 +2512,6 @@ main () {
                 ;;
 
                 mssql_enum)
-                dns_enum
                 echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
                 echo -e "${GREEN}-------------------------------------${NC}"
                 echo -e ""
@@ -2549,7 +2520,6 @@ main () {
                 ;;
 
                 vuln_checks)
-                dns_enum
                 echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
                 echo -e "${GREEN}----------------------------------------${NC}"
                 echo -e ""
@@ -2558,7 +2528,6 @@ main () {
                 ;;
 
                 all)
-                dns_enum
                 echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
                 echo -e "${GREEN}------------------------------------------------${NC}"
                 echo -e ""
@@ -2586,7 +2555,6 @@ main () {
                 ;;
 
                 user)
-                dns_enum
                 echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
                 echo -e "${GREEN}------------------------------------------------${NC}"
                 echo -e ""
