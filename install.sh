@@ -15,7 +15,7 @@ install_tools() {
     sudo apt update
     sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate -y
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-    sudo pip3 install --user pipx PyYAML LnkParse3 --upgrade
+    sudo pip3 install --user pipx PyYAML LnkParse3 alive_progress --upgrade
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
     pipx install git+https://github.com/Porchetta-Industries/CrackMapExec.git --force

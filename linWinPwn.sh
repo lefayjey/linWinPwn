@@ -56,7 +56,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.6.0
+      ${BLUE}linWinPwn: ${CYAN} version 0.6.1
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -209,7 +209,7 @@ prepare (){
         argument_imp=" -hashes ${password} ${domain}/${user}"
         argument_donpapi=" -H ${password} ${domain}/${user}"
         argument_bhd="-u ${user}@${domain} --hashes ${password}"
-        argument_silenthd="-u ${user} --hashes ${password}"
+        argument_silenthd="-u ${domain}\\${user} --hashes ${password}"
         argument_windap="-d ${domain} -u ${user} --hash ${password}"
         argument_certipy="-u ${user}@${domain} -hashes ${password}"
         auth_string="${YELLOW}[i]${NC} Authentication method: NTLM hash of ${user}"
@@ -240,7 +240,7 @@ prepare (){
         argument_imp="${domain}/${user}:${password}"
         argument_donpapi="${domain}/${user}:${password}"
         argument_bhd="-u ${user}@${domain} -p ${password}"
-        argument_silenthd="-u ${user} -p ${password}"
+        argument_silenthd="-u ${domain}\\${user} -p ${password}"
         argument_windap="-d ${domain} -u ${user} -p ${password}"
         argument_certipy="-u ${user}@${domain} -p ${password}"
         argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
@@ -1102,12 +1102,14 @@ mssql_enum () {
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
         if [ "${kerb_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
             ${scripts_dir}/windapsearch ${argument_windap} --dc ${dc_ip} -m custom --filter "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
-        elif [ "${nullsess_bool}" == false ]; then
-            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
-            for i in $(/bin/cat ${sql_hostname_list}); do
-                grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
-            done
         fi
+        if [ "${nullsess_bool}" == false ]; then
+            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
+
+        fi
+        for i in $(/bin/cat ${sql_hostname_list}); do
+            grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
+        done
         if [ ! -f "${sql_ip_list}" ] ; then
              echo -e "${PURPLE}[-] No SQL servers servers found${NC}"
         else
@@ -1386,10 +1388,10 @@ ad_menu () {
     echo -e "A) ALL ACTIVE DIRECTORY ENUMERATIONS"
     echo -e "1) BloodHound Enumeration using all collection methods (Noisy!)"
     echo -e "2) BloodHound Enumeration using DCOnly"
-    echo -e "3) LDAP Enumeration using ldapdomain"
-    echo -e "4) LDAP Enumeration using SilentHound"
-    echo -e "5) LDAP Enumeration using windapsearch"
-    echo -e "6) LDAP, SMB, RPC Enumeration using enum4linux-ng"
+    echo -e "3) ldapdomain LDAP Enumeration"
+    echo -e "4) SilentHound LDAP Enumeration"
+    echo -e "5) windapsearch LDAP Enumeration"
+    echo -e "6) enum4linux-ng LDAP, SMB, RPC Enumeration"
     echo -e "7) RID Brute Force (Null session) using crackmapexec"
     echo -e "8) Users Enumeration using crackmapexec"
     echo -e "9) User=Pass check using crackmapexec (Noisy!)"
@@ -1402,8 +1404,8 @@ ad_menu () {
     echo -e "16) LDAP-signing check using crackmapexec"
     echo -e "17) Delegation Enumeration using crackmapexec"
     echo -e "18) Delegation Enumeration using findDelegation"
-    echo -e "19) ADCS Enumeration using certi.py"
-    echo -e "20) ADCS Enumeration using Certipy"
+    echo -e "19) certi.py ADCS Enumeration"
+    echo -e "20) Certipy ADCS Enumeration"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
