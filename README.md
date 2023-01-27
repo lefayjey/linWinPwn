@@ -150,12 +150,13 @@ For each of the cases described, the linWinPwn script performs different checks 
     - kerbrute user=pass enumeration
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
+    - Targeted Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_shares
     - SMB shares enumeration on all domain servers using smbmap and cme's spider_plus
     - KeePass files and processes discovery on all domain servers
 - Module vuln_checks
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers
-    - Check for ms17-010, zerologon, petitpotam, nopac, smb-sigining, ntlmv1, runasppl weaknesses
+    - Check for ms17-010, ms14-068, zerologon, petitpotam, nopac, smb-signing, ntlmv1, runasppl weaknesses
 - Module mssql_enum
     - Check mssql privilege escalation paths
 
@@ -192,6 +193,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - [ropnop](https://github.com/ropnop) - windapsearch, kerbrute
 - [login-securite](https://github.com/login-securite) - DonPAPI
 - [layer8secure](https://github.com/layer8secure) - SilentHound
+- [ShutdownRepo](https://github.com/ShutdownRepo) - TargetedKerberoast
 
 ## Legal Disclamer
 

