@@ -477,7 +477,7 @@ cme_ldap_enum () {
     ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M MAQ --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Subnets Enumeration${NC}"
-    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" -M subnets --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_subnets_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M subnets --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_subnets_output_${dc_domain}.txt 2>&1
     echo -e ""
     echo -e "${BLUE}[*] LDAP-signing check${NC}"
     ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" -M ldap-signing --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
