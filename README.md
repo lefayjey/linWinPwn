@@ -2,7 +2,7 @@
 
 ## Description
 
-linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script uses a number of tools and serves as wrapper of them. Tools include: impacket, bloodhound, crackmapexec, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, and others. 
+linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script uses a number of tools and serves as wrapper of them. Tools include: impacket, bloodhound, crackmapexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, and others. 
 
 linWinPwn is particularly useful when you have access to an Active Directory environment for a limited time only, and you wish to automate the enumeration process and collect evidence efficiently.
 In addition, linWinPwn can replace the use of enumeration tools on Windows in the aim of reducing the number of created artifacts (e.g., PowerShell commands, Windows Events, created files on disk), and bypassing certain Anti-Virus or EDRs. This can be achieved by performing remote dynamic port forwarding through the creation of an SSH tunnel from the Windows host (e.g., VDI machine or workstation or laptop) to a remote Linux machine (e.g., Pentest laptop or VPS), and running linWinPwn with proxychains.
@@ -115,10 +115,8 @@ For each of the cases described, the linWinPwn script performs different checks 
 
 **Case 1: Unauthenticated**
 - Module ad_enum
-    - rid bruteforce
-    - user enumeration
-    - ldapdomaindump anonymous enumeration
-    - Check if ldap-signing is enforced, check for LDAP Relay
+    - RID bruteforce using crackmapexec
+    - Anonymous enumeration using crackmapexec, enum4linux-ng, ldapdomaindump, ldeep
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
@@ -138,16 +136,21 @@ For each of the cases described, the linWinPwn script performs different checks 
 - DNS extraction using adidnsdump
 - Module ad_enum
     - BloodHound data collection
-    - ldapdomaindump enumeration
-    - SilentHound enumeration
-    - crackmapexec user=pass enumeration
-    - Delegation information extraction
-    - GPP Passwords extraction
-    - Extract ADCS information using certipy
-    - Check if ldap-signing is enforced, check for LDAP Relay
-    - Extraction of MachineAccountQuota of user, Password Policy and users' descriptions containing "pass"
+    - Enumeration using crackmapexec, enum4linux-ng, ldapdomaindump, windapsearch, SilentHound, ldeep
+        - Users
+        - MachineAccountQuota
+        - Password Policy
+        - Users' descriptions containing "pass"
+        - ADCS
+        - Subnets
+        - GPP Passwords
+        - Check if ldap-signing is enforced, check for LDAP Relay
+        - Delegation information
+    - crackmapexec find accounts with user=pass 
+    - Extract ADCS information using certipy and certi.py
+ 
 - Module kerberos
-    - kerbrute user=pass enumeration
+    - kerbrute find accounts with user=pas
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Targeted Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
@@ -194,6 +197,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - [login-securite](https://github.com/login-securite) - DonPAPI
 - [layer8secure](https://github.com/layer8secure) - SilentHound
 - [ShutdownRepo](https://github.com/ShutdownRepo) - TargetedKerberoast
+- [franc-pentest](https://github.com/franc-pentest) - ldeep
 
 ## Legal Disclamer
 

@@ -24,6 +24,7 @@ install_tools() {
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
     pipx install git+https://github.com/fox-it/BloodHound.py.git --force
+    pipx install git+https://github.com/franc-pentest/ldeep.git --force
 
     sudo wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     sudo wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
