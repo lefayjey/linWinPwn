@@ -59,7 +59,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.6.3
+      ${BLUE}linWinPwn: ${CYAN} version 0.6.4
       ${NC}https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -176,6 +176,7 @@ prepare (){
         target_sql=${sql_ip_list}
         argument_cme=("-u" "" "-p" "")
         argument_smbmap=""
+        argument_ldeep="-d ${dc_domain} -a"
         auth_string="${YELLOW}[i]${NC} Authentication method: null session ${NC}"
     
     #Check if username is not provided
@@ -195,7 +196,7 @@ prepare (){
         argument_bhd="-u ${user}@${domain} -p ''"
         argument_windap="-d ${domain} -u ${user} -p ''"
         argument_certipy="-u ${user}@${domain} -p ''"
-        argument_ldeep="-a"
+        argument_ldeep="-d ${dc_domain} -u ${user} -p '' -a"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${user} with empty password ${NC}"
     
     #Check if NTLM hash is used, and complete with empty LM hash
@@ -426,14 +427,14 @@ cme_rpc_enum () {
         echo -e "${BLUE}[*] Users Enumeration (RPC Null session)${NC}"
         ${crackmapexec} smb ${target} "${argument_cme[@]}" --users > ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt
         #Parsing user lists
-        /bin/cat ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_cme_smb_nullsess_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}" | grep -a -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_cme_smb_nullsess_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_smb_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using RPC User Enum"
     else
         echo -e "${BLUE}[*] Users Enumeration (RPC authenticated)${NC}"
         ${crackmapexec} smb ${target} "${argument_cme[@]}" --users > ${output_dir}/DomainRecon/cme_users_auth_smb_${dc_domain}.txt
         #Parsing user lists
-        /bin/cat ${output_dir}/DomainRecon/cme_users_auth_smb_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}\\\\" | cut -d "\\" -f 2 | cut -d " " -f 1 | cut -d ":" -f 1 > ${output_dir}/DomainRecon/users_list_cme_smb_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/DomainRecon/cme_users_auth_smb_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}\\\\" | cut -d "\\" -f 2 | cut -d " " -f 1 | cut -d ":" -f 1 > ${output_dir}/DomainRecon/users_list_cme_smb_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_smb_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using RPC User Enum"
     fi
@@ -452,14 +453,14 @@ cme_ldap_enum () {
         echo -e "${BLUE}[*] Users Enumeration (LDAP Null session)${NC}"
         ${crackmapexec} ldap ${target} "${argument_cme[@]}" --users --kdcHost "${kdc}${dc_domain}" > ${output_dir}/DomainRecon/cme_users_nullsess_ldap_${dc_domain}.txt
         #Parsing user lists
-        /bin/cat ${output_dir}/DomainRecon/cme_users_nullsess_ldap_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}" | grep -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_cme_ldap_nullsess_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/DomainRecon/cme_users_nullsess_ldap_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}" | grep -a -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_cme_ldap_nullsess_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_ldap_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum"
     else
         echo -e "${BLUE}[*] Users Enumeration (LDAP authenticated)${NC}"
         ${crackmapexec} ldap ${target} "${argument_cme[@]}" --users --kdcHost "${kdc}${dc_domain}" > ${output_dir}/DomainRecon/cme_users_auth_ldap_${dc_domain}.txt
         #Parsing user lists
-        /bin/cat ${output_dir}/DomainRecon/cme_users_auth_ldap_${dc_domain}.txt 2>/dev/null | grep "${dc_domain}\\\\" | cut -d "\\" -f 2 | cut -d " " -f 1 | cut -d ":" -f 1 > ${output_dir}/DomainRecon/users_list_cme_ldap_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/DomainRecon/cme_users_auth_ldap_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}\\\\" | cut -d "\\" -f 2 | cut -d " " -f 1 | cut -d ":" -f 1 > ${output_dir}/DomainRecon/users_list_cme_ldap_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_ldap_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum"
     fi
@@ -495,7 +496,7 @@ ridbrute_attack () {
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt 2>&1
         count=$(wc -l ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
-        echo -e "${GREEN}[+] Found ${count} users using RID Brute Force"
+        echo -e "${GREEN}[+] Found ${count} users using RID Brute Force${NC}"
     else
         echo -e "${PURPLE}[-] Null session RID brute force can only be executed without credentials${NC}"
     fi
@@ -505,18 +506,19 @@ ridbrute_attack () {
 userpass_cme_check () {
     known_users_list="${output_dir}/DomainRecon/users_list_sorted_${dc_domain}.txt"
     /bin/cat ${output_dir}/DomainRecon/users_list_*_${dc_domain}.txt 2>/dev/null | sort -uf > ${known_users_list} 2>&1
-    if [ ! -s "${known_users_list}" ] ; then
-        users_enum
-    fi
     echo -e "${BLUE}[*] Crackmapexec User=Pass Check (Noisy!)${NC}"
-    echo -e "${YELLOW}[i] Finding users with Password = username using crackmapexec. This may take a while...${NC}"
-    ${crackmapexec} smb ${target} -u ${known_users_list} -p ${known_users_list} --no-bruteforce --continue-on-success 2>/dev/null > ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1
-    /bin/cat ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1 | grep "\[+\]" | cut -d "\\" -f 2 | cut -d " " -f 1 > "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt"
-    if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt" ] ; then
-        echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
-        /bin/cat ${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt 2>/dev/null
+    if [ ! -s "${known_users_list}" ] ; then
+         echo -e "${PURPLE}[-] No users found! Please run users enumeration and try again..${NC}"
     else
-        echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
+        echo -e "${YELLOW}[i] Finding users with Password = username using crackmapexec. This may take a while...${NC}"
+        ${crackmapexec} smb ${target} -u ${known_users_list} -p ${known_users_list} --no-bruteforce --continue-on-success 2>/dev/null > ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1 | grep "\[+\]" | cut -d "\\" -f 2 | cut -d " " -f 1 > "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt"
+        if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt" ] ; then
+            echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
+            /bin/cat ${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt 2>/dev/null
+        else
+            echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
+        fi
     fi
     echo -e ""
 }
@@ -1138,7 +1140,7 @@ mssql_enum () {
             ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
 
         fi
-        for i in $(/bin/cat ${sql_hostname_list}); do
+        for i in $(/bin/cat ${sql_hostname_list} 2>/dev/null ); do
             grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
         done
         if [ ! -f "${sql_ip_list}" ] ; then
