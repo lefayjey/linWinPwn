@@ -59,8 +59,8 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN} version 0.6.4
-      ${NC}https://github.com/lefayjey/linWinPwn
+      ${BLUE}linWinPwn: ${CYAN}version 0.6.4 ${NC}
+      https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
 "
@@ -363,7 +363,7 @@ bhd_enum () {
     else
         echo -e "${BLUE}[*] BloodHound Enumeration using all collection methods (Noisy!)${NC}"
         if [ -n "$(ls -A ${output_dir}/DomainRecon/BloodHound/ 2>/dev/null)" ] ; then
-            echo -e "${YELLOW}[i] BloodHound results found. ${NC}"
+            echo -e "${YELLOW}[i] BloodHound results found ${NC}"
         else
             if [ "${nullsess_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
@@ -384,7 +384,7 @@ bhd_enum_dconly () {
     else
         echo -e "${BLUE}[*] BloodHound Enumeration (Null session) using DCOnly${NC}"
         if [ -n "$(ls -A ${output_dir}/DomainRecon/BloodHound/ 2>/dev/null)" ] ; then
-            echo -e "${YELLOW}[i] BloodHound results found. ${NC}"
+            echo -e "${YELLOW}[i] BloodHound results found ${NC}"
         else
             if [ "${nullsess_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
@@ -429,14 +429,14 @@ cme_rpc_enum () {
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}" | grep -a -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_cme_smb_nullsess_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_smb_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
-        echo -e "${GREEN}[+] Found ${count} users using RPC User Enum"
+        echo -e "${GREEN}[+] Found ${count} users using RPC User Enum${NC}"
     else
         echo -e "${BLUE}[*] Users Enumeration (RPC authenticated)${NC}"
         ${crackmapexec} smb ${target} "${argument_cme[@]}" --users > ${output_dir}/DomainRecon/cme_users_auth_smb_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_auth_smb_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}\\\\" | cut -d "\\" -f 2 | cut -d " " -f 1 | cut -d ":" -f 1 > ${output_dir}/DomainRecon/users_list_cme_smb_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_smb_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
-        echo -e "${GREEN}[+] Found ${count} users using RPC User Enum"
+        echo -e "${GREEN}[+] Found ${count} users using RPC User Enum${NC}"
     fi
     echo -e ""
     echo -e "${BLUE}[*] Password Policy Enumeration${NC}"
@@ -455,14 +455,14 @@ cme_ldap_enum () {
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_nullsess_ldap_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}" | grep -a -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_cme_ldap_nullsess_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_ldap_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
-        echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum"
+        echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum${NC}"
     else
         echo -e "${BLUE}[*] Users Enumeration (LDAP authenticated)${NC}"
         ${crackmapexec} ldap ${target} "${argument_cme[@]}" --users --kdcHost "${kdc}${dc_domain}" > ${output_dir}/DomainRecon/cme_users_auth_ldap_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_auth_ldap_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}\\\\" | cut -d "\\" -f 2 | cut -d " " -f 1 | cut -d ":" -f 1 > ${output_dir}/DomainRecon/users_list_cme_ldap_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_ldap_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
-        echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum"
+        echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum${NC}"
     fi
     echo -e ""
     echo -e "${BLUE}[*] Password not required Enumeration${NC}"
