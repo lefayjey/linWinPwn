@@ -185,19 +185,30 @@ For each of the cases described, the linWinPwn script performs different checks 
 
 ## Credits
 
-- [S3cur3Th1sSh1t](https://github.com/S3cur3Th1sSh1t) - WinPwn
-- [SecureAuth](https://github.com/SecureAuthCorp) - impacket
-- [byt3bl33d3r, mpgn and all contributors](https://porchetta.industries/) - crackmapexec
-- [Fox-IT](https://github.com/fox-it) - bloodhound-python
-- [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump
-- [zer1t0](https://github.com/zer1t0) - certi.py
-- [ly4k](https://github.com/ly4k) - Certipy
-- [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
-- [ropnop](https://github.com/ropnop) - windapsearch, kerbrute
-- [login-securite](https://github.com/login-securite) - DonPAPI
-- [layer8secure](https://github.com/layer8secure) - SilentHound
-- [ShutdownRepo](https://github.com/ShutdownRepo) - TargetedKerberoast
-- [franc-pentest](https://github.com/franc-pentest) - ldeep
+- Inspiration: [S3cur3Th1sSh1t](https://github.com/S3cur3Th1sSh1t) - WinPwn
+- Tools: 
+    - [SecureAuth](https://github.com/SecureAuthCorp) - impacket
+    - [byt3bl33d3r, mpgn and all contributors](https://porchetta.industries/) - crackmapexec
+    - [Fox-IT](https://github.com/fox-it) - bloodhound-python
+    - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump
+    - [zer1t0](https://github.com/zer1t0) - certi.py
+    - [ly4k](https://github.com/ly4k) - Certipy
+    - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
+    - [ropnop](https://github.com/ropnop) - windapsearch, kerbrute
+    - [login-securite](https://github.com/login-securite) - DonPAPI
+    - [layer8secure](https://github.com/layer8secure) - SilentHound
+    - [ShutdownRepo](https://github.com/ShutdownRepo) - TargetedKerberoast
+    - [franc-pentest](https://github.com/franc-pentest) - ldeep
+- References:
+    -  https://orange-cyberdefense.github.io/ocd-mindmaps/
+    -  https://github.com/swisskyrepo/PayloadsAllTheThings
+    -  https://book.hacktricks.xyz/
+    -  https://adsecurity.org/
+    -  https://casvancooten.com/
+    -  https://www.thehacker.recipes/
+    -  https://www.ired.team/
+    -  https://github.com/S1ckB0y1337/Active-Directory-Exploitation-Cheat-Sheet
+    -  https://hideandsec.sh/
 
 ## Legal Disclamer
 
