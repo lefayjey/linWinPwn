@@ -42,10 +42,16 @@ The linWinPwn script contains 6 modules that can be used either separately or si
 ./linWinPwn.sh -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password_or_hash[LM:NT]_or_kerbticket[./krb5cc_ticket]> -o <output_dir>]
 ```
 
-**Auto config** - Run NTP sync with target DC and add entry to /etc/hosts before running the modules (parameter should be set at the end)  
+**Auto config** - Run NTP sync with target DC and add entry to /etc/hosts before running the modules
 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP> --auto-config
+```
+
+**LDAPS** - Use LDAPS instead of LDAP (port 636)
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> --ldaps
 ```
 
 **User modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum**
@@ -117,6 +123,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Module ad_enum
     - RID bruteforce using crackmapexec
     - Anonymous enumeration using crackmapexec, enum4linux-ng, ldapdomaindump, ldeep
+    - Pre2k authentication check on collected list of computers
 - Module kerberos
     - kerbrute user spray
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
@@ -147,6 +154,7 @@ For each of the cases described, the linWinPwn script performs different checks 
         - Check if ldap-signing is enforced, check for LDAP Relay
         - Delegation information
     - crackmapexec find accounts with user=pass 
+    - Pre2k authentication check on domain computers
     - Extract ADCS information using certipy and certi.py
  
 - Module kerberos
@@ -199,6 +207,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - [layer8secure](https://github.com/layer8secure) - SilentHound
     - [ShutdownRepo](https://github.com/ShutdownRepo) - TargetedKerberoast
     - [franc-pentest](https://github.com/franc-pentest) - ldeep
+    - [garrettfoster13](https://github.com/garrettfoster13/) - pre2k
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
     -  https://github.com/swisskyrepo/PayloadsAllTheThings
