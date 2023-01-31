@@ -180,6 +180,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Module pwd_dump
     - LAPS and gMSA dump
     - secretsdump on all domain servers
+    - NTDS dump using impacket, crackmapexec and certsync
     - Dump lsass on all domain servers using: procdump, lsassy, nanodump, handlekatz, masky 
     - Extract backup keys using DonPAPI
 
@@ -208,6 +209,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - [ShutdownRepo](https://github.com/ShutdownRepo) - TargetedKerberoast
     - [franc-pentest](https://github.com/franc-pentest) - ldeep
     - [garrettfoster13](https://github.com/garrettfoster13/) - pre2k
+    - [zblurx](https://github.com/zblurx/) - certsync
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
     -  https://github.com/swisskyrepo/PayloadsAllTheThings
