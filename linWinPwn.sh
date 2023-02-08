@@ -476,7 +476,7 @@ bhd_enum_dconly () {
             else 
                 current_dir=$(pwd)
                 cd ${output_dir}/DomainRecon/BloodHound
-                ${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip | tee ${output_dir}/DomainRecon/BloodHound/bloodhound_dconly_output_${dc_domain}.txt
+                ${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip | tee ${output_dir}/DomainRecon/BloodHound/bloodhound_output_dconly_${dc_domain}.txt
                 cd ${current_dir}
             fi
         fi
