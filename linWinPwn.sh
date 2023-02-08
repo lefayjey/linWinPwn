@@ -230,8 +230,9 @@ prepare (){
         argument_cme=("-d" "${domain}" "-u" "${user}" "-p" "")
         argument_imp="${domain}/${user}:''" 
         argument_imp_gp="${domain}/${user}:''" 
-        argument_enum4linux="-w ${domain} -u ${user} -p ''"
         argument_bhd="-u ${user}@${domain} -p ''"
+        argument_enum4linux="-w ${domain} -u ${user} -p ''"
+        argument_adidns="-u ${domain}\\${user} -p ''"
         argument_ldd="-u ${domain}\\${user} -p ''"
         argument_smbmap="-d ${domain} -u ${user} -p ''"
         argument_certi_py="${domain}/${user}:''"
