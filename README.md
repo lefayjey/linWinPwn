@@ -194,7 +194,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - secretsdump on all domain servers
     - NTDS dump using impacket, crackmapexec and certsync
     - Dump lsass on all domain servers using: procdump, lsassy, nanodump, handlekatz, masky 
-    - Extract backup keys using DonPAPI
+    - Extract backup keys using DonPAPI, HEKATOMB
 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -M all
@@ -217,6 +217,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
     - [ropnop](https://github.com/ropnop) - windapsearch, kerbrute
     - [login-securite](https://github.com/login-securite) - DonPAPI
+    - [Processus-Thief](https://github.com/Processus-Thief) - HEKATOMB
     - [layer8secure](https://github.com/layer8secure) - SilentHound
     - [ShutdownRepo](https://github.com/ShutdownRepo) - TargetedKerberoast
     - [franc-pentest](https://github.com/franc-pentest) - ldeep
