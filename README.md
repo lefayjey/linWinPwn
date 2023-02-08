@@ -60,6 +60,12 @@ The linWinPwn script contains 6 modules that can be used either separately or si
 ./linWinPwn.sh -t <Domain_Controller_IP> --force-kerb
 ```
 
+**Verbose** - Enable all verbose and debug outputs
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> --verbose
+```
+
 **User modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum**
 
 ```bash
