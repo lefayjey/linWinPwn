@@ -76,7 +76,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.7.5 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.7.6 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -163,6 +163,11 @@ prepare (){
 
     dc_FQDN=${dc_NETBIOS}"."${dc_domain}
     kdc=""
+    dc_open_ports=$(${nmap} -p 135,445,389,636 ${dc_ip} -sT -T5 --open)
+    if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"389/tcp"* ]]; then dc_port_389="${GREEN}open${NC}"; else dc_port_389="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"636/tcp"* ]]; then dc_port_636="${GREEN}open${NC}"; else dc_port_636="${RED}filtered|closed${NC}"; fi
 
     if [ "${autoconfig_bool}" == true ]; then
         echo -e "${BLUE}[*] NTP and /etc/hosts auto-config... ${NC}"
@@ -1552,6 +1557,7 @@ print_info () {
     echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${dc_FQDN}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's IP: ${dc_ip}"
+    echo -e "${YELLOW}[i]${NC} Domain Controller's ports: RPC ${dc_port_135}, SMB ${dc_port_445}, LDAP ${dc_port_389}, LDAPS ${dc_port_636}"
     echo -e "${YELLOW}[i]${NC} Running modules: ${modules}"
     echo -e "${YELLOW}[i]${NC} Output folder: ${output_dir}"
     echo -e "${YELLOW}[i]${NC} User wordlist file: ${users_list}"
