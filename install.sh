@@ -16,10 +16,10 @@ install_tools() {
     sudo mkdir -p ${scripts_dir}
     sudo chown -R $(whoami):$(whoami) ${scripts_dir}
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-    pip3 install --user pipx PyYAML LnkParse3 alive_progress --upgrade
+    pip3 install --user pipx PyYAML LnkParse3 alive_progress xlsxwriter sectools --upgrade
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
-    pipx install git+https://github.com/Porchetta-Industries/CrackMapExec.git --force
+    pipx install git+https://github.com/mpgn/CrackMapExec.git --force
     pipx install git+https://github.com/ThePorgs/impacket.git --force
     pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
     pipx install git+https://github.com/zer1t0/certi.git --force
@@ -36,6 +36,7 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/layer8secure/SilentHound/main/silenthound.py" -O "$scripts_dir/silenthound.py"
     wget -q "https://raw.githubusercontent.com/ShutdownRepo/targetedKerberoast/main/targetedKerberoast.py" -O "$scripts_dir/targetedKerberoast.py"
     wget -q "https://github.com/login-securite/DonPAPI/archive/master.zip" -O "$scripts_dir/DonPAPI.zip"
+    wget -q "https://raw.githubusercontent.com/p0dalirius/FindUncommonShares/main/FindUncommonShares.py" -O "$scripts_dir/FindUncommonShares.py"
     chmod +x "$scripts_dir/windapsearch"
     chmod +x "$scripts_dir/kerbrute"
     chmod +x "$scripts_dir/enum4linux-ng.py"
@@ -44,6 +45,7 @@ install_tools() {
     chmod +x "$scripts_dir/targetedKerberoast.py"
     unzip -o "$scripts_dir/DonPAPI.zip" -d $scripts_dir
     chmod +x "$scripts_dir/DonPAPI-main/DonPAPI.py"
+    chmod +x "$scripts_dir/FindUncommonShares.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }

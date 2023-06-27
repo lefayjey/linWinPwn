@@ -175,7 +175,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Targeted Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_shares
-    - SMB shares enumeration on all domain servers using smbmap and cme's spider_plus
+    - SMB shares enumeration on all domain servers using smbmap FindUncommonShares and cme's spider_plus
     - KeePass files and processes discovery on all domain servers
 - Module vuln_checks
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers
@@ -203,12 +203,13 @@ For each of the cases described, the linWinPwn script performs different checks 
 ## TO DO
 
 - Add more enumeration and exploitation tools...
+- Add support to AES keys for kerberos
 
 ## Credits
 
 - Inspiration: [S3cur3Th1sSh1t](https://github.com/S3cur3Th1sSh1t) - WinPwn
 - Tools: 
-    - [SecureAuth](https://github.com/SecureAuthCorp) - impacket
+    - [fortra](https://github.com/fortra) - impacket
     - [byt3bl33d3r, mpgn and all contributors](https://porchetta.industries/) - crackmapexec
     - [Fox-IT](https://github.com/fox-it) - bloodhound-python
     - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump
@@ -223,6 +224,8 @@ For each of the cases described, the linWinPwn script performs different checks 
     - [franc-pentest](https://github.com/franc-pentest) - ldeep
     - [garrettfoster13](https://github.com/garrettfoster13/) - pre2k
     - [zblurx](https://github.com/zblurx/) - certsync
+    - [p0dalirius](https://github.com/p0dalirius) - FindUncommonShares
+
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
     -  https://github.com/swisskyrepo/PayloadsAllTheThings
