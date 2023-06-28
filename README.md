@@ -175,10 +175,10 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Targeted Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
 - Module scan_shares
-    - SMB shares enumeration on all domain servers using smbmap FindUncommonShares and cme's spider_plus
+    - SMB shares enumeration on all domain servers using smbmap FindUncommonShares, manspider and cme's spider_plus
     - KeePass files and processes discovery on all domain servers
 - Module vuln_checks
-    - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers
+    - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers (using cme, Coercer and RPC Dump)
     - Check for ms17-010, ms14-068, zerologon, petitpotam, nopac, smb-signing, ntlmv1, runasppl weaknesses
 - Module mssql_enum
     - Check mssql privilege escalation paths
@@ -191,9 +191,10 @@ For each of the cases described, the linWinPwn script performs different checks 
 - All of the "Standard User" checks
 - Module pwd_dump
     - LAPS and gMSA dump
+    - SAM SYSTEM extraction
     - secretsdump on all domain servers
     - NTDS dump using impacket, crackmapexec and certsync
-    - Dump lsass on all domain servers using: procdump, lsassy, nanodump, handlekatz, masky 
+    - Dump lsass on all domain servers using: procdump, lsassy, nanodump, handlekatz, masky
     - Extract backup keys using DonPAPI, HEKATOMB
 
 ```bash
@@ -204,6 +205,9 @@ For each of the cases described, the linWinPwn script performs different checks 
 
 - Add more enumeration and exploitation tools...
 - Add support to AES keys for kerberos
+- Add forging Kerberos tickets
+- Add Kerberos delegation attacks
+- Add ADCS exploitation commands
 
 ## Credits
 
@@ -224,7 +228,8 @@ For each of the cases described, the linWinPwn script performs different checks 
     - [franc-pentest](https://github.com/franc-pentest) - ldeep
     - [garrettfoster13](https://github.com/garrettfoster13/) - pre2k
     - [zblurx](https://github.com/zblurx/) - certsync
-    - [p0dalirius](https://github.com/p0dalirius) - FindUncommonShares
+    - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares
+    - [blacklanternsecurity](https://github.com/blacklanternsecurity/) - MANSPIDER
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
