@@ -163,7 +163,7 @@ For each of the cases described, the linWinPwn script performs different checks 
         - ADCS
         - Subnets
         - GPP Passwords
-        - Check if ldap-signing is enforced, check for LDAP Relay
+        - Check if ldap signing is enforced, check for LDAP Relay
         - Delegation information
     - crackmapexec find accounts with user=pass 
     - Pre2k authentication check on domain computers
@@ -207,7 +207,6 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Add support to AES keys for kerberos
 - Add forging Kerberos tickets
 - Add Kerberos delegation attacks
-- Add ADCS exploitation commands
 
 ## Credits
 
