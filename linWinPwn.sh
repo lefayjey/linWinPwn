@@ -349,7 +349,7 @@ prepare (){
             argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
             argument_windap="-d ${domain} -u ${user} --hash ${hash}"
             argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
-            argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)}"
+            argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
             argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
             pass_bool=false
             kerb_bool=false
