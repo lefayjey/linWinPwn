@@ -411,7 +411,7 @@ prepare (){
         target_dc=${dc_hostname_list}
         target=${dc_FQDN}
         target_sql=${sql_hostname_list}
-        argument_cme=("-d" "${domain}" "-u" "${user}" "--aesKey" "${aeskey}") #errors
+        argument_cme=("-d" "${domain}" "-u" "${user}" "--aesKey" "${aeskey}") #errors, PL created
         argument_imp="-aesKey ${aeskey} ${domain}/${user}"
         argument_bhd="-u ${user}@${domain} -aesKey ${aeskey} --auth-method kerberos" #error, PL created
         argument_certi_py="${domain}/${user} --aes ${aeskey} -k"
