@@ -24,6 +24,7 @@ if [ ! -f "${users_list}" ]; then users_list="${wordlists_dir}/cirt-default-user
 attacker_interface="eth0"
 attacker_IP=$(ip -f inet addr show $attacker_interface | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')
 curr_targets="Domain Controllers"
+targets="DC"
 custom_target_scanned=false
 nullsess_bool=false
 pass_bool=false
@@ -70,7 +71,7 @@ certsync=$(which certsync)
 hekatomb=$(which hekatomb)
 manspider=$(which manspider)
 coercer=$(which coercer)
-donpapi="$scripts_dir/DonPAPI-main/DonPAPI.py"
+donpapi=$(which DonPAPI)
 kerbrute="$scripts_dir/kerbrute"
 silenthound="$scripts_dir/silenthound.py"
 windapsearch="$scripts_dir/windapsearch"
@@ -88,7 +89,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.8.2 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.8.3 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -113,6 +114,8 @@ help_linWinPwn () {
     echo -e "--force-kerb      Use Kerberos authentication instead of NTLM when possible (requires password or NTLM hash)"
     echo -e "--verbose         Enable all verbose and debug outputs"
     echo -e "-I/--interface    Attacker's network interface (default: eth0)"
+    echo -e "-T/--targets      Target systems for Vuln Scan, SMB Scan and Pwd Dump (default: Domain Controllers)"
+    echo -e "     ${CYAN}Choose between:${NC} DC (Domain Controllers), All (All domain servers), File='path_to_file' (File containing list of servers), IP='IP_or_hostname' (IP or hostname)"
     echo -e ""
     echo -e "${YELLOW}Example usages${NC}"
     echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain ${CYAN}(No password for anonymous login)${NC}" >&2;
@@ -139,6 +142,8 @@ while test $# -gt 0; do
             --output) output_dir="$(realpath ${2})"; shift;;
             -I) attacker_IP="$(ip -f inet addr show $2 | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')"; attacker_interface=$2; shift;;
             --interface) attacker_IP="$(ip -f inet addr show $2 | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')"; attacker_interface=$2; shift;;
+            -T) targets="${2}"; shift;;
+            --targets) targets="${2}"; shift;;
             --auto-config) autoconfig_bool=true; args+=($1);;
             --ldaps) ldaps_bool=true; args+=($1);;
             --force-kerb) forcekerb_bool=true; args+=($1);;
@@ -456,6 +461,35 @@ prepare (){
     impacket_ThePorgs=$($impacket_findDelegation | head -n 1 | grep "ThePorgs")
     if [ ! -f "${impacket_ThePorgs}" ]; then argument_ThePorgs="-dc-host ${dc_NETBIOS}"; fi
     echo -e ""
+
+    if [[ $targets == "DC" ]]; then
+        curr_targets="Domain Controllers"
+    elif [[ $targets == "All" ]]; then
+        curr_targets="All domain servers"
+    elif [[ $targets == "File="* ]]; then
+        curr_targets="File containing list of servers"
+        /bin/rm ${custom_servers_list} 2>/dev/null
+        custom_servers=$(echo $targets | cut -d "=" -f 2)
+        /bin/cp $custom_servers ${custom_servers_list} 2>/dev/null
+        if [ ! -s "${custom_servers_list}" ] ; then
+            echo -e "${RED}Invalid servers list.${NC} Choosing Domain Controllers as targets instead."
+            curr_targets="Domain Controllers"
+            custom_servers=""
+        fi
+    elif [[ $targets == "IP="* ]]; then
+        curr_targets="IP or hostname"
+        custom_ip=$(echo $targets | cut -d "=" -f 2)
+        /bin/rm ${custom_servers_list} 2>/dev/null
+        echo -n $custom_ip > ${custom_servers_list} 2>/dev/null
+        if [ ! -s "${custom_servers_list}" ] ; then
+            echo -e "${RED}Invalid servers list.${NC} Choosing Domain Controllers as targets instead."
+            curr_targets="Domain Controllers"
+            custom_ip=""
+        fi
+    else   
+        echo -e "${RED}[-] Error invalid targets parameter. Choose between DC, All, File='./custom_list' or IP=IP_or_hostname... ${NC}"
+        exit 1
+    fi
 }
 
 dns_enum () {
@@ -503,9 +537,9 @@ smb_scan () {
             echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
             servers_smb_list="${output_dir}/Scans/servers_all_smb_${dc_domain}.txt"
             if [ ! -f "${servers_smb_list}" ]; then
-                command="${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_all_${dc_domain}.txt 1>/dev/null"
+                command="${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_all_${dc_domain}.txt"
                 echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
-                $command 2>&1
+                $command 1>/dev/null 2>&1
                 grep -a "open" ${output_dir}/Scans/nmap_smb_scan_all_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
             else
                 echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
@@ -515,9 +549,9 @@ smb_scan () {
             echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
             servers_smb_list="${output_dir}/Scans/servers_custom_smb_${dc_domain}.txt"
             if [ "${custom_target_scanned}" == false ]; then
-                command="${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null"
+                command="${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt"
                 echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
-                $command 2>&1
+                $command 1>/dev/null 2>&1
                 grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
                 custom_target_scanned=true
             else
@@ -528,9 +562,9 @@ smb_scan () {
             echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
             servers_smb_list="${output_dir}/Scans/servers_custom_smb_${dc_domain}.txt"
             if [ "${custom_target_scanned}" == false ]; then
-                command="${nmap} -p 445 -Pn -sT -n ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt 1>/dev/null"
+                command="${nmap} -p 445 -Pn -sT -n ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt"
                 echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
-                $command 2>&1
+                $command 1>/dev/null 2>&1
                 grep -a "open" ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt | cut -d " " -f 2 > ${servers_smb_list}
                 custom_target_scanned=true
             else
@@ -2197,6 +2231,7 @@ print_info () {
     echo -e "${YELLOW}[i]${NC} Password wordlist file: ${pass_list}"
     echo -e "${YELLOW}[i]${NC} Attacker's IP: ${attacker_IP}"
     echo -e "${YELLOW}[i]${NC} Attacker's Interface: ${attacker_interface}"
+    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
 }
 
 modify_target () {
@@ -2859,7 +2894,6 @@ config_menu () {
         if [ ! -f "${CVE202233679}" ] ; then echo -e "${RED}[-] CVE-2022-33679 is not installed${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is installed${NC}"; fi
         if [ ! -x "${CVE202233679}" ] ; then echo -e "${RED}[-] CVE-2022-33679 is not executable${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is executable${NC}"; fi
         if [ ! -f "${donpapi}" ] ; then echo -e "${RED}[-] DonPAPI is not installed${NC}"; else echo -e "${GREEN}[+] DonPAPI is installed${NC}"; fi
-        if [ ! -x "${donpapi}" ] ; then echo -e "${RED}[-] DonPAPI is not executable${NC}"; else echo -e "${GREEN}[+] DonPAPI is executable${NC}"; fi
         if [ ! -f "${hekatomb}" ] ; then echo -e "${RED}[-] HEKATOMB is not installed${NC}"; else echo -e "${GREEN}[+] hekatomb is installed${NC}"; fi
         if [ ! -f "${FindUncommonShares}" ] ; then echo -e "${RED}[-] FindUncommonShares is not installed${NC}"; else echo -e "${GREEN}[+] FindUncommonShares is installed${NC}"; fi
         if [ ! -f "${manspider}" ] ; then echo -e "${RED}[-] manspider is not installed${NC}"; else echo -e "${GREEN}[+] manspider is installed${NC}"; fi

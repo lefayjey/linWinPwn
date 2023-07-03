@@ -33,14 +33,65 @@ chmod +x install.sh
 
 ## Usage
 
+
 ### Modules
 The linWinPwn script contains 6 modules that can be used either separately or simultaneously.
 
 **Default: interactive** - Open interactive menu to run checks separately  
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -o <output_dir>]
+./linWinPwn.sh -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -o <output_dir>]
 ```
+
+**User modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum**
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> -M user -d <AD_domain> -u <AD_user> -p <AD_password>
+```
+
+**All modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum,pwd_dump**
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> -M all -d <AD_domain> -u <AD_user> -p <AD_password>
+```
+
+**Module ad_enum:** Active Directory Enumeration
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> -M ad_enum -d <AD_domain> -u <AD_user> -p <AD_password>
+```
+
+**Module kerberos:** Kerberos Based Attacks
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> -M kerberos -d <AD_domain> -u <AD_user> -p <AD_password>
+```
+
+**Module scan_shares:** Network Shares Scan
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> -M scan_shares -d <AD_domain> -u <AD_user> -p <AD_password>
+```
+
+**Module vuln_checks:** Vulnerability Checks
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> -M vuln_checks -d <AD_domain> -u <AD_user> -p <AD_password>
+```
+
+**Module mssql_enum:** MSSQL Enumeration
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> -M mssql_enum -d <AD_domain> -u <AD_user> -p <AD_password>
+```
+
+**Module pwd_dump:** Password Dump
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> -M pwd_dump -d <AD_domain> -u <AD_user> -p <AD_password>
+```
+
+### Parameters
 
 **Auto config** - Run NTP sync with target DC and add entry to /etc/hosts before running the modules
 
@@ -66,52 +117,20 @@ The linWinPwn script contains 6 modules that can be used either separately or si
 ./linWinPwn.sh -t <Domain_Controller_IP> --verbose
 ```
 
-**User modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum**
+**Interface** - Choose attacker's network interface
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -M user [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -o <output_dir>]
+./linWinPwn.sh -t <Domain_Controller_IP> -I tun0
+./linWinPwn.sh -t <Domain_Controller_IP> --interface eth0
 ```
 
-**All modules: ad_enum,kerberos,scan_shares,vuln_checks,mssql_enum,pwd_dump**
+**Targets** - Choose targets to be scanned (DC, All, IP=IP_or_hostname, File=./path_to_file)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -M all [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -o <output_dir>]
-```
-
-**Module ad_enum:** Active Directory Enumeration
-
-```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -M ad_enum [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -o <output_dir>]  
-```
-
-**Module kerberos:** Kerberos Based Attacks
-
-```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -M kerberos [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -o <output_dir>]
-```
-
-**Module scan_shares:** Network Shares Scan
-
-```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -M scan_shares [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -o <output_dir>]
-```
-
-**Module vuln_checks:** Vulnerability Checks
-
-```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -M vuln_checks [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -o <output_dir>]
-```
-
-**Module mssql_enum:** MSSQL Enumeration
-
-```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -M mssql_enum [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -o <output_dir>] 
-```
-
-**Module pwd_dump:** Password Dump
-
-```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -M pwd_dump [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -o <output_dir>]
+./linWinPwn.sh -t <Domain_Controller_IP> -T All
+./linWinPwn.sh -t <Domain_Controller_IP> --targets DC
+./linWinPwn.sh -t <Domain_Controller_IP> -T IP=192.168.0.1
+./linWinPwn.sh -t <Domain_Controller_IP> -T File=./list_servers.txt
 ```
 
 ## Demos
@@ -184,7 +203,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Check mssql privilege escalation paths
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -M user
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -M user
 ```
 
 **Case 3: Administrator Account (using password, NTLM hash or Kerberos ticket)**
@@ -198,13 +217,12 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Extract backup keys using DonPAPI, HEKATOMB
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -M all
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -M all
 ```
 
 ## TO DO
 
 - Add more enumeration and exploitation tools...
-- Add support to AES keys for kerberos
 - Add forging Kerberos tickets
 - Add Kerberos delegation attacks
 

@@ -12,7 +12,7 @@ scripts_dir="/opt/lwp-scripts"
 
 install_tools() {
     sudo apt update
-    sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate wget zip unzip systemd-timesyncd pipx -y
+    sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate wget zip unzip systemd-timesyncd pipx swig -y
     sudo mkdir -p ${scripts_dir}
     sudo chown -R $(whoami):$(whoami) ${scripts_dir}
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -31,13 +31,13 @@ install_tools() {
     pipx install hekatomb --force
     pipx install git+https://github.com/blacklanternsecurity/MANSPIDER --force
     pipx install git+https://github.com/p0dalirius/Coercer --force
+    pipx install git+https://github.com/login-securite/DonPAPI --force
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
     wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
     wget -q "https://raw.githubusercontent.com/Bdenneu/CVE-2022-33679/main/CVE-2022-33679.py" -O "$scripts_dir/CVE-2022-33679.py"
     wget -q "https://raw.githubusercontent.com/layer8secure/SilentHound/main/silenthound.py" -O "$scripts_dir/silenthound.py"
     wget -q "https://raw.githubusercontent.com/ShutdownRepo/targetedKerberoast/main/targetedKerberoast.py" -O "$scripts_dir/targetedKerberoast.py"
-    wget -q "https://github.com/login-securite/DonPAPI/archive/master.zip" -O "$scripts_dir/DonPAPI.zip"
     wget -q "https://raw.githubusercontent.com/p0dalirius/FindUncommonShares/main/FindUncommonShares.py" -O "$scripts_dir/FindUncommonShares.py"
     chmod +x "$scripts_dir/windapsearch"
     chmod +x "$scripts_dir/kerbrute"
@@ -45,8 +45,6 @@ install_tools() {
     chmod +x "$scripts_dir/CVE-2022-33679.py"
     chmod +x "$scripts_dir/silenthound.py"
     chmod +x "$scripts_dir/targetedKerberoast.py"
-    unzip -o "$scripts_dir/DonPAPI.zip" -d $scripts_dir
-    chmod +x "$scripts_dir/DonPAPI-main/DonPAPI.py"
     chmod +x "$scripts_dir/FindUncommonShares.py"
 }
 
