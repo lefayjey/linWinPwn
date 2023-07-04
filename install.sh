@@ -16,7 +16,7 @@ install_tools() {
     sudo mkdir -p ${scripts_dir}
     sudo chown -R $(whoami):$(whoami) ${scripts_dir}
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-    pip3 install --user pipx PyYAML LnkParse3 alive_progress xlsxwriter sectools --upgrade
+    pip3 install --user pipx PyYAML alive-progress xlsxwriter sectools --upgrade
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
     pipx install git+https://github.com/mpgn/CrackMapExec.git --force

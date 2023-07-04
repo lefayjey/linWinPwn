@@ -914,6 +914,7 @@ certipy_enum () {
 
 adcs_vuln_parse (){
     if [ ! -f "${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt" ]; then
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
         command="${crackmapexec} ${cme_verbose} ldap ${target} ${argument_cme[@]} ${ldaps_param} -M adcs --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/ADCS/cme_adcs_output_${dc_domain}.txt"
         echo "$(date +%Y-%m-%d\ %H:%M:%S); $command" >> $command_log
         $command 2>&1
