@@ -12,14 +12,14 @@ scripts_dir="/opt/lwp-scripts"
 
 install_tools() {
     sudo apt update
-    sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate wget zip unzip systemd-timesyncd pipx swig -y
+    sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl -y
     sudo mkdir -p ${scripts_dir}
     sudo chown -R $(whoami):$(whoami) ${scripts_dir}
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
     pip3 install --user pipx PyYAML alive-progress xlsxwriter sectools --upgrade
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
-    pipx install git+https://github.com/mpgn/CrackMapExec.git --force
+    pipx install git+https://github.com/Porchetta-Industries/CrackMapExec.git --force
     pipx install git+https://github.com/ThePorgs/impacket.git --force
     pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
     pipx install git+https://github.com/zer1t0/certi.git --force
