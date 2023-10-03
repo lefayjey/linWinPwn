@@ -19,7 +19,7 @@ install_tools() {
     pip3 install --user pipx PyYAML alive-progress xlsxwriter sectools --upgrade
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
-    pipx install git+https://github.com/Porchetta-Industries/CrackMapExec.git --force
+    pipx install git+https://github.com/Pennyw0rth/NetExec.git --force
     pipx install git+https://github.com/ThePorgs/impacket.git --force
     pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
     pipx install git+https://github.com/zer1t0/certi.git --force

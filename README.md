@@ -2,7 +2,7 @@
 
 ## Description
 
-linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script uses a number of tools and serves as wrapper of them. Tools include: impacket, bloodhound, crackmapexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, and others. 
+linWinPwn is a bash script that automates a number of Active Directory Enumeration and Vulnerability checks. The script uses a number of tools and serves as wrapper of them. Tools include: impacket, bloodhound, netexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, and others. 
 
 linWinPwn is particularly useful when you have access to an Active Directory environment for a limited time only, and you wish to automate the enumeration process and collect evidence efficiently.
 In addition, linWinPwn can replace the use of enumeration tools on Windows in the aim of reducing the number of created artifacts (e.g., PowerShell commands, Windows Events, created files on disk), and bypassing certain Anti-Virus or EDRs. This can be achieved by performing remote dynamic port forwarding through the creation of an SSH tunnel from the Windows host (e.g., VDI machine or workstation or laptop) to a remote Linux machine (e.g., Pentest laptop or VPS), and running linWinPwn with proxychains.
@@ -152,8 +152,8 @@ For each of the cases described, the linWinPwn script performs different checks 
 
 **Case 1: Unauthenticated**
 - Module ad_enum
-    - RID bruteforce using crackmapexec
-    - Anonymous enumeration using crackmapexec, enum4linux-ng, ldapdomaindump, ldeep
+    - RID bruteforce using netexec
+    - Anonymous enumeration using netexec, enum4linux-ng, ldapdomaindump, ldeep
     - Pre2k authentication check on collected list of computers
 - Module kerberos
     - kerbrute user spray
@@ -174,7 +174,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - DNS extraction using adidnsdump
 - Module ad_enum
     - BloodHound data collection
-    - Enumeration using crackmapexec, enum4linux-ng, ldapdomaindump, windapsearch, SilentHound, ldeep
+    - Enumeration using netexec, enum4linux-ng, ldapdomaindump, windapsearch, SilentHound, ldeep
         - Users
         - MachineAccountQuota
         - Password Policy
@@ -184,7 +184,7 @@ For each of the cases described, the linWinPwn script performs different checks 
         - GPP Passwords
         - Check if ldap signing is enforced, check for LDAP Relay
         - Delegation information
-    - crackmapexec find accounts with user=pass 
+    - netexec find accounts with user=pass 
     - Pre2k authentication check on domain computers
     - Extract ADCS information using certipy and certi.py
  
@@ -212,7 +212,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - LAPS and gMSA dump
     - SAM SYSTEM extraction
     - secretsdump on all domain servers
-    - NTDS dump using impacket, crackmapexec and certsync
+    - NTDS dump using impacket, netexec and certsync
     - Dump lsass on all domain servers using: procdump, lsassy, nanodump, handlekatz, masky
     - Extract backup keys using DonPAPI, HEKATOMB
 
@@ -231,7 +231,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - Inspiration: [S3cur3Th1sSh1t](https://github.com/S3cur3Th1sSh1t) - WinPwn
 - Tools: 
     - [fortra](https://github.com/fortra) - impacket
-    - [byt3bl33d3r, mpgn and all contributors](https://porchetta.industries/) - crackmapexec
+    - [NeffIsBack, Marshall-Hallenbeck, zblurx, mpgn, byt3bl33d3r and all contributors](https://github.com/Pennyw0rth/NetExec) - crackmapexec/netexec
     - [Fox-IT](https://github.com/fox-it) - bloodhound-python
     - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump
     - [zer1t0](https://github.com/zer1t0) - certi.py
