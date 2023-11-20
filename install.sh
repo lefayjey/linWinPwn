@@ -12,7 +12,7 @@ scripts_dir="/opt/lwp-scripts"
 
 install_tools() {
     sudo apt update
-    sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl -y
+    sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl -y
     sudo mkdir -p ${scripts_dir}
     sudo chown -R $(whoami):$(whoami) ${scripts_dir}
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -31,6 +31,7 @@ install_tools() {
     pipx install hekatomb --force
     pipx install git+https://github.com/blacklanternsecurity/MANSPIDER --force
     pipx install git+https://github.com/p0dalirius/Coercer --force
+    pipx install git+https://github.com/CravateRouge/bloodyAD --force
     pipx install git+https://github.com/login-securite/DonPAPI --force
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"

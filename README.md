@@ -174,7 +174,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - DNS extraction using adidnsdump
 - Module ad_enum
     - BloodHound data collection
-    - Enumeration using netexec, enum4linux-ng, ldapdomaindump, windapsearch, SilentHound, ldeep
+    - Enumeration using netexec, enum4linux-ng, ldapdomaindump, windapsearch, SilentHound, ldeep, bloodyAD
         - Users
         - MachineAccountQuota
         - Password Policy
@@ -247,6 +247,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - [zblurx](https://github.com/zblurx/) - certsync
     - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares
     - [blacklanternsecurity](https://github.com/blacklanternsecurity/) - MANSPIDER
+    - [CravateRouge](https://github.com/CravateRouge) - bloodyAD
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
