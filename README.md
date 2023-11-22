@@ -198,7 +198,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - KeePass files and processes discovery on all domain servers
 - Module vuln_checks
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers (using cme, Coercer and RPC Dump)
-    - Check for ms17-010, ms14-068, zerologon, petitpotam, nopac, smb-signing, ntlmv1, runasppl weaknesses
+    - Check for ms17-010, ms14-068, zerologon, petitpotam, nopac, smb-signing, ntlmv1, runasppl, certifried weaknesses
 - Module mssql_enum
     - Check mssql privilege escalation paths
 

