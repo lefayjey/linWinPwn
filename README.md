@@ -223,7 +223,6 @@ For each of the cases described, the linWinPwn script performs different checks 
 ## TO DO
 
 - Add more enumeration and exploitation tools...
-- Add forging Kerberos tickets
 - Add Kerberos delegation attacks
 
 ## Credits
