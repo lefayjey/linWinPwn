@@ -203,7 +203,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Check mssql privilege escalation paths
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -M user
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -M user
 ```
 
 **Case 3: Administrator Account (using password, NTLM hash or Kerberos ticket)**
@@ -217,7 +217,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - Extract backup keys using DonPAPI, HEKATOMB
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -M all
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -M all
 ```
 
 ## TO DO
