@@ -116,6 +116,7 @@ help_linWinPwn () {
     echo -e "-o/--output       Output directory (default: current dir)"
     echo -e "--auto-config     Run NTP sync with target DC and adds entry to /etc/hosts"
     echo -e "--ldaps           Use LDAPS instead of LDAP (port 636)"
+    echo -e "--force-kerb      Use Kerberos authentication instead of NTLM when possible (requires password or NTLM hash)"
     echo -e "--verbose         Enable all verbose and debug outputs"
     echo -e "-I/--interface    Attacker's network interface (default: eth0)"
     echo -e "-T/--targets      Target systems for Vuln Scan, SMB Scan and Pwd Dump (default: Domain Controllers)"
@@ -151,6 +152,7 @@ while test $# -gt 0; do
             --targets) targets="${2}"; shift;;
             --auto-config) autoconfig_bool=true; args+=($1);;
             --ldaps) ldaps_bool=true; args+=($1);;
+            --force-kerb) forcekerb_bool=true; args+=($1);;
             --verbose) verbose_bool=true; args+=($1);;
             -h) help_linWinPwn; exit;;
             --help) help_linWinPwn; exit;;
@@ -2802,13 +2804,12 @@ auth_menu () {
     echo -e "1) Generate and use NTLM hash of current user (requires: password) - Pass the hash"
     echo -e "2) Crack NTLM hash of current user and use password (requires: NTLM hash)"
     echo -e "3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
-    echo -e "4) Force use Kerberos authentication with netexec (requires: password, NTLM hash or AES key)"
-    echo -e "5) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
-    echo -e "6) Request certificate using Certipy (requires: authenticated)"
-    echo -e "7) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "8) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "9) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "10) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
+    echo -e "5) Request certificate using Certipy (requires: authenticated)"
+    echo -e "6) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "7) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "8) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "9) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)"
 
     read -p "> " option_selected </dev/tty
 
@@ -2888,16 +2889,6 @@ auth_menu () {
         ;;
 
         4)
-        if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
-            forcekerb_bool=true
-            echo -e "${YELLOW}[i] Using kerberos authentication with netexec...${NC}"
-        else
-            echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
-        fi
-        auth_menu
-        ;;
-
-        5)
         if [[ ! -f "${certipy}" ]] ; then
             echo -e "${RED}[-] Please verify the installation of certipy${NC}"
         else
@@ -2933,7 +2924,7 @@ auth_menu () {
         auth_menu
         ;;
 
-        6)
+        5)
         if [[ ! -f "${certipy}" ]] ; then
             echo -e "${RED}[-] Please verify the installation of certipy${NC}"
         else
@@ -2956,7 +2947,7 @@ auth_menu () {
         auth_menu
         ;;
         
-        7)
+        6)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
@@ -3001,7 +2992,7 @@ auth_menu () {
         auth_menu
         ;;
 
-        8)
+        7)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
@@ -3044,7 +3035,7 @@ auth_menu () {
         auth_menu
         ;;
         
-        9)
+        8)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
@@ -3082,7 +3073,7 @@ auth_menu () {
         auth_menu
         ;;
         
-        10)
+        9)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
@@ -3141,16 +3132,14 @@ config_menu () {
     echo -e "------------------------------------------------------"
     echo -e "ENTER) Go back to Init Menu"
     echo -e "1) Check installation of tools and dependencies"
-    echo -e "2) Change output folder"
-    echo -e "3) Synchronize time with Domain Controller (requires root)"
-    echo -e "4) Add Domain Controller's IP and Domain to /etc/hosts (requires root)"
-    echo -e "5) Update resolv.conf to define Domain Controller as DNS server (requires root)"
-    echo -e "6) Switch between LDAP (port 389) and LDAPS (port 636)"
-    echo -e "7) Download default username and password wordlists (non-kali machines)"
-    echo -e "8) Change users wordlist file"
-    echo -e "9) Change passwords wordlist file"
-    echo -e "10) Change attacker's IP"
-    echo -e "11) Show session information"
+    echo -e "2) Synchronize time with Domain Controller (requires root)"
+    echo -e "3) Add Domain Controller's IP and Domain to /etc/hosts (requires root)"
+    echo -e "4) Update resolv.conf to define Domain Controller as DNS server (requires root)"
+    echo -e "5) Download default username and password wordlists (non-kali machines)"
+    echo -e "6) Change users wordlist file"
+    echo -e "7) Change passwords wordlist file"
+    echo -e "8) Change attacker's IP"
+    echo -e "9) Show session information"
 
     read -p "> " option_selected </dev/tty
 
@@ -3199,34 +3188,20 @@ config_menu () {
 
         2)
         echo -e ""
-        echo -e "Please specify new output folder:"
-        read -p ">> " output_dir_new </dev/tty
-        if [ ! "${output_dir_new}" == "" ]; then
-            mkdir -p $output_dir_new 2>/dev/null
-            output_dir=$output_dir_new
-            echo -e "${GREEN}[+] Output folder updated${NC}"
-        else
-            echo -e "${RED}[-] Error updating output folder${NC}"
-        fi
-        config_menu
-        ;;
-
-        3)
-        echo -e ""
         sudo timedatectl set-ntp 0
         sudo ntpdate ${dc_ip}
         echo -e "${GREEN}[+] NTP sync complete${NC}"
         config_menu
         ;;
 
-        4)
+        3)
         echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
         echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
         echo -e "${GREEN}[+] /etc/hosts update complete${NC}"
         config_menu
         ;;
 
-        5)
+        4)
         echo -e ""
         echo -e "Content of /etc/resolv.conf before update:"
         echo -e "------------------------------------------"
@@ -3237,19 +3212,7 @@ config_menu () {
         config_menu
         ;;
 
-        6)
-        if [ "${ldaps_bool}" == false ]; then
-            ldaps_bool=true
-            echo -e "${GREEN}[+] Switched to using LDAPS on port 636${NC}"
-
-        else
-            ldaps_bool=false
-            echo -e "${GREEN}[+] Switched to using LDAP on port 389${NC}"
-        fi
-        config_menu
-        ;;
-
-        7)
+        5)
         echo -e ""
         sudo mkdir -p ${wordlists_dir} 
         sudo chown -R $(whoami) ${wordlists_dir}
@@ -3265,27 +3228,27 @@ config_menu () {
         config_menu
         ;;
 
-        8)
+        6)
         echo -e "Please specify new users wordlist file:"
         read -p ">> " users_wordlist </dev/tty
         echo -e "${GREEN}[+] Users wordlist file updated${NC}"
         config_menu
         ;;
 
-        9)
+        7)
         echo -e "Please specify new passwords wordlist file:"
         read -p ">> " pass_wordlist </dev/tty
         echo -e "${GREEN}[+] Passwords wordlist file updated${NC}"
         config_menu
         ;;
 
-        10)
+        8)
         echo ""
         set_attackerIP
         config_menu
         ;;
 
-        11)
+        9)
         echo ""
         print_info
         config_menu
