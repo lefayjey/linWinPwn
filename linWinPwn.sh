@@ -478,15 +478,15 @@ authenticate (){
         target_dc=${dc_hostname_list}
         target_sql=${sql_hostname_list}
         target_servers=${servers_hostname_list}
-        argument_ne="-d ${domain} -u ${user} --aesKey ${aeskey}" #errors, PL created
+        argument_ne="-d ${domain} -u ${user} --aesKey ${aeskey}"
         argument_imp="-aesKey ${aeskey} ${domain}/${user}"
         argument_bhd="-u ${user}@${domain} -aesKey ${aeskey} --auth-method kerberos" #error, PL created
         argument_certi_py="${domain}/${user} --aes ${aeskey} -k"
         argument_certipy="-u ${user}@${domain} -aes ${aeskey} -target ${dc_FQDN}"
         argument_pre2k="-d ${domain} -u ${user} -aes ${aeskey} -k"
-        argument_certsync="-d ${domain} -u ${user} -aesKey ${aeskey} -k" #error, PL created
+        argument_certsync="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
         argument_donpapi="-k -aesKey ${aeskey} ${domain}/${user}"
-        argument_targkerb="-d ${domain} -u ${user} --aes-key ${aeskey} -k" #error, PL created
+        argument_targkerb="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -1240,6 +1240,7 @@ userpass_kerbrute_check () {
             for i in $(/bin/cat ${users_list}); do
                 echo -e "${i}:${i}" >> "${user_pass_wordlist}"
             done
+            sort -uf "${user_pass_wordlist}" -o "${user_pass_wordlist}"
             run_command "${kerbrute} bruteforce ${user_pass_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" 2>&1 > ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt
             /bin/cat ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt 2>&1 | grep "VALID" | cut -d " " -f 8 | cut -d "@" -f 1 > "${output_dir}/DomainRecon/user_eq_pass_valid_kerb_${dc_domain}.txt"
             if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_kerb_${dc_domain}.txt" ] ; then
