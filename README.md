@@ -174,7 +174,7 @@ For each of the cases described, the linWinPwn script performs different checks 
 - DNS extraction using adidnsdump
 - Module ad_enum
     - BloodHound data collection
-    - Enumeration using netexec, enum4linux-ng, ldapdomaindump, windapsearch, SilentHound, ldeep, bloodyAD
+    - Enumeration using netexec, enum4linux-ng, ldapdomaindump, windapsearch, SilentHound, ldeep, bloodyAD, sccmhunter
         - Users
         - MachineAccountQuota
         - Password Policy
@@ -184,6 +184,8 @@ For each of the cases described, the linWinPwn script performs different checks 
         - GPP Passwords
         - Check if ldap signing is enforced, check for LDAP Relay
         - Delegation information
+        - RDWA and SCCM servivces
+    - Generate wordlist for password cracking
     - netexec find accounts with user=pass 
     - Pre2k authentication check on domain computers
     - Extract ADCS information using certipy and certi.py
@@ -215,6 +217,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - NTDS dump using impacket, netexec and certsync
     - Dump lsass on all domain servers using: procdump, lsassy, nanodump, handlekatz, masky
     - Extract backup keys using DonPAPI, HEKATOMB
+    - Extract bitlocker keys
 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -M all
@@ -242,9 +245,9 @@ For each of the cases described, the linWinPwn script performs different checks 
     - [layer8secure](https://github.com/layer8secure) - SilentHound
     - [ShutdownRepo](https://github.com/ShutdownRepo) - TargetedKerberoast
     - [franc-pentest](https://github.com/franc-pentest) - ldeep
-    - [garrettfoster13](https://github.com/garrettfoster13/) - pre2k
+    - [garrettfoster13](https://github.com/garrettfoster13/) - pre2k, aced, sccmhunter
     - [zblurx](https://github.com/zblurx/) - certsync
-    - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares
+    - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares, ExtractBitlockerKeys, LDAPWordlistHarvester, ldapconsole, pyLDAPmonitor, RDWAtool
     - [blacklanternsecurity](https://github.com/blacklanternsecurity/) - MANSPIDER
     - [CravateRouge](https://github.com/CravateRouge) - bloodyAD
 

