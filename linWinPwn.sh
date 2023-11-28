@@ -355,6 +355,7 @@ authenticate (){
         pass_bool=false
         hash_bool=false
         kerb_bool=false
+        unset KRB5CCNAME
         aeskey_bool=false
         cert_bool=false
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}${user} with empty password ${NC}"
@@ -389,6 +390,7 @@ authenticate (){
         argument_sccm="-d ${domain} -u ${user} -p ${password}"
         hash_bool=false
         kerb_bool=false
+        unset KRB5CCNAME
         aeskey_bool=false
         cert_bool=false
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}password of ${user}${NC}"
@@ -439,19 +441,17 @@ authenticate (){
             argument_bloodyad="-d ${domain} -u ${user} -c :${pem_cert}"
             argument_ldeep="-d ${domain} -u ${user} --pfx-file ${pfxcert}"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Certificate of $user located at $(realpath $pfxcert)${NC}"
-            pass_bool=false
-            kerb_bool=false
-            aeskey_bool=false
             hash_bool=false
         else
             argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
             argument_bloodyad="-d ${domain} -u ${user} -p ${hash}"
-            pass_bool=false
-            kerb_bool=false
-            aeskey_bool=false
             cert_bool=false
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
         fi
+        pass_bool=false
+        kerb_bool=false
+        unset KRB5CCNAME
+        aeskey_bool=false
     fi
     
     #Check if kerberos ticket is used
@@ -497,8 +497,8 @@ authenticate (){
         target_servers=${servers_hostname_list}
         argument_ne="-d ${domain} -u ${user} --aesKey ${aeskey}"
         argument_imp="-aesKey ${aeskey} ${domain}/${user}"
-        argument_bhd="-u ${user}@${domain} -aesKey ${aeskey} --auth-method kerberos" #error, PL created
-        argument_certi_py="${domain}/${user} --aes ${aeskey} -k"
+        argument_bhd="-u ${user}@${domain} -aesKey ${aeskey} --auth-method kerberos"
+        argument_certi_py="${domain}/${user} --aes ${aeskey} -k"    
         argument_certipy="-u ${user}@${domain} -aes ${aeskey} -target ${dc_FQDN}"
         argument_pre2k="-d ${domain} -u ${user} -aes ${aeskey} -k"
         argument_certsync="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
@@ -510,6 +510,7 @@ authenticate (){
         pass_bool=false
         hash_bool=false
         kerb_bool=false
+        unset KRB5CCNAME
         cert_bool=false
         forcekerb_bool=false
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}AES Kerberos key of ${user}${NC}"
@@ -1218,7 +1219,7 @@ ldapwordharv_enum () {
         echo -e "${BLUE}[*] Generating wordlist using LDAPWordlistHarvester${NC}"
         if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
         if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
-        run_command "${LDAPWordlistHarvester} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} -o ${output_dir}/DomainRecon/ldapwordharv_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/DomainRecon/ldapwordharv_output_${dc_domain}.txt
+        run_command "${LDAPWordlistHarvester} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip} -o ${output_dir}/DomainRecon/ldapwordharv_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/DomainRecon/ldapwordharv_output_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -1511,7 +1512,7 @@ finduncshar_scan () {
         echo -e "${BLUE}[*] Enumerating Shares using FindUncommonShares${NC}"
         if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
         if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-        run_command "${FindUncommonShares} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt
+        run_command "${FindUncommonShares} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -2142,7 +2143,7 @@ bitlocker_dump () {
     else
         echo -e "${BLUE}[*] Extracting BitLocker keys using ExtractBitlockerKeys${NC}"
         if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
-        run_command "${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --dc-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Credentials/bitlockerdump_output_${dc_domain}.txt
+        run_command "${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Credentials/bitlockerdump_output_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -2188,7 +2189,7 @@ ldap_console () {
         echo -e "${BLUE}[*] Launching ldapconsole${NC}"
         if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
         if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-debug"; else verbose_p0dalirius=""; fi
-        run_command "${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/ConsoleData/ldapconsole_output_${dc_domain}.txt
+        run_command "${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1 | tee -a ${output_dir}/ConsoleData/ldapconsole_output_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -2200,7 +2201,7 @@ ldap_monitor () {
         echo -e "${BLUE}[*] Launching pyLDAPmonitor${NC}"
         if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
         if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
-        run_command "${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip}" 2>&1
+        run_command "${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1
     fi
     echo -e ""
 }
@@ -2959,8 +2960,8 @@ console_menu () {
     echo -e "${CYAN}[LDAP console menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------------------"
     echo -e "1) Certipy LDAP shell via Schannel (using Certificate Authentication)"
-    echo -e "2) podalirius' LDAP Console"
-    echo -e "3) podalirius's LDAP Monitor"
+    echo -e "2) p0dalirius' LDAP Console"
+    echo -e "3) p0dalirius' LDAP Monitor"
     echo -e "4) garrettfoster13's ACED"
     echo -e "99) Back"
 
@@ -3145,6 +3146,7 @@ auth_menu () {
             hash_bool=false
             aeskey_bool=false
             kerb_bool=false
+            unset KRB5CCNAME
             cert_bool=true
            authenticate
         fi
@@ -3181,6 +3183,7 @@ auth_menu () {
                     aeskey_bool=false
                     cert_bool=true
                     kerb_bool=false
+                    unset KRB5CCNAME
                     authenticate
                 else
                     echo -e "${RED}[-] Failed to request certificate${NC}"
