@@ -160,6 +160,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Blind Kerberoast
     - CVE-2022-33679 exploit
+    - Check for DNS unsecure updates for AS-REQ abuse using krbjack
 - Module scan_shares
     - SMB shares anonymous enumeration on identified servers
 - Module vuln_checks

@@ -34,6 +34,7 @@ install_tools() {
     pipx install git+https://github.com/CravateRouge/bloodyAD --force
     pipx install git+https://github.com/login-securite/DonPAPI --force
     pipx install git+https://github.com/p0dalirius/RDWAtool --force
+    pipx install git+https://github.com/almandin/krbjack --force
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
     wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
