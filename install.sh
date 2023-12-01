@@ -20,7 +20,7 @@ install_tools() {
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
     pipx install git+https://github.com/Pennyw0rth/NetExec.git --force
-    pipx install git+https://github.com/ThePorgs/impacket.git --force
+    pipx install git+https://github.com/fortra/impacket.git --force
     pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
