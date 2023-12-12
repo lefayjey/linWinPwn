@@ -89,6 +89,7 @@ LDAPWordlistHarvester="$scripts_dir/LDAPWordlistHarvester.py"
 rdwatool=$(which rdwatool)
 aced="$scripts_dir/aced-main/aced.py"
 sccmhunter="$scripts_dir/sccmhunter-main/sccmhunter.py"
+ldapper="$scripts_dir/ldapper.py"
 krbjack=$(which krbjack)
 nmap=$(which nmap)
 john=$(which john)
@@ -101,7 +102,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.9.2 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.9.3 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -249,6 +250,7 @@ prepare (){
     mkdir -p ${output_dir}/DomainRecon/SilentHound
     mkdir -p ${output_dir}/DomainRecon/ldeepDump
     mkdir -p ${output_dir}/DomainRecon/bloodyAD
+    mkdir -p ${output_dir}/DomainRecon/LDAPPER
     mkdir -p ${output_dir}/Kerberos
     mkdir -p ${output_dir}/Shares/smbmapDump
     mkdir -p ${output_dir}/Shares/manspiderDump
@@ -350,6 +352,7 @@ authenticate (){
         argument_bloodyad="-d ${domain} -u ${user} -p ''"
         argument_aced="${domain}/${user}:''"
         argument_sccm="-d ${domain}"
+        argument_ldapper="-D ${domain} -U ${user} -P ''"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -386,6 +389,7 @@ authenticate (){
         argument_bloodyad="-d ${domain} -u ${user} -p ${password}"
         argument_aced="${domain}/${user}:${password}"
         argument_sccm="-d ${domain} -u ${user} -p ${password}"
+        argument_ldapper="-D ${domain} -U ${user} -P ${password}"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -423,6 +427,8 @@ authenticate (){
             argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
             argument_aced=" -hashes ${hash} ${domain}/${user}"
             argument_sccm="-d ${domain} -u ${user} -hashes ${hash}"
+            argument_ldapper="-D ${domain} -U ${user} -P ${hash}"
+            
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -1251,6 +1257,52 @@ sccm_enum (){
                 echo -e "${GREEN}[+] SCCM server found! Follow steps below to add a new computer and extract the NAAConfig containing creds of Network Access Accounts:${NC}"
                 echo -e "$(which python) ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto"
             fi
+        fi
+    fi
+    echo -e ""
+}
+
+ldapper_enum (){
+    if [ ! -f "${ldapper}" ]; then
+        echo -e "${RED}[-] Please verify the installation of ldapper${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] ldapper requires credentials and does not support kerberos authentication${NC}"
+        else
+            echo -e "${BLUE}[*] Enumeration of LDAP using ldapper${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
+            echo -e "${CYAN}[*] Get all users${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '1' -f json > ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json
+            /usr/bin/jq -r ".[].samaccountname" ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_ldapper_${dc_domain}.txt
+            echo -e "${CYAN}[*] Get all groups (and their members)${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '2' -f json > ${output_dir}/DomainRecon/LDAPPER/groups_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Get all printers${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '3' -f json > ${output_dir}/DomainRecon/LDAPPER/printers_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Get all computers${NC}" 
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '4' -f json > ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json
+            /usr/bin/jq -r ".[].dnshostname" ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Servers/servers_list_ldapper_${dc_domain}.txt
+            echo -e "${CYAN}[*] Get Domain/Enterprise Administrators${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '5' -f json > ${output_dir}/DomainRecon/LDAPPER/admins_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Get Domain Trusts${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '6' -f json > ${output_dir}/DomainRecon/LDAPPER/trusts_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Search for Unconstrained SPN Delegations (Potential Priv-Esc)${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '7' -f json > ${output_dir}/DomainRecon/LDAPPER/unconstrained_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Search for Accounts where PreAuth is not required. (ASREPROAST)${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '8' -f json > ${output_dir}/DomainRecon/LDAPPER/asrep_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Search for User SPNs (KERBEROAST)${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '9' -f json > ${output_dir}/DomainRecon/LDAPPER/kerberoastable_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Show All LAPS LA Passwords (that you can see)${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '10' -f json > ${output_dir}/DomainRecon/LDAPPER/ldaps_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Search for common plaintext password attributes (UserPassword, UnixUserPassword, unicodePwd, and msSFU30Password)${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '11' -f json > ${output_dir}/DomainRecon/LDAPPER/passwords_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Show All Quest Two-Factor Seeds (if you have access)${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '12' -f json > ${output_dir}/DomainRecon/LDAPPER/quest_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Oracle "orclCommonAttribute" SSO password hash${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '13' -f json > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_common_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Oracle "userPassword" SSO password hash${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '14' -f json > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_pass_output_${dc_domain}.json
+            echo -e "${CYAN}[*] Get SCCM Servers${NC}"
+            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '15' -f json > ${output_dir}/DomainRecon/LDAPPER/sccm_output_${dc_domain}.json
         fi
     fi
     echo -e ""
@@ -2242,6 +2294,36 @@ aced_console (){
     echo -e ""
 }
 
+ldapper_console (){
+    if [ ! -f "${ldapper}" ]; then
+        echo -e "${RED}[-] Please verify the installation of ldapper${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] ldapper requires credentials and does not support kerberos authentication${NC}"
+        else
+            echo -e "${BLUE}[*] Running ldapper with custom LDAP search string${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
+            echo -e "${CYAN}[*] Please choose an option or provide a custom LDAP search string ${NC}"
+            echo -e "1.1) Get specific user (You will be prompted for the username)"
+            echo -e "2.1) Get specific group (You will be prompted for the group name)"
+            echo -e "4.1) Get specific computer (You will be prompted for the computer name)"
+            echo -e "9.1) Search for specific User SPN (You will be prompted for the User Principle Name)"
+            echo -e "10.1) Search for specific Workstation LAPS Password (You will be prompted for the Workstation Name)"
+            echo -e "*) Run custom Query (e.g. (&(objectcategory=user)(serviceprincipalname=*))"
+            echo -e "Back) Back"
+
+            read -p "> " custom_option </dev/tty
+            if [[ ! ${custom_option} == "Back" ]]; then
+                run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -s ${custom_option} | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
+            else
+                console_menu
+            fi
+            ldapper_console
+        fi
+    fi
+    echo -e ""
+}
+
 ad_enum () {
     bhd_enum
     ldapdomaindump_enum
@@ -2441,6 +2523,7 @@ ad_menu() {
     echo -e "17) LDAP Wordlist Harvester"
     echo -e "18) Enumeration of RDWA servers"
     echo -e "19) SCCM Enumeration using sccmhunter"
+    echo -e "20) LDAP Enumeration using LDAPPER"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -2532,6 +2615,10 @@ ad_menu() {
 
         19)
         sccm_enum
+        ad_menu;;
+
+        20)
+        ldapper_enum
         ad_menu;;
 
         99)
@@ -2989,6 +3076,7 @@ console_menu () {
     echo -e "2) p0dalirius' LDAP Console"
     echo -e "3) p0dalirius' LDAP Monitor"
     echo -e "4) garrettfoster13's ACED"
+    echo -e "5) LDAPPER custom options"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -3014,6 +3102,11 @@ console_menu () {
         console_menu
         ;;
 
+        5)
+        ldapper_console
+        console_menu
+
+        ;;
         99)
         main_menu
         ;;
@@ -3472,6 +3565,7 @@ config_menu () {
         if [ ! -f "${aced}" ] ; then echo -e "${RED}[-] aced is not installed${NC}"; else echo -e "${GREEN}[+] aced is installed${NC}"; fi
         if [ ! -f "${sccmhunter}" ] ; then echo -e "${RED}[-] sccmhunter is not installed${NC}"; else echo -e "${GREEN}[+] sccmhunter is installed${NC}"; fi
         if [ ! -f "${krbjack}" ] ; then echo -e "${RED}[-] krbjack is not installed${NC}"; else echo -e "${GREEN}[+] krbjack is installed${NC}"; fi
+        if [ ! -f "${ldapper}" ] ; then echo -e "${RED}[-] ldapper is not installed${NC}"; else echo -e "${GREEN}[+] ldapper is installed${NC}"; fi
         config_menu
         ;;
 
