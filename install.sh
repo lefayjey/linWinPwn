@@ -71,7 +71,7 @@ install_tools() {
     chmod +x "$scripts_dir/LDAPWordlistHarvester.py"
     chmod +x "$scripts_dir/ldapper.py"
     chmod +x "$scripts_dir/orpheus-main/orpheus.py"
-    chmod +x "$scripts_dir/GetUserSPNs.py"
+    chmod +x "$scripts_dir/orpheus-main/GetUserSPNs.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }
