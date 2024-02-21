@@ -197,6 +197,7 @@ prepare (){
 
     dc_NETBIOS=$(echo $dc_info| cut -d ":" -f 2 | sed "s/) (domain//g" | head -n 1)
     dc_domain=$(echo $dc_info | cut -d ":" -f 3 | sed "s/) (signing//g"| head -n 1)
+    dc_FQDN=${dc_NETBIOS}"."${dc_domain}
 
     if [ -z "$dc_domain" ] ; then
         echo -e "${RED}[-] Error connecting to target! Please ensure the target is a Domain Controller and try again... ${NC}"
@@ -205,10 +206,9 @@ prepare (){
         echo -e "${RED}[-] Error finding DC's domain, please specify domain... ${NC}"
         exit 1
     else 
-        if [ -z "$domain" ]; then domain=$dc_domain; else dc_domain=$domain; fi
+        if [ -z "$domain" ]; then domain=$dc_domain; fi
     fi
 
-    dc_FQDN=${dc_NETBIOS}"."${dc_domain}
     dc_open_ports=$(${nmap} -p 135,445,389,636 ${dc_ip} -sT -T5 --open)
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
@@ -968,9 +968,9 @@ bloodyad_enum () {
             echo -e "${CYAN}[*] Searching for containers${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get children --otype container" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcontainers_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for Kerberoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search ${domain_DN} --filter (&(samAccountType=805306368)(servicePrincipalName=*)) --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter (&(samAccountType=805306368)(servicePrincipalName=*)) --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for ASREPRoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search ${domain_DN} --filter (&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))) --attr sAMAccountName" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_asreproast_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter (&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))) --attr sAMAccountName" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_asreproast_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for DNS entries${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get dnsDump" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt
             echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
