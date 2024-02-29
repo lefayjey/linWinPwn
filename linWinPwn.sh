@@ -94,6 +94,7 @@ sccmhunter="$scripts_dir/sccmhunter-main/sccmhunter.py"
 ldapper="$scripts_dir/ldapper.py"
 orpheus="$scripts_dir/orpheus-main/orpheus.py"
 krbjack=$(which krbjack)
+adalanche="$scripts_dir/adalanche"
 nmap=$(which nmap)
 john=$(which john)
 
@@ -105,7 +106,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.9.4 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 0.9.5 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -248,6 +249,7 @@ prepare (){
     mkdir -p ${output_dir}/DomainRecon/Servers
     mkdir -p ${output_dir}/DomainRecon/Users
     mkdir -p ${output_dir}/DomainRecon/BloodHound
+    mkdir -p ${output_dir}/DomainRecon/Adalanche
     mkdir -p ${output_dir}/DomainRecon/LDAPDomainDump
     mkdir -p ${output_dir}/DomainRecon/ADCS
     mkdir -p ${output_dir}/DomainRecon/SilentHound
@@ -356,6 +358,7 @@ authenticate (){
         argument_aced="${domain}/${user}:''"
         argument_sccm="-d ${domain}"
         argument_ldapper="-D ${domain} -U ${user} -P ''"
+        argument_adalanche="--authmode ntlm --username ${user}@${domain} --password '!'"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -393,6 +396,7 @@ authenticate (){
         argument_aced="${domain}/${user}:${password}"
         argument_sccm="-d ${domain} -u ${user} -p ${password}"
         argument_ldapper="-D ${domain} -U ${user} -P ${password}"
+        argument_adalanche="--authmode ntlm --username ${user}@${domain} --password ${password}"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -447,6 +451,7 @@ authenticate (){
                 argument_ldapper="-D ${domain} -U ${user} -P ${hash}"
                 argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
                 argument_bloodyad="-d ${domain} -u ${user} -p ${hash}"
+                argument_adalanche="--authmode ntlmpth --username ${user}@${domain} --password ${hash}"
                 auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
             else
                 echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
@@ -555,6 +560,7 @@ authenticate (){
         argument_bloodyad="-v DEBUG ${argument_bloodyad}"
         argument_aced="-debug ${argument_aced}"
         argument_sccm="-debug ${argument_sccm}"
+        adalanche_verbose="--loglevel Debug"
     fi
     
     echo -e ${auth_string}
@@ -1304,6 +1310,28 @@ ldapper_enum (){
             run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '14' -f json > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_pass_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get SCCM Servers${NC}"
             run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '15' -f json > ${output_dir}/DomainRecon/LDAPPER/sccm_output_${dc_domain}.json
+        fi
+    fi
+    echo -e ""
+}
+
+adalanche_enum () {
+    if [ ! -f "${adalanche}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of Adalanche${NC}"
+    else
+        echo -e "${BLUE}[*] Adalanche Enumeration${NC}"
+        if [ -n "$(ls -A ${output_dir}/DomainRecon/Adalanche/data 2>/dev/null)" ] ; then
+            echo -e "${YELLOW}[i] Adalanche results found, skipping... ${NC}"
+        else
+            if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] Adalanche requires credentials and does not support kerberos authentication${NC}"
+            else
+                current_dir=$(pwd)
+                cd ${output_dir}/DomainRecon/Adalanche
+                if [ "${ldaps_bool}" == true ]; then ldaps_param="--tlsmode tls --ignorecert"; else ldaps_param="--tlsmode NoTLS --port 389"; fi
+                run_command "${adalanche} ${adalanche_verbose} collect activedirectory ${argument_adalanche} --domain ${dc_domain} --server ${dc_ip} ${ldaps_bool}" | tee ${output_dir}/DomainRecon/Adalanche/adalanche_output_${dc_domain}.txt
+                cd ${current_dir}
+            fi
         fi
     fi
     echo -e ""
@@ -2547,6 +2575,7 @@ ad_menu() {
     echo -e "18) Enumeration of RDWA servers"
     echo -e "19) SCCM Enumeration using sccmhunter"
     echo -e "20) LDAP Enumeration using LDAPPER"
+    echo -e "21) Adalanche Enumeration"
     echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
@@ -2642,6 +2671,10 @@ ad_menu() {
 
         20)
         ldapper_enum
+        ad_menu;;
+
+        21)
+        adalanche_enum
         ad_menu;;
 
         back)
@@ -3620,7 +3653,8 @@ config_menu () {
     echo -e "6) Change users wordlist file"
     echo -e "7) Change passwords wordlist file"
     echo -e "8) Change attacker's IP"
-    echo -e "9) Show session information"
+    echo -e "9) Switch between LDAP (port 389) and LDAPS (port 636)"
+    echo -e "10) Show session information"
     echo -e "back) Go back to Init Menu"
 
     read -p "> " option_selected </dev/tty
@@ -3682,6 +3716,8 @@ config_menu () {
         if [ ! -f "${krbjack}" ] ; then echo -e "${RED}[-] krbjack is not installed${NC}"; else echo -e "${GREEN}[+] krbjack is installed${NC}"; fi
         if [ ! -f "${ldapper}" ] ; then echo -e "${RED}[-] ldapper is not installed${NC}"; else echo -e "${GREEN}[+] ldapper is installed${NC}"; fi
         if [ ! -f "${orpheus}" ] ; then echo -e "${RED}[-] orpheus is not installed${NC}"; else echo -e "${GREEN}[+] orpheus is installed${NC}"; fi
+        if [ ! -f "${adalanche}" ] ; then echo -e "${RED}[-] adalanche is not installed${NC}"; else echo -e "${GREEN}[+] adalanche is installed${NC}"; fi
+        if [ ! -x "${adalanche}" ] ; then echo -e "${RED}[-] adalanche is not executable${NC}"; else echo -e "${GREEN}[+] adalanche is executable${NC}"; fi
         config_menu
         ;;
 
@@ -3748,6 +3784,19 @@ config_menu () {
         ;;
 
         9)
+        echo ""
+        if [ "${ldaps_bool}" == false ]; then
+            ldaps_bool=true
+            echo -e "${GREEN}[+] Switched to using LDAPS on port 636${NC}"
+
+        else
+            ldaps_bool=false
+            echo -e "${GREEN}[+] Switched to using LDAP on port 389${NC}"
+        fi
+        config_menu
+        ;;
+
+        10)
         echo ""
         print_info
         config_menu

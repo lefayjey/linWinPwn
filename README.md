@@ -253,6 +253,7 @@ For each of the cases described, the linWinPwn script performs different checks 
     - [CravateRouge](https://github.com/CravateRouge) - bloodyAD
     - [shellster](https://github.com/shellster) - LDAPPER
     - [TrustedSec](https://github.com/trustedsec) - orpheus 
+    - [lkarlslund](https://github.com/lkarlslund) - Adalanche 
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
