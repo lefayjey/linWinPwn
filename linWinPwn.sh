@@ -4179,11 +4179,11 @@ main () {
     else
         dns_enum
         echo -e "${GREEN}[+] Start: Active Directory Enumeration${NC}"
-        echo -e "${GREEN}------------------------------------------------${NC}"
+        echo -e "${GREEN}---------------------------------------${NC}"
         echo -e ""
         ad_enum
         echo -e "${GREEN}[+] Start: ADCS Enumeration${NC}"
-        echo -e "${GREEN}---------------------------------------${NC}"
+        echo -e "${GREEN}---------------------------${NC}"
         echo -e ""
         adcs_enum
         echo -e "${GREEN}[+] Start: User and password Brute force Attacks${NC}"
@@ -4191,24 +4191,24 @@ main () {
         echo -e ""
         bruteforce
         echo -e "${GREEN}[+] Start: Kerberos-based Attacks${NC}"
-        echo -e "${GREEN}------------------------------------------${NC}"
+        echo -e "${GREEN}----------------------------------${NC}"
         echo -e ""
         kerberos
         echo -e "${GREEN}[+] Start: Network Shares Scan${NC}"
-        echo -e "${GREEN}---------------------------------------${NC}"
+        echo -e "${GREEN}------------------------------${NC}"
         echo -e ""
         scan_shares
         echo -e "${GREEN}[+] Start: Vulnerability Checks${NC}"
-        echo -e "${GREEN}----------------------------------------${NC}"
+        echo -e "${GREEN}-------------------------------${NC}"
         echo -e ""
         vuln_checks
         echo -e "${GREEN}[+] Start: MSSQL Enumeration${NC}"
-        echo -e "${GREEN}-------------------------------------${NC}"
+        echo -e "${GREEN}----------------------------${NC}"
         echo -e ""
-        mssql_enum
+        mssql_checks
         echo -e ""
         echo -e "${GREEN}[+] Automatic enumeration has completed. Output folder is: ${output_dir}${NC}"
-        echo -e "${GREEN}-----------------------------------------------------------${NC}"
+        echo -e "${GREEN}---------------------------------------------------------${NC}"
 
     fi
 }
