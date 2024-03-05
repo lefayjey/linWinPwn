@@ -104,11 +104,11 @@ Automated Mode:
 
 [![asciicast](https://asciinema.org/a/464901.svg)](https://asciinema.org/a/464901)
 
-## Use cases
+## Automated mode
 
-When using the ``--auto` mode, different checks are performed based on the provided credentials.
+When using the automated mode, different checks are performed based on the provided credentials.
 
-**Case 1: Unauthenticated (no credentials provided)**
+**Unauthenticated (no credentials provided)**
 - Anonymous enumeration using netexec, enum4linux-ng, ldapdomaindump, ldeep
 - RID bruteforce using netexec
 - kerbrute user spray
@@ -125,7 +125,7 @@ When using the ``--auto` mode, different checks are performed based on the provi
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --auto
 ```
 
-**Case 2: Standard Account (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)**
+**Authenticated (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)**
 - DNS extraction using adidnsdump
 - BloodHound data collection
 - Enumeration using netexec, enum4linux-ng, ldapdomaindump, bloodyAD, sccmhunter, rdwatool, sccmhunter, GPOwned
