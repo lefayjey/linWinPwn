@@ -1,4 +1,4 @@
-# linWinPwn - Swiss-Army knife for Active Directory Enumeration
+# linWinPwn - Swiss-Army knife for Active Directory Pentesting
 
 ## Description
 
