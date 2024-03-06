@@ -493,7 +493,7 @@ authenticate (){
             argument_bloodyad="-d ${domain} -u ${user} -k"
             argument_aced="-k -no-pass ${domain}/${user}"
             argument_sccm="-d ${domain} -u ${user} -k --no-pass"
-            argument_mssqlrelay="-u ${user}@${domain} -k --no-pass"
+            argument_mssqlrelay="-u ${user}@${domain} -k -no-pass"
             argument_pygpoabuse="${domain}/${user} -k -ccache $(realpath $krb5cc)"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath $krb5cc)${NC}"
         else
@@ -2837,6 +2837,7 @@ ad_menu() {
     echo -e "22) Open garrettfoster13's ACED console"
     echo -e "23) Open LDAPPER custom options"
     echo -e "back) Go back"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -2940,6 +2941,9 @@ ad_menu() {
         back)
         main_menu;;
 
+        exit)
+        exit 1;;
+
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
@@ -2958,6 +2962,7 @@ adcs_menu() {
     echo -e "4) Certifried check"
     echo -e "5) Certipy LDAP shell via Schannel (using Certificate Authentication)"
     echo -e "back) Go back"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -2990,6 +2995,9 @@ adcs_menu() {
         back)
         main_menu;;
 
+        exit)
+        exit 1;;
+
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
@@ -3007,6 +3015,7 @@ bruteforce_menu() {
     echo -e "4) User=Pass check using netexec (Noisy!)"
     echo -e "5) Pre2k computers authentication check (Noisy!)"
     echo -e "back) Go back"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3038,6 +3047,9 @@ bruteforce_menu() {
         back)
         main_menu;;
 
+        exit)
+        exit 1;;
+
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
@@ -3064,6 +3076,7 @@ kerberos_menu () {
     echo -e "12) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
     echo -e "13) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)"
     echo -e "back) Go back"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3361,6 +3374,9 @@ kerberos_menu () {
         back)
         main_menu;;
 
+        exit)
+        exit 1;;
+
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
@@ -3381,6 +3397,7 @@ shares_menu () {
     echo -e "4) SMB shares Scan using FindUncommonShares"
     echo -e "5) SMB shares Scan using manspider"
     echo -e "back) Go back"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3416,6 +3433,9 @@ shares_menu () {
         back)
         main_menu;;
 
+        exit)
+        exit 1;;
+
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
@@ -3445,6 +3465,7 @@ vulns_menu () {
     echo -e "12) RPC Dump and check for interesting protocols"
     echo -e "13) Coercer RPC scan"
     echo -e "back) Go back"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3512,6 +3533,9 @@ vulns_menu () {
         back)
         main_menu;;
 
+        exit)
+        exit 1;;
+
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
@@ -3526,6 +3550,7 @@ mssql_menu () {
     echo -e "1) MSSQL Enumeration using netexec"
     echo -e "2) MSSQL Relay check"
     echo -e "back) Go back"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3540,6 +3565,9 @@ mssql_menu () {
 
         back)
         main_menu;;
+
+        exit)
+        exit 1;;
 
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
@@ -3578,6 +3606,7 @@ pwd_menu () {
     echo -e "21) Extract Bitlocker Keys"
     echo -e "22) Privilege escalation from Child Domain to Parent Domain using raiseChild"
     echo -e "back) Go back"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3682,6 +3711,9 @@ pwd_menu () {
         back)
         main_menu;;
 
+        exit)
+        exit 1;;
+
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
@@ -3703,6 +3735,7 @@ modif_menu () {
     echo -e "6) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
     echo -e "7) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
     echo -e "back) Go back"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3738,6 +3771,9 @@ modif_menu () {
         back)
         main_menu;;
 
+        exit)
+        exit 1;;
+
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
@@ -3752,6 +3788,7 @@ init_menu () {
     echo -e "ENTER) Launch linWinPwn in interactive mode"
     echo -e "A) Authentication Menu"
     echo -e "C) Configuration Menu"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3765,6 +3802,9 @@ init_menu () {
         "")
         dns_enum
         main_menu;;
+
+        exit)
+        exit 1;;
 
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
@@ -3782,6 +3822,7 @@ auth_menu () {
     echo -e "4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
     echo -e "5) Request and use certificate (requires: authentication)"
     echo -e "back) Go back to Init Menu"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -3927,6 +3968,9 @@ auth_menu () {
         back)
         init_menu;;
 
+        exit)
+        exit 1;;
+
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         auth_menu;;
@@ -3948,6 +3992,7 @@ config_menu () {
     echo -e "9) Switch between LDAP (port 389) and LDAPS (port 636)"
     echo -e "10) Show session information"
     echo -e "back) Go back to Init Menu"
+    echo -e "exit) Exit"
 
     read -p "> " option_selected </dev/tty
 
@@ -4092,6 +4137,9 @@ config_menu () {
 
         back)
         init_menu;;
+
+        exit)
+        exit 1;;
 
         *)
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"

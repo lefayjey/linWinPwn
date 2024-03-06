@@ -2,19 +2,7 @@
 
 ## Description
 
-linWinPwn is a bash script that wraps a number of Active Directory tools for enumeration (LDAP, RPC, ADCS, MSSQL, Kerberos), vulnerability checks, object modifications and password dumping. The script streamlines the use a number of tools including: impacket, bloodhound, netexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, bloodyAD, DonPAPI and many others. 
-
-linWinPwn can be particularly useful when you have access to an Active Directory environment for a limited time only, and you wish to be more efficient in the enumeration process and in the collection of evidence.
-In addition, linWinPwn can replace the use of enumeration tools on Windows in the aim of reducing the number of created artifacts (e.g., PowerShell commands, Windows Events, created files on disk), and bypassing certain Anti-Virus or EDRs. This can be achieved by performing remote dynamic port forwarding through the creation of an SSH tunnel from the Windows host (e.g., VDI machine or workstation or laptop) to a remote Linux machine (e.g., Pentest laptop or VPS), and running linWinPwn with proxychains.
-
-On the Windows host, run using PowerShell:
-```
-ssh kali@<linux_machine> -R 1080 -NCqf
-```
-On the Linux machine, first update `/etc/proxychains4.conf` to include `socks5 127.0.0.1 1080`, then run:
-```
-proxychains ./linWinPwn.sh -t <Domain_Controller_IP>
-```
+linWinPwn is a bash script that wraps a number of Active Directory tools for enumeration (LDAP, RPC, ADCS, MSSQL, Kerberos), vulnerability checks (noPac, ZeroLogon, MS17-010, MS14-068), object modifications (password change, add user to group, RBCD, Shadow Credentials) and password dumping (secretsdump, lsassy, nanodump, DonPAPI). The script streamlines the use of a large number of tools: impacket, bloodhound, netexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, bloodyAD, DonPAPI and many others. 
 
 ## Setup
 
@@ -33,20 +21,54 @@ chmod +x install.sh
 
 ## Usage
 
+### Mode
+The linWinPwn script has an interactive mode (default), or automation mode (enumeration only).
 
-### Modules
-The linWinPwn script can be ran in interactive mode, or in automation mode.
-
-**Default: interactive** - Open interactive menu to run checks separately  
+**Default: interactive** - Open interactive menu to run checks separately
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
 ```
 
-**Using the `--auto` parameter** - Run automatically the enumeration steps only (no exploitation nor modifications to the AD)
+**Automation** - Using the `--auto` parameter, run enumeration tools (no exploitation, modifications or password dumping)
 
+When using the automated mode, different checks are performed if credentials are provided or not.
+
+- Unauthenticated (no credentials provided)
+    - Anonymous enumeration using netexec, enum4linux-ng, ldapdomaindump, ldeep
+    - RID bruteforce using netexec
+    - kerbrute user spray
+    - Pre2k authentication check on collected list of computers
+    - ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
+    - Blind Kerberoast
+    - CVE-2022-33679 exploit
+    - Check for DNS unsecure updates for AS-REQ abuse using krbjack
+    - SMB shares anonymous enumeration on identified servers
+    - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on identified servers
+    - Check for ms17-010, zerologon, petitpotam, nopac, smb-sigining, ntlmv1, runasppl weaknesses
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --auto -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --auto [-o <output_dir>]
+```
+
+- Authenticated (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)**
+    - DNS extraction using adidnsdump
+    - BloodHound data collection
+    - Enumeration using netexec, enum4linux-ng, ldapdomaindump, bloodyAD, sccmhunter, rdwatool, sccmhunter, GPOwned
+    - Generate wordlist for password cracking
+    - netexec find accounts with user=pass 
+    - Pre2k authentication check on domain computers
+    - Extract ADCS information using certipy and certi.py
+    - kerbrute find accounts with user=pas
+    - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
+    - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
+    - Targeted Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
+    - SMB shares enumeration on all domain servers using smbmap, manspider and cme's spider_plus
+    - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers (using cme, Coercer and RPC Dump)
+    - Check for ms17-010, ms14-068, zerologon, petitpotam, nopac, smb-signing, ntlmv1, runasppl, certifried weaknesses
+    - Check mssql privilege escalation paths
+    - Check mssql relay possibilities
+```bash
+proxychains ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] --auto
 ```
 
 ### Parameters
@@ -54,41 +76,55 @@ The linWinPwn script can be ran in interactive mode, or in automation mode.
 **Auto config** - Run NTP sync with target DC and add entry to /etc/hosts before running the modules
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --auto-config
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --auto-config
 ```
 
 **LDAPS** - Use LDAPS instead of LDAP (port 636)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --ldaps
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --ldaps
 ```
 
 **Force Kerberos Auth** - Force using Kerberos authentication instead of NTLM (when possible)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --force-kerb
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --force-kerb
 ```
 
 **Verbose** - Enable all verbose and debug outputs
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --verbose
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --verbose
 ```
 
 **Interface** - Choose attacker's network interface
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -I tun0
-./linWinPwn.sh -t <Domain_Controller_IP> --interface eth0
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -I tun0
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --interface eth0
 ```
 
 **Targets** - Choose targets to be scanned (DC, All, IP=IP_or_hostname, File=./path_to_file)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -T All
-./linWinPwn.sh -t <Domain_Controller_IP> --targets DC
-./linWinPwn.sh -t <Domain_Controller_IP> -T IP=192.168.0.1
-./linWinPwn.sh -t <Domain_Controller_IP> -T File=./list_servers.txt
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --targets All
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --targets DC
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -T IP=192.168.0.1
+./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -T File=./list_servers.txt
+```
+
+### Tunneling
+
+linWinPwn can be particularly useful when you have access to an Active Directory environment for a limited time only, and you wish to be more efficient in the enumeration process and in the collection of evidence.
+In addition, linWinPwn can replace the use of enumeration tools on Windows in the aim of reducing the number of created artifacts (e.g., PowerShell commands, Windows Events, created files on disk), and bypassing certain Anti-Virus or EDRs. This can be achieved by performing remote dynamic port forwarding through the creation of an SSH tunnel from the Windows host (e.g., VDI machine or workstation or laptop) to a remote Linux machine (e.g., Pentest laptop or VPS), and running linWinPwn with proxychains.
+
+On the Windows host, run using PowerShell:
+```powershell
+ssh.exe kali@<linux_machine> -R 1080 -NCqf
+```
+On the Linux machine, first update `/etc/proxychains4.conf` to include `socks5 127.0.0.1 1080`, then run:
+```bash
+proxychains ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] [--auto]
 ```
 
 ## Demos
@@ -103,49 +139,6 @@ Automated Mode:
 - TryHackme AttacktiveDirectory
 
 [![asciicast](https://asciinema.org/a/464901.svg)](https://asciinema.org/a/464901)
-
-## Automated mode
-
-When using the automated mode, different checks are performed based on the provided credentials.
-
-**Unauthenticated (no credentials provided)**
-- Anonymous enumeration using netexec, enum4linux-ng, ldapdomaindump, ldeep
-- RID bruteforce using netexec
-- kerbrute user spray
-- Pre2k authentication check on collected list of computers
-- ASREPRoast using collected list of users (and cracking hashes using john-the-ripper and the rockyou wordlist)
-- Blind Kerberoast
-- CVE-2022-33679 exploit
-- Check for DNS unsecure updates for AS-REQ abuse using krbjack
-- SMB shares anonymous enumeration on identified servers
-- Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on identified servers
-- Check for ms17-010, zerologon, petitpotam, nopac, smb-sigining, ntlmv1, runasppl weaknesses
-
-```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --auto
-```
-
-**Authenticated (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)**
-- DNS extraction using adidnsdump
-- BloodHound data collection
-- Enumeration using netexec, enum4linux-ng, ldapdomaindump, bloodyAD, sccmhunter, rdwatool, sccmhunter, GPOwned
-- Generate wordlist for password cracking
-- netexec find accounts with user=pass 
-- Pre2k authentication check on domain computers
-- Extract ADCS information using certipy and certi.py
-- kerbrute find accounts with user=pas
-- ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
-- Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
-- Targeted Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
-- SMB shares enumeration on all domain servers using smbmap, manspider and cme's spider_plus
-- Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers (using cme, Coercer and RPC Dump)
-- Check for ms17-010, ms14-068, zerologon, petitpotam, nopac, smb-signing, ntlmv1, runasppl, certifried weaknesses
-- Check mssql privilege escalation paths
-- Check mssql relay possibilities
-
-```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> --auto
-```
 
 ## TO DO
 
