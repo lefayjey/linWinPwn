@@ -111,7 +111,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.0 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.1 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -3985,12 +3985,13 @@ config_menu () {
     echo -e "2) Synchronize time with Domain Controller (requires root)"
     echo -e "3) Add Domain Controller's IP and Domain to /etc/hosts (requires root)"
     echo -e "4) Update resolv.conf to define Domain Controller as DNS server (requires root)"
-    echo -e "5) Download default username and password wordlists (non-kali machines)"
-    echo -e "6) Change users wordlist file"
-    echo -e "7) Change passwords wordlist file"
-    echo -e "8) Change attacker's IP"
-    echo -e "9) Switch between LDAP (port 389) and LDAPS (port 636)"
-    echo -e "10) Show session information"
+    echo -e "5) Update krb5.conf to define realm and KDC for Kerberos (requires root)"
+    echo -e "6) Download default username and password wordlists (non-kali machines)"
+    echo -e "7) Change users wordlist file"
+    echo -e "8) Change passwords wordlist file"
+    echo -e "9) Change attacker's IP"
+    echo -e "10) Switch between LDAP (port 389) and LDAPS (port 636)"
+    echo -e "11) Show session information"
     echo -e "back) Go back to Init Menu"
     echo -e "exit) Exit"
 
@@ -4078,15 +4079,52 @@ config_menu () {
 
         4)
         echo -e ""
-        echo -e "Content of /etc/resolv.conf before update:"
-        echo -e "------------------------------------------"
-        cat /etc/resolv.conf
+        echo "$(date +%Y-%m-%d\ %H:%M:%S)" | tee -a "${output_dir}/resolv.conf.backup"
+        echo -e "Content of /etc/resolv.conf before update:" | tee -a "${output_dir}/resolv.conf.backup"
+        echo -e "------------------------------------------" | tee -a "${output_dir}/resolv.conf.backup"
+        cat /etc/resolv.conf | tee -a "${output_dir}/resolv.conf.backup"
+        echo -e "" | tee -a "${output_dir}/resolv.conf.backup"
+        echo -e "Content of /etc/resolv.conf after update:"
+        echo -e "-----------------------------------------"
         sudo sed -i '/^#/! s/^/#/g' /etc/resolv.conf
         echo -e "nameserver ${dc_ip}" | sudo tee -a /etc/resolv.conf
         echo -e "${GREEN}[+] DNS update complete${NC}"
         config_menu;;
 
         5)
+        echo -e ""
+        echo "$(date +%Y-%m-%d\ %H:%M:%S)" | tee -a "${output_dir}/krb5.conf.backup"
+        echo -e "Content of /etc/krb5.conf before update:" | tee -a "${output_dir}/krb5.conf.backup"
+        echo -e "----------------------------------------" | tee -a "${output_dir}/krb5.conf.backup"
+        cat /etc/krb5.conf | tee -a "${output_dir}/krb5.conf.backup"
+        echo -e "" | tee -a "${output_dir}/krb5.conf.backup"
+        echo -e "Content of /etc/krb5.conf after update:"
+        echo -e "---------------------------------------"
+        echo -e "[libdefaults]" | sudo tee /etc/krb5.conf
+        echo -e "        default_realm = ${domain^^}" | sudo tee -a /etc/krb5.conf
+        echo -e "" | sudo tee -a /etc/krb5.conf
+        echo -e "# The following krb5.conf variables are only for MIT Kerberos." | sudo tee -a /etc/krb5.conf
+        echo -e "        kdc_timesync = 1" | sudo tee -a /etc/krb5.conf
+        echo -e "        ccache_type = 4" | sudo tee -a /etc/krb5.conf
+        echo -e "        forwardable = true" | sudo tee -a /etc/krb5.conf
+        echo -e "        proxiable = true" | sudo tee -a /etc/krb5.conf
+        echo -e "        rdns = false" | sudo tee -a /etc/krb5.conf
+        echo -e "" | sudo tee -a /etc/krb5.conf
+        echo -e "" | sudo tee -a /etc/krb5.conf
+        echo -e "# The following libdefaults parameters are only for Heimdal Kerberos." | sudo tee -a /etc/krb5.conf
+        echo -e "        fcc-mit-ticketflags = true" | sudo tee -a /etc/krb5.conf
+        echo -e "" | sudo tee -a /etc/krb5.conf
+        echo -e "[realms]" | sudo tee -a /etc/krb5.conf
+        echo -e "        ${domain^^} = {" | sudo tee -a /etc/krb5.conf
+        echo -e "                kdc = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
+        echo -e "        }" | sudo tee -a /etc/krb5.conf
+        echo -e "" | sudo tee -a /etc/krb5.conf
+        echo -e "[domain_realm]" | sudo tee -a /etc/krb5.conf
+        echo -e "        .${domain} = ${domain^^}" | sudo tee -a /etc/krb5.conf
+        echo -e "${GREEN}[+] KRB5 config update complete${NC}"
+        config_menu;;
+
+        6)
         echo -e ""
         sudo mkdir -p ${wordlists_dir} 
         sudo chown -R $(whoami) ${wordlists_dir}
@@ -4101,24 +4139,24 @@ config_menu () {
         echo -e "${GREEN}[+] Default username and password wordlists downloaded${NC}"
         config_menu;;
 
-        6)
+        7)
         echo -e "Please specify new users wordlist file:"
         read -p ">> " user_wordlist </dev/tty
         echo -e "${GREEN}[+] Users wordlist file updated${NC}"
         config_menu;;
 
-        7)
+        8)
         echo -e "Please specify new passwords wordlist file:"
         read -p ">> " pass_wordlist </dev/tty
         echo -e "${GREEN}[+] Passwords wordlist file updated${NC}"
         config_menu;;
 
-        8)
+        9)
         echo ""
         set_attackerIP
         config_menu;;
 
-        9)
+        10)
         echo ""
         if [ "${ldaps_bool}" == false ]; then
             ldaps_bool=true
@@ -4130,7 +4168,7 @@ config_menu () {
         fi
         config_menu;;
 
-        10)
+        11)
         echo ""
         print_info
         config_menu;;
