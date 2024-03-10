@@ -855,6 +855,7 @@ deleg_enum () {
         fi
     fi
     echo -e "${BLUE}[*] Trusted-for-delegation check (netexec)${NC}"
+    if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
     run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} ${ldaps_param} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
@@ -2028,7 +2029,7 @@ coercer_check () {
     echo -e ""
 }
 
-#mssql_checks: MSSQL scan
+###### mssql_checks: MSSQL scan
 mssql_enum () {
     if [ ! -f "${windapsearch}" ] || [ ! -f "${impacket_GetUserSPNs}" ]; then
         echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"

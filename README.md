@@ -1,4 +1,4 @@
-# linWinPwn - Swiss-Army knife for Active Directory Enumeration
+# linWinPwn - Swiss-Army knife for Active Directory Enumeration using Linux
 
 ## Description
 
@@ -24,13 +24,13 @@ chmod +x install.sh
 ### Mode
 The linWinPwn script has an interactive mode (default), or automation mode (enumeration only).
 
-**Default: interactive** - Open interactive menu to run checks separately
+**Default: Interactive Mode** - Open interactive menu to run checks separately
 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
 ```
 
-**Automation** - Using the `--auto` parameter, run enumeration tools (no exploitation, modifications or password dumping)
+**Automated Mode** - Using the `--auto` parameter, run enumeration tools (no exploitation, modifications or password dumping)
 
 When using the automated mode, different checks are performed if credentials are provided or not.
 
@@ -125,6 +125,177 @@ ssh.exe kali@<linux_machine> -R 1080 -NCqf
 On the Linux machine, first update `/etc/proxychains4.conf` to include `socks5 127.0.0.1 1080`, then run:
 ```bash
 proxychains ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] [--auto]
+```
+
+### Interactive Mode Menus
+
+Main menu
+```
+1) Re-run DNS Enumeration using adidnsdump
+2) Active Directory Enumeration Menu
+3) ADCS Enumeration Menu
+4) Brute Force Attacks Menu
+5) Kerberos Attacks Menu
+6) SMB shares Enumeration Menu
+7) Vulnerability Checks Menu
+8) MSSQL Enumeration Menu
+9) Password Dump Menu
+10) AD Objects or Attributes Modification Menu
+```
+
+AD Enum menu
+```
+1) BloodHound Enumeration using all collection methods (Noisy!)
+2) BloodHound Enumeration using DCOnly
+3) ldapdomaindump LDAP Enumeration
+4) enum4linux-ng LDAP-MS-RPC Enumeration
+5) GPP Enumeration using netexec
+6) MS-RPC Enumeration using netexec (Users, pass pol)
+7) LDAP Enumeration using netexec (Users, passnotreq, userdesc, maq, ldap-checker, subnets)
+8) Delegation Enumeration using findDelegation and netexec
+9) bloodyAD All Enumeration
+10) bloodyAD write rights Enumeration
+11) SilentHound LDAP Enumeration
+12) ldeep LDAP Enumeration
+13) windapsearch LDAP Enumeration
+14) LDAP Wordlist Harvester
+15) Enumeration of RDWA servers
+16) SCCM Enumeration using sccmhunter
+17) LDAP Enumeration using LDAPPER
+18) Adalanche Enumeration
+19) GPO Enumeration using GPOwned
+20) Open p0dalirius' LDAP Console
+21) Open p0dalirius' LDAP Monitor
+22) Open garrettfoster13's ACED console
+23) Open LDAPPER custom options
+```
+
+ADCS menu
+```
+1) ADCS Enumeration using netexec
+2) certi.py ADCS Enumeration
+3) Certipy ADCS Enumeration
+4) Certifried check
+5) Certipy LDAP shell via Schannel (using Certificate Authentication)
+```
+
+BruteForce menu
+```
+1) RID Brute Force (Null session) using netexec
+2) User Enumeration using kerbrute (Null session)
+3) User=Pass check using kerbrute (Noisy!)
+4) User=Pass check using netexec (Noisy!)
+5) Pre2k computers authentication check (Noisy!)
+```
+
+Kerberos Attacks menu
+```
+1) AS REP Roasting Attack using GetNPUsers
+2) Kerberoast Attack using GetUserSPNs
+3) Cracking AS REP Roast hashes using john the ripper
+4) Cracking Kerberoast hashes using john the ripper
+5) NoPac check using netexec (only on DC)
+6) MS14-068 check (only on DC)
+7) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)
+8) AP-REQ hijack with DNS unsecure updates abuse using krbjack
+9) Run custom Kerberoast attack using Orpheus
+10) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin)
+11) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)
+12) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)
+13) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)
+```
+
+SMB Shares menu
+```
+1) SMB shares Scan using smbmap
+2) SMB shares Enumeration using netexec
+3) SMB shares Spidering using netexec 
+4) SMB shares Scan using FindUncommonShares
+5) SMB shares Scan using manspider
+```
+
+Vuln Checks menu
+```
+1) zerologon check using netexec (only on DC)
+2) MS17-010 check using netexec
+3) PetitPotam check using netexec (only on DC)
+4) dfscoerce check using netexec (only on DC)
+5) Print Spooler check using netexec
+6) Printnightmare check using netexec
+7) WebDAV check using netexec
+8) shadowcoerce check using netexec
+9) SMB signing check using netexec
+10) ntlmv1 check using netexec
+11) runasppl check using netexec
+12) RPC Dump and check for interesting protocols
+13) Coercer RPC scan
+```
+
+MSSQL Enumeration menu
+```
+1) MSSQL Enumeration using netexec
+2) MSSQL Relay check
+```
+
+Password Dump menu
+```
+1) LAPS Dump using netexec
+2) gMSA Dump using netexec
+3) DCSync using secretsdump (only on DC)
+4) Dump SAM and LSA using secretsdump
+5) Dump SAM and SYSTEM using reg
+6) Dump NTDS using netexec
+7) Dump SAM using netexec
+8) Dump LSA secrets using netexec
+9) Dump LSASS using lsassy
+10) Dump LSASS using handlekatz
+11) Dump LSASS using procdump
+12) Dump LSASS using nanodump
+13) Dump LSASS using masky (ADCS required)
+14) Dump dpapi secrets using netexec
+15) Dump secrets using DonPAPI
+16) Dump NTDS using certsync (ADCS required) (only on DC)
+17) Dump secrets using hekatomb (only on DC)
+18) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)
+19) Dump Veeam credentials (only from Veeam server)
+20) Dump Msol password (only from Azure AD-Connect server)
+21) Extract Bitlocker Keys
+22) Privilege escalation from Child Domain to Parent Domain using raiseChild
+```
+
+Modification menu
+```
+1) Targeted Kerberoast Attack (Noisy!)
+2) Change user or computer password (Requires: ForceChangePassword on user or computer)
+3) Add user to group (Requires: GenericWrite or GenericAll on group)
+4) Add new computer (Requires: MAQ > 0)
+5) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)
+6) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
+7) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
+```
+
+Auth menu
+```
+1) Generate and use NTLM hash of current user (requires: password) - Pass the hash
+2) Crack NTLM hash of current user and use password (requires: NTLM hash)
+3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash
+4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)
+5) Request and use certificate (requires: authentication)
+```
+
+Config menu
+```
+1) Check installation of tools and dependencies
+2) Synchronize time with Domain Controller (requires root)
+3) Add Domain Controller's IP and Domain to /etc/hosts (requires root)
+4) Update resolv.conf to define Domain Controller as DNS server (requires root)
+5) Update krb5.conf to define realm and KDC for Kerberos (requires root)
+6) Download default username and password wordlists (non-kali machines)
+7) Change users wordlist file
+8) Change passwords wordlist file
+9) Change attacker's IP
+10) Switch between LDAP (port 389) and LDAPS (port 636)
+11) Show session information
 ```
 
 ## Demos

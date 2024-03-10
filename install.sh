@@ -25,6 +25,7 @@ install_tools() {
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
     pipx install git+https://github.com/dirkjanm/bloodhound.py --force
+    #pipx install "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force
     pipx install git+https://github.com/franc-pentest/ldeep.git --force
     pipx install git+https://github.com/garrettfoster13/pre2k.git --force
     pipx install git+https://github.com/zblurx/certsync.git --force
