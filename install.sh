@@ -16,6 +16,7 @@ install_tools() {
     sudo mkdir -p ${scripts_dir}
     sudo chown -R $(whoami):$(whoami) ${scripts_dir}
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    source ~/.bash_profile
     pip3 install --user pipx PyYAML alive-progress xlsxwriter sectools typer --upgrade
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
@@ -60,7 +61,7 @@ install_tools() {
     unzip -o "$scripts_dir/orpheus.zip" -d "$scripts_dir"
     wget -q "https://github.com/lkarlslund/Adalanche/releases/latest/download/adalanche-linux-x64-v2024.1.11" -O "$scripts_dir/adalanche"
     wget -q "https://github.com/Hackndo/pyGPOAbuse/archive/refs/heads/master.zip" -O "$scripts_dir/pyGPOAbuse.zip"
-    unzip -o "$scripts_dir/pywsus.zip" -d "$scripts_dir"
+    unzip -o "$scripts_dir/pyGPOAbuse.zip" -d "$scripts_dir"
     wget -q "https://raw.githubusercontent.com/X-C3LL/GPOwned/main/GPOwned.py" -O "$scripts_dir/GPOwned.py"
     chmod +x "$scripts_dir/aced-main/aced.py"
     chmod +x "$scripts_dir/sccmhunter-main/sccmhunter.py"
