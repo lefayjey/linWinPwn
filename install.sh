@@ -16,7 +16,8 @@ install_tools() {
     sudo mkdir -p ${scripts_dir}
     sudo chown -R $(whoami):$(whoami) ${scripts_dir}
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-    source ~/.bash_profile
+    source ~/.bash_profile 2>/dev/null
+    source ~/.zsh_profile 2>/dev/null
     pip3 install --user pipx PyYAML alive-progress xlsxwriter sectools typer --upgrade
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
