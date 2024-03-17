@@ -256,6 +256,7 @@ prepare (){
     mkdir -p ${output_dir}/Kerberos
     mkdir -p ${output_dir}/Modification
     mkdir -p ${output_dir}/Scans
+    mkdir -p ${output_dir}/Shares
     mkdir -p ${output_dir}/Vulnerabilities
 
     if [ ! -f ${servers_ip_list} ]; then /bin/touch ${servers_ip_list}; fi
@@ -3315,7 +3316,7 @@ kerberos_menu () {
                     echo -e "Please specify random user name (press Enter to choose default value 'Administrator'):"
                     read -p ">> " tick_randuser_value </dev/tty
                     if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "Please specify the chosen user's (press Enter to choose default value '500'):"
+                    echo -e "Please specify the chosen user's ID (press Enter to choose default value '500'):"
                     read -p ">> " tick_randuserid_value </dev/tty
                     if [[ ! ${tick_randuserid_value} == "" ]]; then tick_randuserid="${tick_randuserid_value}"; fi
                     echo -e "Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
