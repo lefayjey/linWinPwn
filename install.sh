@@ -87,4 +87,5 @@ install_tools() {
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }
 
-echo -e "\n${GREEN}[Success]${NC} Setup completed successfully!\n"
+echo -e "\n${GREEN}[Success]${NC} Setup completed successfully! Reloading the shell's configuration ... \n"
+exec bash
