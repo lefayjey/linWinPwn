@@ -234,6 +234,8 @@ Vuln Checks menu
 11) runasppl check using netexec
 12) RPC Dump and check for interesting protocols
 13) Coercer RPC scan
+14) PushSubscription abuse using PrivExchange
+15) RunFinger scan
 ```
 
 MSSQL Enumeration menu
@@ -325,7 +327,7 @@ Automated Mode:
     - [fortra](https://github.com/fortra) - impacket
     - [NeffIsBack, Marshall-Hallenbeck, zblurx, mpgn, byt3bl33d3r and all contributors](https://github.com/Pennyw0rth/NetExec) - crackmapexec/netexec
     - [Fox-IT](https://github.com/fox-it) - bloodhound-python
-    - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump
+    - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump, privexchange
     - [zer1t0](https://github.com/zer1t0) - certi.py
     - [ly4k](https://github.com/ly4k) - Certipy
     - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap
@@ -346,6 +348,7 @@ Automated Mode:
     - [X-C3LL](https://github.com/X-C3LL) - GPOwned
     - [Hackndo](https://github.com/Hackndo) - pyGPOAbuse
     - [CompassSecurity](https://github.com/CompassSecurity) - mssqlrelay
+    - [lgandx](https://github.com/lgandx) - Responder
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
