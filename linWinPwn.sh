@@ -1822,7 +1822,7 @@ raise_child () {
         echo -e "${PURPLE}[-] raiseChild requires credentials${NC}"
     else
         echo -e "${BLUE}[*] Running privilege escalation from Child Domain to Parent Domain using raiseChild${NC}"
-        run_command "${impacket_rpcdump} ${argument_imp} -w ${output_dir}/Credentials/raiseChild_ccache_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/Kerberos/impacket_raiseChild_output.txt
+        run_command "${impacket_raiseChild} ${argument_imp} -w ${output_dir}/Credentials/raiseChild_ccache_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/Kerberos/impacket_raiseChild_output.txt
     fi
     echo -e ""
 }
