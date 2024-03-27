@@ -217,6 +217,7 @@ SMB Shares menu
 3) SMB shares Spidering using netexec 
 4) SMB shares Scan using FindUncommonShares
 5) SMB shares Scan using manspider
+6) Open smbclient.py console on target
 ```
 
 Vuln Checks menu
@@ -265,6 +266,13 @@ Password Dump menu
 17) Dump Veeam credentials (only from Veeam server)
 18) Dump Msol password (only from Azure AD-Connect server)
 19) Extract Bitlocker Keys
+```
+
+Command Execution menu
+```
+1) Open CMD console using smbexec on target
+2) Open CMD console using wmiexec on target
+3) Open CMD console using psexec on target
 ```
 
 Modification menu
