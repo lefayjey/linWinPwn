@@ -3221,11 +3221,11 @@ adcs_menu() {
         adcs_menu;;
 
         7)
-        certsync_ntds_dump
+        masky_dump
         adcs_menu;;
 
         8)
-        masky_dump
+        certsync_ntds_dump
         adcs_menu;;
 
         back)
