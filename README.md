@@ -22,17 +22,17 @@ chmod +x install.sh
 ## Usage
 
 ### Mode
-The linWinPwn script has an interactive mode (default), or automation mode (enumeration only).
+The linWinPwn script can be executed in interactive mode (default), or in automated mode (enumeration only).
 
-**Default: Interactive Mode** - Open interactive menu to run checks separately
+**1. Interactive Mode (Default)** - Open interactive menu to run checks separately
 
 ```bash
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
 ```
 
-**Automated Mode** - Using the `--auto` parameter, run enumeration tools (no exploitation, modifications or password dumping)
+**2. Automated Mode** - Using the `--auto` parameter, run enumeration tools (no exploitation, modifications or password dumping)
 
-When using the automated mode, different checks are performed if credentials are provided or not.
+When using the automated mode, different checks are performed based on the authentication method.
 
 - Unauthenticated (no credentials provided)
     - Anonymous enumeration using netexec, enum4linux-ng, ldapdomaindump, ldeep
@@ -50,7 +50,7 @@ When using the automated mode, different checks are performed if credentials are
 ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --auto [-o <output_dir>]
 ```
 
-- Authenticated (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)**
+- Authenticated (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)
     - DNS extraction using adidnsdump
     - BloodHound data collection
     - Enumeration using netexec, enum4linux-ng, ldapdomaindump, bloodyAD, sccmhunter, rdwatool, sccmhunter, GPOwned
