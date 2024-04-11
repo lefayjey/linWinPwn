@@ -41,6 +41,8 @@ install_tools() {
     pipx install git+https://github.com/p0dalirius/RDWAtool --force
     pipx install git+https://github.com/almandin/krbjack --force
     pipx install git+https://github.com/CompassSecurity/mssqlrelay.git --force
+    pipx install --include-deps git+https://github.com/ajm4n/adPEAS --force
+    pipx install git+https://github.com/oppsec/breads.git --force
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}

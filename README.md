@@ -169,6 +169,8 @@ AD Enum menu
 22) Open p0dalirius' LDAP Monitor
 23) Open garrettfoster13's ACED console
 24) Open LDAPPER custom options
+25) Run adPEAS enumerations
+26) Open breads console
 ```
 
 ADCS menu
@@ -357,6 +359,8 @@ Automated Mode:
     - [Hackndo](https://github.com/Hackndo) - pyGPOAbuse
     - [CompassSecurity](https://github.com/CompassSecurity) - mssqlrelay
     - [lgandx](https://github.com/lgandx) - Responder
+    - [ajm4n](https://github.com/ajm4n) - adPEAS
+    - [oppsec](https://github.com/oppsec) - breads
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/

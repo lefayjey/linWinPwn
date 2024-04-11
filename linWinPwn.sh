@@ -110,6 +110,8 @@ pygpoabuse="$scripts_dir/pyGPOAbuse-master/pygpoabuse.py"
 GPOwned="$scripts_dir/GPOwned.py"
 privexchange="$scripts_dir/privexchange.py"
 RunFinger="$scripts_dir/Responder/RunFinger.py"
+adPEAS=$(which adPEAS)
+breads=$(which breads-ad)
 nmap=$(which nmap)
 john=$(which john)
 
@@ -121,7 +123,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.4 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.5 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -368,6 +370,7 @@ authenticate (){
         argument_pygpoabuse="${domain}/${user}:''"
         argument_GPOwned="-d ${domain} -u ${user} -p ''"
         argument_privexchange="-d ${domain} -u ${user} -p ''"
+        argument_adpeas="-d ${domain} -u ${user} -p ''"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -410,6 +413,7 @@ authenticate (){
         argument_pygpoabuse="${domain}/${user}:${password}'"
         argument_GPOwned="-d ${domain} -u ${user} -p ${password}"
         argument_privexchange="-d ${domain} -u ${user} -p ${password}"
+        argument_adpeas="-d ${domain} -u ${user} -p ${password}"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -1207,6 +1211,36 @@ aced_console (){
             echo -e "${BLUE}[*] Launching aced${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             run_command "$(which python3) ${aced} ${argument_aced}@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/aced_output_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+}
+
+adpeas_enum (){
+    if [ ! -f "${adPEAS}" ]; then
+        echo -e "${RED}[-] Please verify the installation of adPEAS${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${hash_bool}" == true ]; then
+            echo -e "${PURPLE}[-] adPEAS only supports password authentication ${NC}"
+        else
+            echo -e "${BLUE}[*] Launching adPEAS${NC}"
+            run_command "${adPEAS} ${argument_adPEAS} -i ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/adPEAS_output_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+}
+
+breads_console (){
+    if [ ! -f "${breads}" ]; then
+        echo -e "${RED}[-] Please verify the installation of breads${NC}"
+    else
+        if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] breads does not support Kerberos authentication ${NC}"
+        else
+            echo -e "${BLUE}[*] Launching breads${NC}"
+            rm -rf "${HOME}/.breads/${user}_${dc_domain}" 2>/dev/null
+            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${breads} | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt" >> $command_log
+            (echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n${password}${hash}\ncurrent_profile"; cat /dev/tty) | ${breads} | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -3053,6 +3087,8 @@ ad_menu() {
     echo -e "22) Open p0dalirius' LDAP Monitor"
     echo -e "23) Open garrettfoster13's ACED console"
     echo -e "24) Open LDAPPER custom options"
+    echo -e "25) Run adPEAS enumerations"
+    echo -e "26) Open breads console"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3157,6 +3193,14 @@ ad_menu() {
 
         24)
         ldapper_console
+        ad_menu;;
+
+        25)
+        adpeas_enum
+        ad_menu;;
+
+        26)
+        breads_console
         ad_menu;;
 
         back)
@@ -4350,6 +4394,8 @@ config_menu () {
         if [ ! -x "${privexchange}" ] ; then echo -e "${RED}[-] privexchange is not executable${NC}"; else echo -e "${GREEN}[+] privexchange is executable${NC}"; fi
         if [ ! -f "${RunFinger}" ] ; then echo -e "${RED}[-] RunFinger is not installed${NC}"; else echo -e "${GREEN}[+] RunFinger is installed${NC}"; fi
         if [ ! -x "${RunFinger}" ] ; then echo -e "${RED}[-] RunFinger is not executable${NC}"; else echo -e "${GREEN}[+] RunFinger is executable${NC}"; fi
+        if [ ! -f "${adPEAS}" ] ; then echo -e "${RED}[-] adPEAS is not installed${NC}"; else echo -e "${GREEN}[+] adPEAS is installed${NC}"; fi
+        if [ ! -f "${breads}" ] ; then echo -e "${RED}[-] breads is not installed${NC}"; else echo -e "${GREEN}[+] breads is installed${NC}"; fi
         config_menu;;
 
         2)
