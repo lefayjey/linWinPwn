@@ -858,7 +858,7 @@ ne_ldap_enum () {
     fi
     echo -e ""
     echo -e "${BLUE}[*] Get MachineAccountQuota${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M MAQ --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_MachineAccountQuota_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M maq --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_MachineAccountQuota_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Subnets Enumeration${NC}"
     run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M subnets --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_subnets_output_${dc_domain}.txt" 2>&1
