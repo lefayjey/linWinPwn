@@ -46,6 +46,8 @@ install_tools() {
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}
+    sudo mkdir -p ${scripts_dir}/ldapper
+    sudo mkdir -p ${scripts_dir}/Responder
     sudo chown -R $(whoami):$(whoami) ${scripts_dir}
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
@@ -60,7 +62,6 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/p0dalirius/LDAPWordlistHarvester/main/LDAPWordlistHarvester.py" -O "$scripts_dir/LDAPWordlistHarvester.py"
     wget -q "https://github.com/garrettfoster13/aced/archive/refs/heads/main.zip" -O "$scripts_dir/aced.zip"
     wget -q "https://github.com/garrettfoster13/sccmhunter/archive/refs/heads/main.zip" -O "$scripts_dir/sccmhunter.zip"
-    sudo mkdir -p ${scripts_dir}/ldapper
     wget -q "https://raw.githubusercontent.com/shellster/LDAPPER/master/ldapper.py" -O "$scripts_dir/ldapper/ldapper.py"
     wget -q "https://raw.githubusercontent.com/shellster/LDAPPER/master/utilities.py" -O "$scripts_dir/ldapper/utilities.py"
     wget -q "https://raw.githubusercontent.com/shellster/LDAPPER/master/queries.py" -O "$scripts_dir/ldapper/queries.py"
@@ -70,7 +71,6 @@ install_tools() {
     wget -q "https://github.com/Hackndo/pyGPOAbuse/archive/refs/heads/master.zip" -O "$scripts_dir/pyGPOAbuse.zip"
     wget -q "https://raw.githubusercontent.com/X-C3LL/GPOwned/main/GPOwned.py" -O "$scripts_dir/GPOwned.py"
     wget -q "https://raw.githubusercontent.com/dirkjanm/PrivExchange/master/privexchange.py" -O "$scripts_dir/privexchange.py"
-    sudo mkdir -p ${scripts_dir}/Responder
     wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/RunFinger.py" -O "$scripts_dir/Responder/RunFinger.py"
     wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/odict.py" -O "$scripts_dir/Responder/odict.py"
     wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/RunFingerPackets.py"  -O "$scripts_dir/Responder/RunFingerPackets.py"
