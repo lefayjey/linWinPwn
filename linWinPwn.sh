@@ -123,7 +123,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.5 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.6 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -134,7 +134,8 @@ help_linWinPwn () {
     print_banner
     echo -e "${YELLOW}Parameters${NC}"
     echo -e "-h/--help         Show the help message"
-    echo -e "-t/--target       DC IP or target Domain ${RED}[MANDATORY]${NC}"
+    echo -e "-t/--target       IP Address of Target Domain Controller ${RED}[MANDATORY]${NC}"
+    echo -e "-d/--domain       Domain of user (default: empty)"
     echo -e "-u/--username     Username (default: empty)"
     echo -e "-p                Password (NTLM authentication only) (default: empty)" 
     echo -e "-H                LM:NT (NTLM authentication only) (default: empty)" 
@@ -153,14 +154,16 @@ help_linWinPwn () {
     echo -e "     ${CYAN}Choose between:${NC} DC (Domain Controllers), All (All domain servers), File='path_to_file' (File containing list of servers), IP='IP_or_hostname' (IP or hostname)"
     echo -e ""
     echo -e "${YELLOW}Example usages${NC}"
-    echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain ${CYAN}(No password for anonymous login)${NC}" >&2;
-    echo -e "$(pwd)/$(basename "$0") -t dc_ip_or_target_domain -d domain -u user [-p password or -H hash or -K kerbticket]" >&2;
+    echo -e "$(pwd)/$(basename "$0") -t dc_ip ${CYAN}(No password for anonymous login)${NC}" >&2;
+    echo -e "$(pwd)/$(basename "$0") -t dc_ip -d domain -u user [-p password or -H hash or -K kerbticket]" >&2;
     echo -e ""
 }
 
 args=()
 while test $# -gt 0; do
         case $1 in
+            -t) dc_ip="${2}"; shift;; #mandatory
+            --target) dc_ip="${2}"; shift;; #mandatory
             -d) domain="${2}"; shift;;
             --domain) domain="${2}"; shift;;
             -u) user="${2}"; shift;; #leave empty for anonymous login
@@ -171,8 +174,6 @@ while test $# -gt 0; do
             -A) aeskey="${2}"; aeskey_bool=true; shift;; #AES Key (128 or 256 bits)
             -C) pfxcert="${2}"; cert_bool=true; shift;; #location of PFX certificate
             --cert-pass) pfxpass="${2}"; shift;; #Password of PFX certificate
-            -t) dc_ip="${2}"; shift;; #mandatory
-            --target) dc_ip="${2}"; shift;; #mandatory
             -o) output_dir="$(realpath ${2})"; shift;;
             --output) output_dir="$(realpath ${2})"; shift;;
             -I) attacker_IP="$(ip -f inet addr show $2 | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')"; attacker_interface=$2; shift;;
@@ -200,7 +201,22 @@ run_command () {
 prepare (){
     if [ -z "$dc_ip" ] ; then
         echo -e "${RED}[-] Missing target... ${NC}"
-        echo -e "Use -h for help"
+        if [ ! -z "$domain" ] ; then
+            dig_ip=$(dig +short ${domain})
+            if [ ! -z "$dig_ip" ]; then echo -e "${YELLOW}[i]${NC} Provided domain resolves to ${dig_ip}! Try again with ${YELLOW}-t $dig_ip${NC}"; fi
+        fi
+        echo -e "${YELLOW}[i]${NC} Use -h for more help"
+        exit 1
+    elif [[ ! $dc_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo -e "${RED}[-] Target is not an IP address... ${NC}"
+        dig_ip=$(dig +short ${dc_ip})
+        if [ ! -z "$dig_ip" ]; then echo -e "${YELLOW}[i]${NC} Provided target resolves to ${dig_ip}! Try again with ${YELLOW}-t $dig_ip${NC}"; fi
+
+        if [ ! -z "$domain" ] ; then
+            dig_ip=$(dig +short ${domain})
+            if [ ! -z "$dig_ip" ]; then echo -e "${YELLOW}[i]${NC} Provided domain resolves to ${dig_ip}! Try again with ${YELLOW}-t $dig_ip${NC}"; fi
+        fi
+        echo -e "${YELLOW}[i]${NC} Use -h for more help"
         exit 1
     fi
 
@@ -2895,8 +2911,8 @@ bruteforce () {
 
 kerberos () {
     asrep_attack
-    asreprc4_attack
     kerberoast_attack
+    asreprc4_attack
     john_crack_asrep
     john_crack_kerberoast
     nopac_check
@@ -2906,7 +2922,8 @@ kerberos () {
 scan_shares () {
     smb_map
     ne_shares
-    manspider_scan
+    ne_spider
+    finduncshar_scan
 }
 
 vuln_checks () {
@@ -2930,13 +2947,12 @@ mssql_checks () {
 }
 
 pwd_dump () {
-    juicycreds_dump
     laps_dump
     gmsa_dump
     secrets_dump
     nanodump_dump
     dpapi_dump
-    bitlocker_dump
+    juicycreds_dump
 }
 
 print_info () {
@@ -3062,7 +3078,7 @@ ad_menu() {
     echo -e ""
     echo -e "${CYAN}[AD Enum menu]${NC} Please choose from the following options:"
     echo -e "--------------------------------------------------------"
-    echo -e "A) ALL ACTIVE DIRECTORY ENUMERATIONS"
+    echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #1-3-4-5-6-7-8-9-10-15-16-17-20"
     echo -e "1) BloodHound Enumeration using all collection methods (Noisy!)"
     echo -e "2) BloodHound Enumeration using DCOnly"
     echo -e "3) ldapdomaindump LDAP Enumeration"
@@ -3220,7 +3236,7 @@ adcs_menu() {
     echo -e ""
     echo -e "${CYAN}[ADCS menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------"
-    echo -e "A) ALL ADCS ENUMERATIONS"
+    echo -e "A) ADCS ENUMERATIONS #1-2-3-4"
     echo -e "1) ADCS Enumeration using netexec"
     echo -e "2) certi.py ADCS Enumeration"
     echo -e "3) Certipy ADCS Enumeration"
@@ -3288,7 +3304,7 @@ adcs_menu() {
 bruteforce_menu() {
     echo -e "${CYAN}[BruteForce menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------------"
-    echo -e "A) ALL BRUTEFORCE ATTACKS"
+    echo -e "A) BRUTEFORCE ATTACKS #1-2-3-5"
     echo -e "1) RID Brute Force (Null session) using netexec"
     echo -e "2) User Enumeration using kerbrute (Null session)"
     echo -e "3) User=Pass check using kerbrute (Noisy!)"
@@ -3341,7 +3357,7 @@ kerberos_menu () {
     echo -e ""
     echo -e "${CYAN}[Kerberos Attacks menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------------------"
-    echo -e "A) ALL KERBEROS ATTACKS"
+    echo -e "A) KERBEROS ATTACKS #1-2-3-4-5-6-7"
     echo -e "1) AS REP Roasting Attack using GetNPUsers"
     echo -e "2) Kerberoast Attack using GetUserSPNs"
     echo -e "3) Cracking AS REP Roast hashes using john the ripper"
@@ -3674,7 +3690,7 @@ shares_menu () {
     echo -e "${CYAN}[SMB Shares menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
-    echo -e "A) ALL SMB SHARES SCANS"
+    echo -e "A) SMB SHARES SCANS #1-2-3-4"
     echo -e "m) Modify target(s)"
     echo -e "1) SMB shares Scan using smbmap"
     echo -e "2) SMB shares Enumeration using netexec"
@@ -3739,7 +3755,7 @@ vulns_menu () {
     echo -e "${CYAN}[Vuln Checks menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
-    echo -e "A) ALL VULNERABILITY CHECKS"
+    echo -e "A) VULNERABILITY CHECKS #1-2-3-4-5-6-7-8-9-10-11-12"
     echo -e "m) Modify target(s)"
     echo -e "1) zerologon check using netexec (only on DC)"
     echo -e "2) MS17-010 check using netexec"
@@ -3847,6 +3863,7 @@ mssql_menu () {
     echo -e ""
     echo -e "${CYAN}[MSSQL Enumeration menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------------"
+    echo -e "A) MSSQL CHECKS #1-2"
     echo -e "1) MSSQL Enumeration using netexec"
     echo -e "2) MSSQL Relay check"
     echo -e "back) Go back"
@@ -3855,6 +3872,10 @@ mssql_menu () {
     read -p "> " option_selected </dev/tty
 
     case ${option_selected} in
+        A)
+        mssql_checks
+        mssql_menu;;
+
         1)
         mssql_enum
         mssql_menu;;
@@ -3881,7 +3902,7 @@ pwd_menu () {
     echo -e "${CYAN}[Password Dump menu]${NC} Please choose from the following options:"
     echo -e "--------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
-    echo -e "A) ALL PASSWORD DUMPS"
+    echo -e "A) PASSWORD DUMPS #1-2-4-12-13-16"
     echo -e "m) Modify target(s)"
     echo -e "1) LAPS Dump using netexec"
     echo -e "2) gMSA Dump using netexec"

@@ -27,7 +27,7 @@ The linWinPwn script can be executed in interactive mode (default), or in automa
 **1. Interactive Mode (Default)** - Open interactive menu to run checks separately
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
+./linWinPwn.sh -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
 ```
 
 **2. Automated Mode** - Using the `--auto` parameter, run enumeration tools (no exploitation, modifications or password dumping)
@@ -47,7 +47,7 @@ When using the automated mode, different checks are performed based on the authe
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on identified servers
     - Check for ms17-010, zerologon, petitpotam, nopac, smb-sigining, ntlmv1, runasppl weaknesses
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --auto [-o <output_dir>]
+./linWinPwn.sh -t <Domain_Controller_IP> --auto [-o <output_dir>]
 ```
 
 - Authenticated (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)
@@ -62,13 +62,13 @@ When using the automated mode, different checks are performed based on the authe
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Targeted Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
-    - SMB shares enumeration on all domain servers using smbmap, manspider and cme's spider_plus
+    - SMB shares enumeration on all domain servers using smbmap, FindUncommonShares and cme's spider_plus
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers (using cme, Coercer and RPC Dump)
     - Check for ms17-010, ms14-068, zerologon, petitpotam, nopac, smb-signing, ntlmv1, runasppl, certifried weaknesses
     - Check mssql privilege escalation paths
     - Check mssql relay possibilities
 ```bash
-proxychains ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] --auto
+proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] --auto
 ```
 
 ### Parameters
@@ -76,41 +76,41 @@ proxychains ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain>  -d <AD_do
 **Auto config** - Run NTP sync with target DC and add entry to /etc/hosts before running the modules
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --auto-config
+./linWinPwn.sh -t <Domain_Controller_IP> --auto-config
 ```
 
 **LDAPS** - Use LDAPS instead of LDAP (port 636)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --ldaps
+./linWinPwn.sh -t <Domain_Controller_IP> --ldaps
 ```
 
 **Force Kerberos Auth** - Force using Kerberos authentication instead of NTLM (when possible)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --force-kerb
+./linWinPwn.sh -t <Domain_Controller_IP> --force-kerb
 ```
 
 **Verbose** - Enable all verbose and debug outputs
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --verbose
+./linWinPwn.sh -t <Domain_Controller_IP> --verbose
 ```
 
 **Interface** - Choose attacker's network interface
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -I tun0
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --interface eth0
+./linWinPwn.sh -t <Domain_Controller_IP> -I tun0
+./linWinPwn.sh -t <Domain_Controller_IP> --interface eth0
 ```
 
 **Targets** - Choose targets to be scanned (DC, All, IP=IP_or_hostname, File=./path_to_file)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --targets All
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> --targets DC
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -T IP=192.168.0.1
-./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain> -T File=./list_servers.txt
+./linWinPwn.sh -t <Domain_Controller_IP> --targets All
+./linWinPwn.sh -t <Domain_Controller_IP> --targets DC
+./linWinPwn.sh -t <Domain_Controller_IP> -T IP=192.168.0.1
+./linWinPwn.sh -t <Domain_Controller_IP> -T File=./list_servers.txt
 ```
 
 ### Tunneling
@@ -124,7 +124,7 @@ ssh.exe kali@<linux_machine> -R 1080 -NCqf
 ```
 On the Linux machine, first update `/etc/proxychains4.conf` to include `socks5 127.0.0.1 1080`, then run:
 ```bash
-proxychains ./linWinPwn.sh -t <Domain_Controller_IP_or_Target_Domain>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] [--auto]
+proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] [--auto]
 ```
 
 ### Interactive Mode Menus
