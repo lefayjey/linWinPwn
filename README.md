@@ -205,11 +205,12 @@ Kerberos Attacks menu
 7) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)
 8) AP-REQ hijack with DNS unsecure updates abuse using krbjack
 9) Run custom Kerberoast attack using Orpheus
-10) Generate Golden Ticket (requires: password or NTLM hash of Domain Admin)
-11) Generate Silver Ticket (requires: password or NTLM hash of Domain Admin)
-12) Generate Diamond Ticket (requires: password or NTLM hash of Domain Admin)
-13) Generate Sapphire Ticket (requires: password or NTLM hash of Domain Admin)
-14) Privilege escalation from Child Domain to Parent Domain using raiseChild
+10) Generate Golden Ticket (requires: DCSync rights or hash of krbtgt)
+11) Generate Silver Ticket (requires: DCSync rights or hash of service account)
+12) Generate Diamond Ticket (requires: DCSync rights or hash of krbtgt)
+13) Generate Sapphire Ticket (requires: DCSync rights or hash of krbtgt)
+14) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)
+15) Impersonate another user through Delegation (requires: DCSync rights or hash of account allowed for delegation)
 ```
 
 SMB Shares menu
