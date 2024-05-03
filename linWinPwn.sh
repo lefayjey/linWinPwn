@@ -912,8 +912,8 @@ bloodyad_all_enum () {
     else
         mkdir -p ${output_dir}/DomainRecon/bloodyAD
         echo -e "${BLUE}[*] bloodyad All Enumeration${NC}"
-        if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"            
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             domain_DN=$(fqdn_to_ldap_dn ${dc_domain})
@@ -947,8 +947,8 @@ bloodyad_write_enum () {
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
         mkdir -p ${output_dir}/DomainRecon/bloodyAD
-        if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"            
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] bloodyad search for writable objects${NC}"
@@ -963,8 +963,8 @@ bloodyad_dnsquery () {
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
         mkdir -p ${output_dir}/DomainRecon/bloodyAD
-        if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"            
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] bloodyad dump DNS entries${NC}"
@@ -1068,9 +1068,13 @@ ldapwordharv_enum () {
         echo -e "${RED}[-] Please verify the installation of LDAPWordlistHarvester${NC}"
     else
         echo -e "${BLUE}[*] Generating wordlist using LDAPWordlistHarvester${NC}"
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
-        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
-        run_command "${LDAPWordlistHarvester} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip} -o ${output_dir}/DomainRecon/ldapwordharv_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/DomainRecon/ldapwordharv_output_${dc_domain}.txt
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] LDAPWordlistHarvester requires credentials${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
+            run_command "${LDAPWordlistHarvester} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip} -o ${output_dir}/DomainRecon/ldapwordharv_${dc_domain}.txt" 2>&1 | tee -a ${output_dir}/DomainRecon/ldapwordharv_output_${dc_domain}.txt
+        fi
     fi
     echo -e ""
 }
@@ -1089,10 +1093,10 @@ sccm_enum (){
     if [ ! -f "${sccmhunter}" ]; then
         echo -e "${RED}[-] Please verify the installation of sccmhunter${NC}"
     else
+        echo -e "${BLUE}[*] Enumeration of SCCM using sccmhunter${NC}"
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] sccmhunter requires credentials${NC}"
         else
-            echo -e "${BLUE}[*] Enumeration of SCCM using sccmhunter${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             /bin/rm -rf "$HOME/.sccmhunter/logs/" 2>/dev/null
             run_command "$(which python3) ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
@@ -2314,8 +2318,8 @@ change_pass () {
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
-        if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"           
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Changing passwords of a user or computer account. Please specify target:${NC}"
@@ -2345,8 +2349,8 @@ add_group_member () {
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
-        if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"           
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Adding user to group. Please specify target group:${NC}"
@@ -2373,8 +2377,8 @@ add_computer () {
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
-        if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"           
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Adding new computer account. Please specify computer hostname (default: WS3000):${NC}"
@@ -2396,8 +2400,8 @@ rbcd_attack () {
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
-        if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"       
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Performing RBCD attack: impersonate users on target via S4U2Proxy. Please specify target:${NC}"
@@ -2433,8 +2437,8 @@ shadowcreds_attack () {
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
-        if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Performing ShadowCredentials attack: Create and assign Key Credentials to target. Please specify target:${NC}"
@@ -2487,8 +2491,8 @@ dnsentry_add () {
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
         mkdir -p ${output_dir}/DomainRecon/bloodyAD
-        if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad does not support kerberos authentication using AES Key${NC}"            
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Please specify hostname of the attacker DNS entry (default: kali):${NC}"
