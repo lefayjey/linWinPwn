@@ -74,6 +74,8 @@ impacket_wmiexec=$(which wmiexec.py)
 if [ ! -f "${impacket_wmiexec}" ]; then impacket_wmiexec=$(which impacket-wmiexec); fi
 impacket_psexec=$(which psexec.py)
 if [ ! -f "${impacket_psexec}" ]; then impacket_psexec=$(which impacket-psexec); fi
+impacket_smbpasswd=$(which smbpasswd.py)
+if [ ! -f "${impacket_smbpasswd}" ]; then impacket_smbpasswd=$(which impacket-smbpasswd); fi
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
@@ -125,7 +127,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.7 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.8 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -575,6 +577,27 @@ authenticate (){
         auth_check=$(${netexec} smb ${target} ${argument_ne} 2>&1| grep "\[-\]\|Traceback" -A 10)
         if [ ! -z "$auth_check" ] ; then
             echo $auth_check
+            if [[ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]]; then
+                if [ ! -f "${impacket_smbpasswd}" ] ; then
+                    echo -e "${RED}[-] smbpasswd.py not found! Please verify the installation of impacket${NC}"
+                elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+                    echo -e "${PURPLE}[-] smbpasswd does not support kerberos authentication${NC}"
+                else
+                    echo -e "${BLUE}[*] Changing expired password of own user. Please specify new password:${NC}"
+                    pass_passchange=""
+                    read -p ">> " pass_passchange </dev/tty
+                    while [ "${pass_passchange}" == "" ] ; do
+                        echo -e "${RED}Invalid password.${NC} Please specify password:"
+                        read -p ">> " pass_passchange </dev/tty
+                    done
+                    echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
+                    run_command "${impacket_smbpasswd} ${argument_imp}@${dc_ip} -newpass ${pass_passchange}" | tee -a ${output_dir}/Modification/impacket_smbpasswd_${dc_domain}.txt
+                    password=$pass_passchange
+                    auth_check=""
+                    authenticate
+                fi
+                echo -e ""
+            fi
             echo -e "${RED}[-] Error authenticating to domain! Please check your credentials and try again... ${NC}"
             exit 1
         fi
@@ -2897,6 +2920,7 @@ ad_enum () {
     deleg_enum
     bloodyad_all_enum
     bloodyad_write_enum
+    windapsearch_enum
     ldapwordharv_enum
     rdwatool_enum
     sccm_enum
@@ -3086,7 +3110,7 @@ ad_menu() {
     echo -e ""
     echo -e "${CYAN}[AD Enum menu]${NC} Please choose from the following options:"
     echo -e "--------------------------------------------------------"
-    echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #1-3-4-5-6-7-8-9-10-15-16-17-20"
+    echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #1-3-4-5-6-7-8-9-10-14-15-16-17-20"
     echo -e "1) BloodHound Enumeration using all collection methods (Noisy!)"
     echo -e "2) BloodHound Enumeration using DCOnly"
     echo -e "3) ldapdomaindump LDAP Enumeration"
@@ -4434,6 +4458,7 @@ config_menu () {
         if [ ! -f "${impacket_ticketer}" ] ; then echo -e "${RED}[-] impacket's ticketer is not installed${NC}"; else echo -e "${GREEN}[+] impacket's ticketer is installed${NC}"; fi
         if [ ! -f "${impacket_getST}" ] ; then echo -e "${RED}[-] impacket's getST is not installed${NC}"; else echo -e "${GREEN}[+] impacket's getST is installed${NC}"; fi
         if [ ! -f "${impacket_raiseChild}" ] ; then echo -e "${RED}[-] impacket's raiseChild is not installed${NC}"; else echo -e "${GREEN}[+] impacket's raiseChild is installed${NC}"; fi
+        if [ ! -f "${impacket_smbpasswd}" ] ; then echo -e "${RED}[-] impacket's smbpasswd is not installed${NC}"; else echo -e "${GREEN}[+] impacket's smbpasswd is installed${NC}"; fi
         if [ ! -f "${bloodhound}" ] ; then echo -e "${RED}[-] bloodhound is not installed${NC}"; else echo -e "${GREEN}[+] bloodhound is installed${NC}"; fi
         if [ ! -f "${ldapdomaindump}" ] ; then echo -e "${RED}[-] ldapdomaindump is not installed${NC}"; else echo -e "${GREEN}[+] ldapdomaindump is installed${NC}"; fi
         if [ ! -f "${netexec}" ] ; then echo -e "${RED}[-] netexec is not installed${NC}"; else echo -e "${GREEN}[+] netexec is installed${NC}"; fi
