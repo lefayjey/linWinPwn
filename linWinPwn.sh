@@ -370,6 +370,7 @@ authenticate (){
         exit 1
     fi
 
+    #Check if password is used
     if [ "${pass_bool}" == true ] ; then
         argument_ne="-d ${domain} -u ${user} -p ${password}"
         argument_imp="${domain}/${user}:${password}"
@@ -542,6 +543,7 @@ authenticate (){
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}AES Kerberos key of ${user}${NC}"
     fi
 
+    #Perform authentication using provided credentials
     if [ "${nullsess_bool}" == false ] ; then
         auth_check=$(run_command "${netexec} smb ${target} ${argument_ne}" 2>&1| grep "\[-\]\|Traceback" -A 10 2>&1)
         if [ ! -z "$auth_check" ] ; then
