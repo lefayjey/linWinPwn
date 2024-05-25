@@ -339,25 +339,30 @@ prepare (){
 
 authenticate (){
     #Check if null session or empty password is used
-    if [ "${user}" == "" ] && [ "${password}" == "" ] && [ "${hash}" == "" ] && [ "${krb5cc}" == "" ] && [ "${aeskey}" == "" ] && [ "${pfxcert}" == "" ]; then
-        nullsess_bool=true
-        rand_user=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 10; echo)
-        argument_ne="-d ${domain} -u '' -p ''"
-        argument_smbmap="-d ${domain} -u '' -p ''"
-        argument_manspider="-d ${domain} -u '' -p ''"
-        argument_coercer="-d ${domain} -u '' -p ''"
-        argument_bloodyad="-d ${domain} -u '' -p ''"
-        argument_privexchange="-d ${domain} -u '' -p ''"
-        argument_windap="-d ${domain}"
-        argument_adidns=""
-        argument_ldd=""
-        argument_silenthd=""
-        argument_enum4linux=""
-        argument_imp="${domain}/"
-        argument_imp_gp="${domain}/"
-        argument_ldeep="-d ${dc_domain} -a"
-        argument_pre2k="-d ${domain}"
-        auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
+    if [ "${pass_bool}" == false ] && [ "${hash_bool}" == false ] && [ "${kerb_bool}" == false ] && [ "${aeskey_bool}" == false ] && [ "${cert_bool}" == false ]; then
+        if [ ! "${user}" == "" ]; then
+            echo -e "${RED}[i]${NC} Please specify password, NTLM hash, Kerberos ticket, AES key or certificate and try again..."
+            exit 1
+        else
+            nullsess_bool=true
+            rand_user=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 10; echo)
+            argument_ne="-d ${domain} -u '' -p ''"
+            argument_smbmap="-d ${domain} -u '' -p ''"
+            argument_manspider="-d ${domain} -u '' -p ''"
+            argument_coercer="-d ${domain} -u '' -p ''"
+            argument_bloodyad="-d ${domain} -u '' -p ''"
+            argument_privexchange="-d ${domain} -u '' -p ''"
+            argument_windap="-d ${domain}"
+            argument_adidns=""
+            argument_ldd=""
+            argument_silenthd=""
+            argument_enum4linux=""
+            argument_imp="${domain}/"
+            argument_imp_gp="${domain}/"
+            argument_ldeep="-d ${dc_domain} -a"
+            argument_pre2k="-d ${domain}"
+            auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
+        fi
 
     #Check if username is not provided
     elif [ "${user}" == "" ]; then
