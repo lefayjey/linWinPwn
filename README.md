@@ -246,6 +246,7 @@ MSSQL Enumeration menu
 ```
 1) MSSQL Enumeration using netexec
 2) MSSQL Relay check
+3) Open mssqlclient.py console on target
 ```
 
 Password Dump menu
