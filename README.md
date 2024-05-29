@@ -205,12 +205,12 @@ Kerberos Attacks menu
 7) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)
 8) AP-REQ hijack with DNS unsecure updates abuse using krbjack
 9) Run custom Kerberoast attack using Orpheus
-10) Generate Golden Ticket (requires: DCSync rights or hash of krbtgt)
-11) Generate Silver Ticket (requires: DCSync rights or hash of service account)
-12) Generate Diamond Ticket (requires: DCSync rights or hash of krbtgt)
-13) Generate Sapphire Ticket (requires: DCSync rights or hash of krbtgt)
+10) Generate Golden Ticket (requires: hash of krbtgt or DCSync rights)
+11) Generate Silver Ticket (requires: hash of SPN service account or DCSync rights)
+12) Generate Diamond Ticket (requires: hash of krbtgt or DCSync rights)
+13) Generate Sapphire Ticket (requires: hash of krbtgt or DCSync rights)
 14) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)
-15) Impersonate another user through Delegation (requires: DCSync rights or hash of account allowed for delegation)
+15) Request impersonated ticket using Constrained Delegation rights (requires: hash of account allowed for delegation or DCSync rights)
 ```
 
 SMB Shares menu
@@ -281,14 +281,17 @@ Command Execution menu
 
 Modification menu
 ```
-1) Targeted Kerberoast Attack (Noisy!)
-2) Change user or computer password (Requires: ForceChangePassword on user or computer)
-3) Add user to group (Requires: GenericWrite or GenericAll on group)
-4) Add new computer (Requires: MAQ > 0)
-5) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)
-6) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
-7) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
-8) Add new DNS entry
+1) Change user or computer password (Requires: ForceChangePassword on user or computer)
+2) Add user to group (Requires: GenericWrite or GenericAll on group)
+3) Add new computer (Requires: MAQ > 0)
+4) Add new DNS entry
+5) Change Owner of target (Requires: WriteOwner permission)
+6) Targeted Kerberoast Attack (Noisy!)
+7) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)
+8) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
+9) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
+10) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege right)
+11) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)
 ```
 
 Auth menu
