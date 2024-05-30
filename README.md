@@ -171,6 +171,7 @@ AD Enum menu
 24) Open LDAPPER custom options
 25) Run adPEAS enumerations
 26) Open breads console
+27) Run ADCheck enumerations
 ```
 
 ADCS menu
@@ -366,6 +367,7 @@ Automated Mode:
     - [lgandx](https://github.com/lgandx) - Responder
     - [ajm4n](https://github.com/ajm4n) - adPEAS
     - [oppsec](https://github.com/oppsec) - breads
+    - [ADcheck](https://github.com/CobblePot59) - ADcheck
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
