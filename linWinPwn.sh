@@ -119,6 +119,7 @@ RunFinger="$scripts_dir/Responder/RunFinger.py"
 ADCheck="$scripts_dir/ADcheck/ADcheck.py"
 adPEAS=$(which adPEAS)
 breads=$(which breads-ad)
+smbclientng=$(which smbclientng)
 nmap=$(which nmap)
 john=$(which john)
 python3=$(which python3)
@@ -1232,7 +1233,7 @@ ldap_console () {
             echo -e "${PURPLE}[-] ldapconsole requires credentials ${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-debug"; else verbose_p0dalirius=""; fi
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
             run_command "${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1 | tee -a ${output_dir}/DomainRecon/ldapconsole_output_${dc_domain}.txt
         fi
     fi
@@ -2128,6 +2129,27 @@ smbclient_console () {
         done
         echo -e "${BLUE}[*] Opening smbclient.py console on target: $smbclient_target ${NC}"
         run_command "${impacket_smbclient} ${argument_imp}\\@${smbclient_target}" 2>&1 | tee -a ${output_dir}/Shares/impacket_smbclient_output.txt
+    fi
+    echo -e ""
+}
+
+smbclientng_console () {
+    if [ ! -f "${smbclientng}" ]; then
+        echo -e "${RED}[-] Please verify the installation of smbclientng${NC}"
+    else
+        echo -e "${BLUE}[*] Launching smbclientng${NC}"
+        if [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] smbclientng requires credentials ${NC}"
+        else
+            echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+            read -p ">> " smbclient_target </dev/tty
+            while [ "${smbclient_target}" == "" ] ; do
+                echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+                read -p ">> " smbclient_target </dev/tty
+            done
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
+            run_command "${smbclientng} ${argument_p0dalirius} ${verbose_p0dalirius} --target ${smbclient_target} --kdcHost ${dc_FQDN}" 2>&1 | tee -a ${output_dir}/Shares/smbclientng_output_${dc_domain}.txt
+        fi
     fi
     echo -e ""
 }
@@ -4005,6 +4027,7 @@ shares_menu () {
     echo -e "4) SMB shares Scan using FindUncommonShares"
     echo -e "5) SMB shares Scan using manspider"
     echo -e "6) Open smbclient.py console on target"
+    echo -e "7) Open p0dalirius's smbclientng console on target"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4041,6 +4064,10 @@ shares_menu () {
 
         6)
         smbclient_console
+        shares_menu;;
+
+        7)
+        smbclientng_console
         shares_menu;;
 
         back)
@@ -4756,6 +4783,7 @@ config_menu () {
         if [ ! -f "${breads}" ] ; then echo -e "${RED}[-] breads is not installed${NC}"; else echo -e "${GREEN}[+] breads is installed${NC}"; fi
         if [ ! -f "${ADCheck}" ] ; then echo -e "${RED}[-] ADCheck is not installed${NC}"; else echo -e "${GREEN}[+] ADCheck is installed${NC}"; fi
         if [ ! -x "${ADCheck}" ] ; then echo -e "${RED}[-] ADCheck is not executable${NC}"; else echo -e "${GREEN}[+] ADCheck is executable${NC}"; fi
+        if [ ! -f "${smbclientng}" ] ; then echo -e "${RED}[-] smbclientng is not installed${NC}"; else echo -e "${GREEN}[+] smbclientng is installed${NC}"; fi
         config_menu;;
 
         2)
