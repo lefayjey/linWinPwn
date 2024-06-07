@@ -368,6 +368,7 @@ authenticate (){
             argument_ldeep="-d ${dc_domain} -a"
             argument_pre2k="-d ${domain}"
             argument_p0dalirius="-d ${domain} -u Guest -p ''"
+            argument_FindUncom="-ad ${domain} -au Guest -ap ''"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
         fi
 
@@ -399,6 +400,7 @@ authenticate (){
         argument_windap="-d ${domain} -u ${user} -p '${password}'"
         argument_targkerb="-d ${domain} -u ${user} -p '${password}'"
         argument_p0dalirius="-d ${domain} -u ${user} -p '${password}'"
+        argument_FindUncom="-ad ${domain} -au ${user} -ap '${password}'"
         argument_manspider="-d ${domain} -u ${user} -p '${password}'"
         argument_coercer="-d ${domain} -u ${user} -p '${password}'"
         argument_bloodyad="-d ${domain} -u ${user} -p '${password}'"
@@ -464,6 +466,7 @@ authenticate (){
                 argument_windap="-d ${domain} -u ${user} --hash ${hash}"
                 argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
                 argument_p0dalirius="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
+                argument_FindUncom="-ad ${domain} -au ${user} -ah ${hash}"
                 argument_manspider="-d ${domain} -u ${user} -H $(expr substr $hash 34 65)"
                 argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
                 argument_aced=" -hashes ${hash} ${domain}/${user}"
@@ -515,6 +518,7 @@ authenticate (){
             argument_donpapi="-k -no-pass ${domain}/${user}"
             argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
             argument_p0dalirius="-d ${domain} -u ${user} -k --no-pass"
+            argument_FindUncom="-ad ${domain} -au ${user} -k --no-pass"
             argument_bloodyad="-d ${domain} -u ${user} -k"
             argument_aced="-k -no-pass ${domain}/${user}"
             argument_sccm="-d ${domain} -u ${user} -k --no-pass"
@@ -544,6 +548,7 @@ authenticate (){
         argument_donpapi="-k -aesKey ${aeskey} ${domain}/${user}"
         argument_targkerb="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
         argument_p0dalirius="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
+        argument_FindUncom="-ad ${domain} -au ${user} --aes-key ${aeskey} -k"
         argument_aced="-aes ${aeskey} ${domain}/${user}"
         argument_sccm="-d ${domain} -u ${user} -aes ${aeskey}"
         argument_mssqlrelay="-u ${user}\\@${domain} -aes ${aeskey} -k"
@@ -1705,10 +1710,11 @@ kerbrute_enum () {
         else
             echo -e "${BLUE}[*] kerbrute User Enumeration (Null session)${NC}"
             echo -e "${YELLOW}[i] Using $user_wordlist wordlist for user enumeration. This may take a while...${NC}"
-            run_command "${kerbrute} userenum ${user_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" 2>&1 > ${output_dir}/BruteForce/kerbrute_user_output_${dc_domain}.txt
+            run_command "${kerbrute} userenum ${user_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" 2>&1 >> ${output_dir}/BruteForce/kerbrute_user_output_${dc_domain}.txt
+            /bin/cat ${output_dir}/BruteForce/kerbrute_user_output_${dc_domain}.txt | grep "VALID" | cut -d " " -f 8 | cut -d "@" -f 1 > ${output_dir}/DomainRecon/Users/users_list_kerbrute_${dc_domain}.txt 2>&1
             if [ -s "${output_dir}/DomainRecon/Users/users_list_kerbrute_${dc_domain}.txt" ] ; then
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
-                /bin/cat ${output_dir}/BruteForce/kerbrute_user_output_${dc_domain}.txt 2>/dev/null | grep "VALID" | cut -d " " -f 8 | cut -d "@" -f 1 | tee ${output_dir}/DomainRecon/Users/users_list_kerbrute_${dc_domain}.txt 2>&1
+                /bin/cat ${output_dir}/DomainRecon/Users/users_list_kerbrute_${dc_domain}.txt 2>/dev/null
                 parse_users
             fi
         fi
@@ -2090,9 +2096,9 @@ finduncshar_scan () {
         if [ "${nullsess_bool}" == true ] ; then
             echo -e "${PURPLE}[-] FindUncommonShares requires credentials ${NC}"
         else
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${FindUncommonShares} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt
+            run_command "${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${servers_smb_list} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a ${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
