@@ -279,6 +279,7 @@ Command Execution menu
 1) Open CMD console using smbexec on target
 2) Open CMD console using wmiexec on target
 3) Open CMD console using psexec on target
+4) Open PowerShell console using evil-winrm on target
 ```
 
 Modification menu

@@ -120,6 +120,7 @@ ADCheck="$scripts_dir/ADcheck/ADcheck.py"
 adPEAS=$(which adPEAS)
 breads=$(which breads-ad)
 smbclientng=$(which smbclientng)
+evilwinrm=$(which evil-winrm)
 nmap=$(which nmap)
 john=$(which john)
 python3=$(which python3)
@@ -270,7 +271,7 @@ prepare (){
         fi
     fi
 
-    if [ "${user}" == "" ]; then user_out="null"; else user_out=$(echo ${user} | tr -dc '[:alnum:]\n\r'); fi
+    if [ "${user}" == "" ]; then user_out="null"; else user_out=${user// /}; fi
     output_dir="${output_dir}/linWinPwn_${dc_domain}_${user_out}"
     command_log="$output_dir/$(date +%Y-%m-%d)_command.log"
     servers_ip_list="${output_dir}/DomainRecon/Servers/ip_list_${dc_domain}.txt"
@@ -378,39 +379,40 @@ authenticate (){
 
     #Check if password is used
     if [ "${pass_bool}" == true ] ; then
-        argument_ne="-d ${domain} -u ${user} -p ${password}"
-        argument_imp="${domain}/${user}:${password}"
-        argument_imp_gp="${domain}/${user}:${password}"
-        argument_imp_ti="-user ${user} -password ${password} -domain ${domain}"
-        argument_bhd="-u ${user}\\@${domain} -p ${password} --auth-method ntlm"
-        argument_enum4linux="-w ${domain} -u ${user} -p ${password}"
-        argument_adidns="-u ${domain}\\\\${user} -p ${password}"
-        argument_ldd="-u ${domain}\\\\${user} -p ${password}"
-        argument_smbmap="-d ${domain} -u ${user} -p ${password}"
-        argument_certi_py="${domain}/${user}:${password}"
-        argument_certipy="-u ${user}\\@${domain} -p ${password}"
-        argument_ldeep="-d ${domain} -u ${user} -p ${password}"
-        argument_pre2k="-d ${domain} -u ${user} -p ${password}"
-        argument_certsync="-d ${domain} -u ${user} -p ${password}"
-        argument_donpapi="${domain}/${user}:${password}"
-        argument_hekatomb="${domain}/${user}:${password}"
-        argument_silenthd="-u ${domain}\\\\${user} -p ${password}"
-        argument_windap="-d ${domain} -u ${user} -p ${password}"
-        argument_targkerb="-d ${domain} -u ${user} -p ${password}"
-        argument_p0dalirius="-d ${domain} -u ${user} -p ${password}"
-        argument_manspider="-d ${domain} -u ${user} -p ${password}"
-        argument_coercer="-d ${domain} -u ${user} -p ${password}"
-        argument_bloodyad="-d ${domain} -u ${user} -p ${password}"
-        argument_aced="${domain}/${user}:${password}"
-        argument_sccm="-d ${domain} -u ${user} -p ${password}"
-        argument_ldapper="-D ${domain} -U ${user} -P ${password}"
-        argument_adalanche="--authmode ntlm --username ${user}\\@${domain} --password ${password}"
-        argument_mssqlrelay="-u ${user}\\@${domain} -p ${password}"
-        argument_pygpoabuse="${domain}/${user}:${password}'"
-        argument_GPOwned="-d ${domain} -u ${user} -p ${password}"
-        argument_privexchange="-d ${domain} -u ${user} -p ${password}"
-        argument_adpeas="-d ${domain} -u ${user} -p ${password}"
-        argument_adcheck="-d ${domain} -u ${user} -p ${password}"
+        argument_ne="-d ${domain} -u ${user} -p '${password}'"
+        argument_imp="${domain}/${user}:'${password}'"
+        argument_imp_gp="${domain}/${user}:'${password}'"
+        argument_imp_ti="-user ${user} -password '${password}' -domain ${domain}"
+        argument_bhd="-u ${user}\\@${domain} -p '${password}' --auth-method ntlm"
+        argument_enum4linux="-w ${domain} -u ${user} -p '${password}'"
+        argument_adidns="-u ${domain}\\\\${user} -p '${password}'"
+        argument_ldd="-u ${domain}\\\\${user} -p '${password}'"
+        argument_smbmap="-d ${domain} -u ${user} -p '${password}'"
+        argument_certi_py="${domain}/${user}:'${password}'"
+        argument_certipy="-u ${user}\\@${domain} -p '${password}'"
+        argument_ldeep="-d ${domain} -u ${user} -p '${password}'"
+        argument_pre2k="-d ${domain} -u ${user} -p '${password}'"
+        argument_certsync="-d ${domain} -u ${user} -p '${password}'"
+        argument_donpapi="${domain}/${user}:'${password}'"
+        argument_hekatomb="${domain}/${user}:'${password}'"
+        argument_silenthd="-u ${domain}\\\\${user} -p '${password}'"
+        argument_windap="-d ${domain} -u ${user} -p '${password}'"
+        argument_targkerb="-d ${domain} -u ${user} -p '${password}'"
+        argument_p0dalirius="-d ${domain} -u ${user} -p '${password}'"
+        argument_manspider="-d ${domain} -u ${user} -p '${password}'"
+        argument_coercer="-d ${domain} -u ${user} -p '${password}'"
+        argument_bloodyad="-d ${domain} -u ${user} -p '${password}'"
+        argument_aced="${domain}/${user}:'${password}'"
+        argument_sccm="-d ${domain} -u ${user} -p '${password}'"
+        argument_ldapper="-D ${domain} -U ${user} -P '${password}'"
+        argument_adalanche="--authmode ntlm --username ${user}\\@${domain} --password '${password}'"
+        argument_mssqlrelay="-u ${user}\\@${domain} -p '${password}'"
+        argument_pygpoabuse="${domain}/${user}:'${password}''"
+        argument_GPOwned="-d ${domain} -u ${user} -p '${password}'"
+        argument_privexchange="-d ${domain} -u ${user} -p '${password}'"
+        argument_adpeas="-d ${domain} -u ${user} -p '${password}'"
+        argument_adcheck="-d ${domain} -u ${user} -p '${password}'"
+        argument_evilwinrm="-u ${user} -p '${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -432,6 +434,7 @@ authenticate (){
             fi
             argument_bloodyad="-d ${domain} -u ${user} -c :${pem_cert}"
             argument_ldeep="-d ${domain} -u ${user} --pfx-file ${pfxcert}"
+            argument_evilwinrm="-u ${user} -k ${pem_cert}"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Certificate of $user located at $(realpath $pfxcert)${NC}"
             hash_bool=true
         else
@@ -474,6 +477,7 @@ authenticate (){
                 argument_GPOwned="-d ${domain} -u ${user} -hashes ${hash}"
                 argument_privexchange="-d ${domain} -u ${user} --hashes ${hash}"
                 argument_adcheck="-d ${domain} -u ${user} -H ${hash}"
+                argument_evilwinrm="-u ${user} -H $(expr substr $hash 34 65)"
                 auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
             else
                 echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
@@ -516,6 +520,7 @@ authenticate (){
             argument_sccm="-d ${domain} -u ${user} -k --no-pass"
             argument_mssqlrelay="-u ${user}\\@${domain} -k -no-pass"
             argument_pygpoabuse="${domain}/${user} -k -ccache $(realpath $krb5cc)"
+            argument_evilwinrm="-r ${domain} -u ${user}"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath $krb5cc)${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath $krb5cc)..."
@@ -1297,7 +1302,7 @@ breads_console (){
             echo -e "${BLUE}[*] Launching breads${NC}"
             rm -rf "${HOME}/.breads/${user}_${dc_domain}" 2>/dev/null
             echo "$(date +%Y-%m-%d\ %H:%M:%S); ${breads} | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt" >> $command_log
-            (echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n${password}${hash}\ncurrent_profile"; cat /dev/tty) | /usr/bin/script -qc ${breads} /dev/null | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt
+            (echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n'${password}'${hash}\ncurrent_profile"; cat /dev/tty) | /usr/bin/script -qc ${breads} /dev/null | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt
         fi
     fi
     echo -e ""
@@ -3111,6 +3116,24 @@ psexec_console () {
     echo -e ""
 }
 
+evilwinrm_console () {
+    if [ ! -f "${evilwinrm}" ]; then
+        echo -e "${RED}[-] evilwinrm not found! Please verify the installation of evilwinrm ${NC}"
+    elif [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] evilwinrm requires credentials${NC}"
+    else
+        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        read -p ">> " evilwinrm_target </dev/tty
+        while [ "${evilwinrm_target}" == "" ] ; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -p ">> " evilwinrm_target </dev/tty
+        done
+        echo -e "${BLUE}[*] Opening evilwinrm console on target: $evilwinrm_target ${NC}"
+        run_command "${evilwinrm} -i ${evilwinrm_target} ${argument_evilwinrm}" 2>&1 | tee -a ${output_dir}/CommandExec/impacket_evilwinrm_output.txt
+    fi
+    echo -e ""
+}
+
 ad_enum () {
     if [ "${nullsess_bool}" == true ] ; then
         ldapdomaindump_enum
@@ -4489,6 +4512,7 @@ cmdexec_menu () {
     echo -e "1) Open CMD console using smbexec on target"
     echo -e "2) Open CMD console using wmiexec on target"
     echo -e "3) Open CMD console using psexec on target"
+    echo -e "4) Open PowerShell console using evil-winrm on target"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4505,6 +4529,10 @@ cmdexec_menu () {
 
         3)
         psexec_console
+        cmdexec_menu;;
+
+        4)
+        evilwinrm_console
         cmdexec_menu;;
 
         back)
@@ -4574,7 +4602,7 @@ auth_menu () {
 
         1)
         if [ "${pass_bool}" == true ] ; then
-            hash_gen=":$(iconv -f ASCII -t UTF-16LE <(printf ${password}) | $(which openssl) dgst -md4 | cut -d " " -f 2)"
+            hash_gen=":$(iconv -f ASCII -t UTF-16LE <(printf '${password}') | $(which openssl) dgst -md4 | cut -d " " -f 2)"
             echo -e "${GREEN}[+] NTLM hash generated:${NC} $hash_gen"
             echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -H ${hash_gen}"
         else
