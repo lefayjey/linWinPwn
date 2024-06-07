@@ -288,12 +288,13 @@ Modification menu
 3) Add new computer (Requires: MAQ > 0)
 4) Add new DNS entry
 5) Change Owner of target (Requires: WriteOwner permission)
-6) Targeted Kerberoast Attack (Noisy!)
-7) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)
-8) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
-9) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
-10) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege right)
-11) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)
+6) Add GenericAll rights on target (Requires: Owner permission)
+7) Targeted Kerberoast Attack (Noisy!)
+8) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)
+9) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
+10) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
+11) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege right)
+12) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)
 ```
 
 Auth menu

