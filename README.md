@@ -296,6 +296,7 @@ Modification menu
 10) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
 11) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege right)
 12) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)
+13) Add userPrincipalName to perform Kerberos impersonation (Requires: GenericWrite or GenericAll on user)
 ```
 
 Auth menu
