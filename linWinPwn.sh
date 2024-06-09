@@ -4608,7 +4608,7 @@ auth_menu () {
 
         1)
         if [ "${pass_bool}" == true ] ; then
-            hash_gen=":$(iconv -f ASCII -t UTF-16LE <(printf '${password}') | $(which openssl) dgst -md4 | cut -d " " -f 2)"
+            hash_gen="$(iconv -f ASCII -t UTF-16LE <(printf ${password}) | $(which openssl) dgst -md4 | cut -d " " -f 2)"
             echo -e "${GREEN}[+] NTLM hash generated:${NC} $hash_gen"
             echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -H ${hash_gen}"
         else
