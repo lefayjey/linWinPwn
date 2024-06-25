@@ -12,12 +12,14 @@ scripts_dir="/opt/lwp-scripts"
 
 install_tools() {
     echo -e "${BLUE}Installing tools using apt...${NC}"
-    sudo apt update
-    sudo apt install python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl -y
+    sudo apt-get update && \
+    sudo apt-get install -y python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl
+
     echo -e ""
     echo -e "${BLUE}Installing Rust...${NC}"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-    source ~/.zsh_profile 2>/dev/null
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source ~/.cargo/env
+
     echo -e ""
     echo -e "${BLUE}Installing python tools using pip and pipx...${NC}"
     pip3 install --user pipx PyYAML alive-progress xlsxwriter sectools typer --upgrade
@@ -44,12 +46,14 @@ install_tools() {
     pipx install --include-deps git+https://github.com/ajm4n/adPEAS --force
     pipx install git+https://github.com/oppsec/breads.git --force
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force
+
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}
     sudo mkdir -p ${scripts_dir}/ldapper
     sudo mkdir -p ${scripts_dir}/Responder
     sudo chown -R $(whoami):$(whoami) ${scripts_dir}
+
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
     wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
@@ -74,11 +78,13 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/dirkjanm/PrivExchange/master/privexchange.py" -O "$scripts_dir/privexchange.py"
     wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/RunFinger.py" -O "$scripts_dir/Responder/RunFinger.py"
     wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/odict.py" -O "$scripts_dir/Responder/odict.py"
-    wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/RunFingerPackets.py"  -O "$scripts_dir/Responder/RunFingerPackets.py"
+    wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/RunFingerPackets.py" -O "$scripts_dir/Responder/RunFingerPackets.py"
+
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/orpheus.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/pyGPOAbuse.zip" -d "$scripts_dir"
+
     chmod +x "$scripts_dir/aced-main/aced.py"
     chmod +x "$scripts_dir/sccmhunter-main/sccmhunter.py"
     chmod +x "$scripts_dir/windapsearch"
@@ -100,6 +106,8 @@ install_tools() {
     chmod +x "$scripts_dir/GPOwned.py"
     chmod +x "$scripts_dir/privexchange.py"
     chmod +x "$scripts_dir/Responder/RunFinger.py"
+    chmod +x "$scripts_dir/Responder/odict.py"
+    chmod +x "$scripts_dir/Responder/RunFingerPackets.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }
