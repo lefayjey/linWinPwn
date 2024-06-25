@@ -7,7 +7,6 @@ linWinPwn is a bash script that wraps a number of Active Directory tools for enu
 ## Setup
 
 Git clone the repository and make the script executable
-
 ```bash
 git clone https://github.com/lefayjey/linWinPwn
 cd linWinPwn; chmod +x linWinPwn.sh
@@ -17,6 +16,12 @@ Install requirements using the `install.sh` script (using standard account)
 ```bash
 chmod +x install.sh
 ./install.sh
+```
+
+Alternatively, build a Docker image and run the Docker container  
+```bash
+docker build -t "linwinpwn:latest" .
+docker run --rm -it linwinpwn:latest
 ```
 
 ## Usage
