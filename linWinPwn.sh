@@ -81,6 +81,7 @@ if [ ! -f "${impacket_mssqlclient}" ]; then impacket_mssqlclient=$(which impacke
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
+bloodhoundce=$(which bloodhound-python_ce)
 ldapdomaindump=$(which ldapdomaindump)
 smbmap=$(which smbmap)
 adidnsdump=$(which adidnsdump)
@@ -855,6 +856,59 @@ bhd_enum_dconly() {
                 #${netexec} ${ne_verbose} ldap ${target} "${argument_ne}" --bloodhound -ns ${dc_ip} -c DCOnly --log tee "${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhd_${dc_domain}.txt"
                 /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhd_${dc_domain}.txt"
+                parse_users
+                parse_servers
+            fi
+        fi
+    fi
+    echo -e ""
+}
+
+bhdce_enum() {
+    if [ ! -f "${bloodhoundce}" ]; then
+        echo -e "${RED}[-] Please verify the installation of BloodhoundCE${NC}"
+    else
+        mkdir -p "${output_dir}/DomainRecon/BloodhoundCE"
+        echo -e "${BLUE}[*] BloodhoundCE Enumeration using all collection methods (Noisy!)${NC}"
+        if [ -n "$(find "${output_dir}/DomainRecon/BloodhoundCE/" -type f -name '*.json' -print -quit)" ]; then
+            echo -e "${YELLOW}[i] BloodhoundCE results found, skipping... ${NC}"
+        else
+            if [ "${nullsess_bool}" == true ]; then
+                echo -e "${PURPLE}[-] BloodhoundCE requires credentials${NC}"
+            else
+                current_dir=$(pwd)
+                cd "${output_dir}/DomainRecon/BloodhoundCE" || exit
+                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp" | tee "${output_dir}/DomainRecon/BloodhoundCE/bloodhound_output_${dc_domain}.txt"
+                cd "${current_dir}" || exit
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodhoundCE/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhdce_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodhoundCE/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhdce_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${output_dir}"/DomainRecon/BloodhoundCE/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${output_dir}/DomainRecon/Servers/sql_list_bhd_${dc_domain}.txt"
+                parse_users
+                parse_servers
+            fi
+        fi
+    fi
+    echo -e ""
+}
+
+bhdce_enum_dconly() {
+    if [ ! -f "${bloodhoundce}" ]; then
+        echo -e "${RED}[-] Please verify the installation of BloodhoundCE${NC}"
+    else
+        mkdir -p "${output_dir}/DomainRecon/BloodHoundCE"
+        echo -e "${BLUE}[*] BloodHoundCE Enumeration using DCOnly${NC}"
+        if [ -n "$(find "${output_dir}/DomainRecon/BloodHoundCE/" -type f -name '*.json' -print -quit)" ]; then
+            echo -e "${YELLOW}[i] BloodHoundCE results found, skipping... ${NC}"
+        else
+            if [ "${nullsess_bool}" == true ]; then
+                echo -e "${PURPLE}[-] BloodHoundCE requires credentials${NC}"
+            else
+                current_dir=$(pwd)
+                cd "${output_dir}/DomainRecon/BloodHoundCE" || exit
+                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp" | tee "${output_dir}/DomainRecon/BloodHoundCE/bloodhound_output_dconly_${dc_domain}.txt"
+                cd "${current_dir}" || exit
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHoundCE/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhdce_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodHoundCE/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhdce_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -3492,6 +3546,8 @@ ad_menu() {
     fi
     echo -e "1) BloodHound Enumeration using all collection methods (Noisy!)"
     echo -e "2) BloodHound Enumeration using DCOnly"
+    echo -e "1bis) BloodHoundCE Enumeration using all collection methods (Noisy!)"
+    echo -e "2bis) BloodHoundCE Enumeration using DCOnly"
     echo -e "3) ldapdomaindump LDAP Enumeration"
     echo -e "4) enum4linux-ng LDAP-MS-RPC Enumeration"
     echo -e "5) GPP Enumeration using netexec"
@@ -3535,6 +3591,16 @@ ad_menu() {
 
     2)
         bhd_enum_dconly
+        ad_menu
+        ;;
+
+    1bis)
+        bhdce_enum
+        ad_menu
+        ;;
+
+    2bis)
+        bhdce_enum_dconly
         ad_menu
         ;;
 

@@ -31,7 +31,7 @@ install_tools() {
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
     pipx install git+https://github.com/dirkjanm/bloodhound.py --force
-    #pipx install "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force
+    pipx install "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force --suffix '_ce'
     pipx install git+https://github.com/franc-pentest/ldeep.git --force
     pipx install git+https://github.com/garrettfoster13/pre2k.git --force
     pipx install git+https://github.com/zblurx/certsync.git --force
@@ -52,7 +52,7 @@ install_tools() {
     sudo mkdir -p ${scripts_dir}
     sudo mkdir -p ${scripts_dir}/ldapper
     sudo mkdir -p ${scripts_dir}/Responder
-    sudo chown -R $(whoami):$(whoami) ${scripts_dir}
+    sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
 
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"

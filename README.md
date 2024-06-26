@@ -152,6 +152,8 @@ AD Enum menu
 ```
 1) BloodHound Enumeration using all collection methods (Noisy!)
 2) BloodHound Enumeration using DCOnly
+1bis) BloodHoundCE Enumeration using all collection methods (Noisy!)
+2bis) BloodHoundCE Enumeration using DCOnly
 3) ldapdomaindump LDAP Enumeration
 4) enum4linux-ng LDAP-MS-RPC Enumeration
 5) GPP Enumeration using netexec
