@@ -122,6 +122,7 @@ adPEAS=$(which adPEAS)
 breads=$(which breads-ad)
 smbclientng=$(which smbclientng)
 evilwinrm=$(which evil-winrm)
+ldapnomnom="$scripts_dir/ldapnomnom"
 nmap=$(which nmap)
 john=$(which john)
 python3=$(which python3)
@@ -134,7 +135,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.15 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.16 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -144,24 +145,26 @@ print_banner() {
 help_linWinPwn() {
     print_banner
     echo -e "${YELLOW}Parameters${NC}"
-    echo -e "-h/--help         Show the help message"
-    echo -e "-t/--target       IP Address of Target Domain Controller ${RED}[MANDATORY]${NC}"
-    echo -e "-d/--domain       Domain of user (default: empty)"
-    echo -e "-u/--username     Username (default: empty)"
-    echo -e "-p                Password (NTLM authentication only) (default: empty)"
-    echo -e "-H                LM:NT (NTLM authentication only) (default: empty)"
-    echo -e "-K                Location to Kerberos ticket './krb5cc_ticket' (Kerberos authentication only) (default: empty)"
-    echo -e "-A                AES Key (Kerberos authentication only) (default: empty)"
-    echo -e "-C                Location to PFX Certificate './cert.pfx' (default: empty)"
-    echo -e "--cert-pass       Password of provided PFX Certificate (optional)"
-    echo -e "--auto            Run automatic enumeration"
-    echo -e "-o/--output       Output directory (default: current dir)"
-    echo -e "--auto-config     Run NTP sync with target DC and adds entry to /etc/hosts"
-    echo -e "--ldaps           Use LDAPS instead of LDAP (port 636)"
-    echo -e "--force-kerb      Use Kerberos authentication instead of NTLM when possible (requires password or NTLM hash)"
-    echo -e "--verbose         Enable all verbose and debug outputs"
-    echo -e "-I/--interface    Attacker's network interface (default: eth0)"
-    echo -e "-T/--targets      Target systems for Vuln Scan, SMB Scan and Pwd Dump (default: Domain Controllers)"
+    echo -e "-h/--help           Show the help message"
+    echo -e "-t/--target         IP Address of Target Domain Controller ${RED}[MANDATORY]${NC}"
+    echo -e "-d/--domain         Domain of user (default: empty)"
+    echo -e "-u/--username       Username (default: empty)"
+    echo -e "-p                  Password (NTLM authentication only) (default: empty)"
+    echo -e "-H                  LM:NT (NTLM authentication only) (default: empty)"
+    echo -e "-K                  Location to Kerberos ticket './krb5cc_ticket' (Kerberos authentication only) (default: empty)"
+    echo -e "-A                  AES Key (Kerberos authentication only) (default: empty)"
+    echo -e "-C                  Location to PFX Certificate './cert.pfx' (default: empty)"
+    echo -e "--cert-pass         Password of provided PFX Certificate (optional)"
+    echo -e "--auto              Run automatic enumeration"
+    echo -e "-o/--output         Output directory (default: current dir)"
+    echo -e "--auto-config       Run NTP sync with target DC and adds entry to /etc/hosts"
+    echo -e "--ldaps             Use LDAPS instead of LDAP (port 636)"
+    echo -e "--force-kerb        Use Kerberos authentication instead of NTLM when possible (requires password or NTLM hash)"
+    echo -e "--verbose           Enable all verbose and debug outputs"
+    echo -e "-I/--interface      Attacker's network interface (default: eth0)"
+    echo -e "-T/--targets        Target systems for Vuln Scan, SMB Scan and Pwd Dump (default: Domain Controllers)"
+    echo -e "-U/--userwordlist   Custom username list used during Null session checks"
+    echo -e "-P/--passwordlist   Custom password list used during password cracking"
     echo -e "     ${CYAN}Choose between:${NC} DC (Domain Controllers), All (All domain servers), File='path_to_file' (File containing list of servers), IP='IP_or_hostname' (IP or hostname)"
     echo -e ""
     echo -e "${YELLOW}Example usages${NC}"
@@ -229,6 +232,14 @@ while test $# -gt 0; do
         ;;
     -T | --targets)
         targets="${2}"
+        shift
+        ;;
+    -U | --userwordlist)
+        user_wordlist="${2}"
+        shift
+        ;;
+    -P | --passwordlist)
+        pass_wordlist="${2}"
         shift
         ;;
     --auto)
@@ -1917,6 +1928,28 @@ pre2k_check() {
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             run_command "${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip} -outputfile ${pre2k_outputfile} ${ldaps_param}" | tee "${output_dir}/BruteForce/pre2k_output_${dc_domain}.txt"
         fi
+    fi
+    echo -e ""
+}
+
+ldapnomnom_enum() {
+    if [ "${nullsess_bool}" == true ]; then
+        if [ ! -f "${ldapnomnom}" ]; then
+            echo -e "${RED}[-] Please verify the location of ldapnomnom${NC}"
+        else
+            echo -e "${BLUE}[*] ldapnomnom User Enumeration (Null session)${NC}"
+            echo -e "${YELLOW}[i] Using $user_wordlist wordlist for user enumeration. This may take a while...${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--tlsmode tls --port 636"; else ldaps_param=""; fi
+            run_command "${ldapnomnom} --server ${dc_ip} --dnsdomain ${dc_domain} ${ldaps_param} --maxservers 4 --parallel 8 --input ${user_wordlist} --output ${output_dir}/DomainRecon/Users/users_list_ldapnomnom_${dc_domain}.txt" | tee -a "${output_dir}/BruteForce/ldapnomnom_user_output_${dc_domain}.txt"
+            if [ -s "${output_dir}/DomainRecon/Users/users_list_ldapnomnom_${dc_domain}.txt" ]; then
+                echo -e ""
+                echo -e "${GREEN}[+] Printing valid accounts...${NC}"
+                sort -uf "${output_dir}/DomainRecon/Users/users_list_ldapnomnom_${dc_domain}.txt" 2>/dev/null
+                parse_users
+            fi
+        fi
+    else
+        echo -e "${PURPLE}[-] ldapnomnom null session enumeration skipped (credentials provided)${NC}"
     fi
     echo -e ""
 }
@@ -3835,6 +3868,7 @@ bruteforce_menu() {
     echo -e "3) User=Pass check using kerbrute (Noisy!)"
     echo -e "4) User=Pass check using netexec (Noisy!)"
     echo -e "5) Pre2k computers authentication check (Noisy!)"
+    echo -e "6) User Enumeration using ldapnomnom (Null session)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3868,6 +3902,11 @@ bruteforce_menu() {
 
     5)
         pre2k_check
+        bruteforce_menu
+        ;;
+
+    6)
+        ldapnomnom_enum
         bruteforce_menu
         ;;
 
@@ -5172,6 +5211,8 @@ config_menu() {
         if [ ! -f "${ADCheck}" ]; then echo -e "${RED}[-] ADCheck is not installed${NC}"; else echo -e "${GREEN}[+] ADCheck is installed${NC}"; fi
         if [ ! -x "${ADCheck}" ]; then echo -e "${RED}[-] ADCheck is not executable${NC}"; else echo -e "${GREEN}[+] ADCheck is executable${NC}"; fi
         if [ ! -f "${smbclientng}" ]; then echo -e "${RED}[-] smbclientng is not installed${NC}"; else echo -e "${GREEN}[+] smbclientng is installed${NC}"; fi
+        if [ ! -f "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not installed${NC}"; else echo -e "${GREEN}[+] ldapnomnom is installed${NC}"; fi
+        if [ ! -x "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not executable${NC}"; else echo -e "${GREEN}[+] ldapnomnom is executable${NC}"; fi
         config_menu
         ;;
 

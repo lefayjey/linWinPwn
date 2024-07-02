@@ -79,6 +79,7 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/RunFinger.py" -O "$scripts_dir/Responder/RunFinger.py"
     wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/odict.py" -O "$scripts_dir/Responder/odict.py"
     wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/RunFingerPackets.py" -O "$scripts_dir/Responder/RunFingerPackets.py"
+    wget -q "https://github.com/lkarlslund/ldapnomnom/releases/latest/download/ldapnomnom-linux-x64" -O "$scripts_dir/ldapnomnom"
 
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
@@ -108,6 +109,7 @@ install_tools() {
     chmod +x "$scripts_dir/Responder/RunFinger.py"
     chmod +x "$scripts_dir/Responder/odict.py"
     chmod +x "$scripts_dir/Responder/RunFingerPackets.py"
+    chmod +x "$scripts_dir/ldapnomnom"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }

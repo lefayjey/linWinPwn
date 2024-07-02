@@ -118,6 +118,13 @@ proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user
 ./linWinPwn.sh -t <Domain_Controller_IP> -T File=./list_servers.txt
 ```
 
+**Custom wordlists** - Choose custom user and password wordlists
+
+```bash
+./linWinPwn.sh -t <Domain_Controller_IP> -U /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt
+./linWinPwn.sh -t <Domain_Controller_IP> -P /usr/share/seclists/Passwords/xato-net-10-million-passwords.txt
+```
+
 ### Tunneling
 
 linWinPwn can be particularly useful when you have access to an Active Directory environment for a limited time only, and you wish to be more efficient in the enumeration process and in the collection of evidence.
@@ -200,6 +207,7 @@ BruteForce menu
 3) User=Pass check using kerbrute (Noisy!)
 4) User=Pass check using netexec (Noisy!)
 5) Pre2k computers authentication check (Noisy!)
+6) User Enumeration using ldapnomnom (Null session)
 ```
 
 Kerberos Attacks menu
@@ -379,6 +387,7 @@ Automated Mode:
     - [ajm4n](https://github.com/ajm4n) - adPEAS
     - [oppsec](https://github.com/oppsec) - breads
     - [ADcheck](https://github.com/CobblePot59) - ADcheck
+    - [ldapnomnom](https://github.com/lkarlslund) - ldapnomnom
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
