@@ -135,7 +135,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.16 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.17 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -1214,6 +1214,8 @@ windapsearch_enum() {
             run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m computers --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_servers_${dc_domain}.txt"
             run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m groups --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_groups_${dc_domain}.txt"
             run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m privileged-users --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_privusers_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=*))'" >"${output_dir}/DomainRecon/windapsearch/windapsearch_spn_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m custom --filter '(objectCategory=user)(objectClass=user)(distinguishedName=%managedBy%)'" >"${output_dir}/DomainRecon/windapsearch/windapsearch_managedby_${dc_domain}.txt"
             run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))' --attrs dNSHostName | grep dNSHostName | cut -d ' ' -f 2 | sort -u" >"${output_dir}/DomainRecon/Servers/sql_list_windap_${dc_domain}.txt"
             #Parsing user and computer lists
             grep -a "sAMAccountName:" "${output_dir}/DomainRecon/windapsearch/windapsearch_users_${dc_domain}.txt" | sed "s/sAMAccountName: //g" | sort -u >"${output_dir}/DomainRecon/Users/users_list_windap_${dc_domain}.txt" 2>&1
@@ -3535,7 +3537,7 @@ set_attackerIP() {
             matched=true
         fi
     done
-    while [[ ! $matched == true ]]; do
+    while [[ $matched == true ]]; do
         echo -e "${RED}Invalid IP.${NC} Please specify your IP from the list"
         read -rp ">> " attacker_IP </dev/tty
         for val in "${attacker_IPlist[@]}"; do
