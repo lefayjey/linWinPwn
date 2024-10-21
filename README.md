@@ -244,19 +244,17 @@ Vuln Checks menu
 ```
 1) zerologon check using netexec (only on DC)
 2) MS17-010 check using netexec
-3) PetitPotam check using netexec (only on DC)
-4) dfscoerce check using netexec (only on DC)
-5) Print Spooler check using netexec
-6) Printnightmare check using netexec
-7) WebDAV check using netexec
-8) shadowcoerce check using netexec
-9) SMB signing check using netexec
-10) ntlmv1 check using netexec
-11) runasppl check using netexec
-12) RPC Dump and check for interesting protocols
-13) Coercer RPC scan
-14) PushSubscription abuse using PrivExchange
-15) RunFinger scan
+3) Print Spooler check using netexec
+4) Printnightmare check using netexec
+5) WebDAV check using netexec
+6) shadowcoerce check using netexec
+7) SMB signing check using netexec
+8) ntlmv1 check using netexec
+9) runasppl check using netexec
+10) RPC Dump and check for interesting protocols
+11) Coercer RPC scan
+12) PushSubscription abuse using PrivExchange
+13) RunFinger scan
 ```
 
 MSSQL Enumeration menu

