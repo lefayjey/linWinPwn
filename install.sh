@@ -14,7 +14,8 @@ install_tools() {
     echo -e "${BLUE}Installing tools using apt...${NC}"
     sudo apt-get update && \
     sudo apt-get install -y python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl
-
+    sudo mkdir -p ${scripts_dir}
+    sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
     echo -e ""
     echo -e "${BLUE}Installing Rust...${NC}"
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -22,7 +23,10 @@ install_tools() {
 
     echo -e ""
     echo -e "${BLUE}Installing python tools using pip and pipx...${NC}"
-    pip3 install --user pipx PyYAML alive-progress xlsxwriter sectools typer --upgrade
+    python3 -m venv "${scripts_dir}/.venv"
+    source "${scripts_dir}/.venv/bin/activate"
+    pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome --upgrade
+    deactivate
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
     pipx install git+https://github.com/Pennyw0rth/NetExec.git --force
@@ -49,7 +53,6 @@ install_tools() {
 
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
-    sudo mkdir -p ${scripts_dir}
     sudo mkdir -p ${scripts_dir}/ldapper
     sudo mkdir -p ${scripts_dir}/Responder
     sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
@@ -61,7 +64,7 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/layer8secure/SilentHound/main/silenthound.py" -O "$scripts_dir/silenthound.py"
     wget -q "https://raw.githubusercontent.com/ShutdownRepo/targetedKerberoast/main/targetedKerberoast.py" -O "$scripts_dir/targetedKerberoast.py"
     wget -q "https://raw.githubusercontent.com/p0dalirius/FindUncommonShares/main/FindUncommonShares.py" -O "$scripts_dir/FindUncommonShares.py"
-    wget -q "https://raw.githubusercontent.com/p0dalirius/ExtractBitlockerKeys/main/ExtractBitlockerKeys.py" -O "$scripts_dir/ExtractBitlockerKeys.py"
+    wget -q "https://raw.githubusercontent.com/p0dalirius/ExtractBitlockerKeys/refs/heads/main/python/ExtractBitlockerKeys.py" -O "$scripts_dir/ExtractBitlockerKeys.py"
     wget -q "https://raw.githubusercontent.com/p0dalirius/ldapconsole/master/ldapconsole.py" -O "$scripts_dir/ldapconsole.py"
     wget -q "https://raw.githubusercontent.com/p0dalirius/LDAPmonitor/master/python/pyLDAPmonitor.py" -O "$scripts_dir/pyLDAPmonitor.py"
     wget -q "https://raw.githubusercontent.com/p0dalirius/LDAPWordlistHarvester/main/LDAPWordlistHarvester.py" -O "$scripts_dir/LDAPWordlistHarvester.py"
