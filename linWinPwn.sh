@@ -601,7 +601,7 @@ authenticate() {
             argument_FindUncom="-ad ${domain} -au ${user} -k --no-pass"
             argument_bloodyad="-d ${domain} -u ${user} -k"
             argument_aced="-k -no-pass ${domain}/${user}"
-            argument_sccm="-d ${domain} -u ${user} -k --no-pass"
+            argument_sccm="-d ${domain} -u ${user} -k -no-pass"
             argument_mssqlrelay="-u ${user}\\@${domain} -k -no-pass"
             argument_pygpoabuse="${domain}/${user} -k -ccache $(realpath "$krb5cc")"
             argument_evilwinrm="-r ${domain} -u ${user}"
@@ -732,10 +732,10 @@ authenticate() {
 }
 
 parse_servers() {
-    sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${output_dir}"/DomainRecon/Servers/servers_list_*_"${dc_domain}.txt" | sort -uf >"${servers_hostname_list}" 2>&1
-    sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${output_dir}"/DomainRecon/Servers/dc_list_*_"${dc_domain}.txt" | sort -uf >"${dc_hostname_list}" 2>&1
-    sort -uf <(sort -uf "${output_dir}"/DomainRecon/Servers/ip_list_*_"${dc_domain}.txt") >"${servers_ip_list}"
-    sort -uf <(sort -uf "${output_dir}"/DomainRecon/Servers/dc_ip_list_*_"${dc_domain}.txt") >"${dc_ip_list}"
+    sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${output_dir}"/DomainRecon/Servers/servers_list_*_"${dc_domain}.txt" 2>/dev/null | sort -uf >"${servers_hostname_list}" 2>&1
+    sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${output_dir}"/DomainRecon/Servers/dc_list_*_"${dc_domain}.txt" 2>/dev/null  | sort -uf >"${dc_hostname_list}" 2>&1
+    sort -uf <(sort -uf "${output_dir}"/DomainRecon/Servers/ip_list_*_"${dc_domain}.txt" 2>/dev/null) >"${servers_ip_list}"
+    sort -uf <(sort -uf "${output_dir}"/DomainRecon/Servers/dc_ip_list_*_"${dc_domain}.txt" 2>/dev/null) >"${dc_ip_list}"
 
     if ! grep -q "${dc_ip}" "${servers_ip_list}" 2>/dev/null; then echo "${dc_ip}" >>"${servers_ip_list}"; fi
     if ! grep -q "${dc_ip}" "${dc_ip_list}" 2>/dev/null; then echo "${dc_ip}" >>"${dc_ip_list}"; fi
@@ -745,7 +745,7 @@ parse_servers() {
 
 parse_users() {
     users_list="${output_dir}/DomainRecon/Users/users_list_${dc_domain}.txt"
-    sort -uf <(sort -uf "${output_dir}"/DomainRecon/Users/users_list_*_"${dc_domain}.txt") >"${users_list}"
+    sort -uf <(sort -uf "${output_dir}"/DomainRecon/Users/users_list_*_"${dc_domain}.txt" 2>/dev/null) >"${users_list}"
 
     if [[ ! "${user}" == "" ]] && ! grep -q "${user}" "${users_list}" 2>/dev/null; then echo "${user}" >>"${users_list}"; fi
 }
@@ -1262,7 +1262,7 @@ rdwatool_enum() {
 
 ne_sccm() {
     echo -e "${BLUE}[*] SCCM Enumeration using netexec${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} -M sccm -o REC_RESOLVE=TRUE --log ${output_dir}/DomainRecon/ne_sccm_output_${dc_domain}.txt" 2>&1
+    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} -M sccm -o REC_RESOLVE=TRUE --log ${output_dir}/DomainRecon/ne_sccm_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -2272,9 +2272,10 @@ finduncshar_scan() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] FindUncommonShares requires credentials ${NC}"
         else
+            smb_scan
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${servers_smb_list} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx" 2>&1 | tee -a "${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt"
+            run_command "${python3} ${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${servers_smb_list} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
