@@ -126,6 +126,7 @@ ldapnomnom="$scripts_dir/ldapnomnom"
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
+if [ ! -f "${python3}" ]; then python3=$(which python3); fi
 
 print_banner() {
     echo -e "
@@ -135,7 +136,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.19 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.20 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -1259,7 +1260,13 @@ rdwatool_enum() {
     echo -e ""
 }
 
-sccm_enum() {
+ne_sccm() {
+    echo -e "${BLUE}[*] SCCM Enumeration using netexec${NC}"
+    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} -M sccm -o REC_RESOLVE=TRUE --log ${output_dir}/DomainRecon/ne_sccm_output_${dc_domain}.txt" 2>&1
+    echo -e ""
+}
+
+sccmhunter_enum() {
     if [ ! -f "${sccmhunter}" ]; then
         echo -e "${RED}[-] Please verify the installation of sccmhunter${NC}"
     else
@@ -1913,6 +1920,12 @@ userpass_kerbrute_check() {
     echo -e ""
 }
 
+ne_pre2k() {
+    echo -e "${BLUE}[*] SCCM Enumeration using netexec${NC}"
+    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} -M pre2k --log ${output_dir}/BruteForce/ne_pre2k_output_${dc_domain}.txt" 2>&1
+    echo -e ""
+}
+
 pre2k_check() {
     if [ ! -f "${pre2k}" ]; then
         echo -e "${RED}[-] Please verify the installation of pre2k${NC}"
@@ -2425,6 +2438,17 @@ ntlmv1_check() {
     fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M ntlmv1 --log ${output_dir}/Vulnerabilities/ne_ntlmv1_output_${dc_domain}.txt" 2>&1
+    echo -e ""
+}
+
+smbghost_check() {
+    echo -e "${BLUE}[*] smbghost check ${NC}"
+    if [ "${kerb_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
+        curr_targets="Domain Controllers"
+    fi
+    smb_scan
+    run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M smbghost --log ${output_dir}/Vulnerabilities/ne_smbghost_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -3342,7 +3366,8 @@ ad_enum() {
         windapsearch_enum
         ldapwordharv_enum
         rdwatool_enum
-        sccm_enum
+        ne_sccm
+        sccmhunter_enum
         GPOwned_enum
     fi
 }
@@ -3363,10 +3388,10 @@ bruteforce() {
         ridbrute_attack
         kerbrute_enum
         userpass_kerbrute_check
-        pre2k_check
+        ne_pre2k
     else
         userpass_kerbrute_check
-        pre2k_check
+        ne_pre2k
     fi
 }
 
@@ -3573,18 +3598,19 @@ ad_menu() {
     echo -e "13) ldeep LDAP Enumeration"
     echo -e "14) windapsearch LDAP Enumeration"
     echo -e "15) LDAP Wordlist Harvester"
-    echo -e "16) Enumeration of RDWA servers"
-    echo -e "17) SCCM Enumeration using sccmhunter"
-    echo -e "18) LDAP Enumeration using LDAPPER"
-    echo -e "19) Adalanche Enumeration"
-    echo -e "20) GPO Enumeration using GPOwned"
-    echo -e "21) Open p0dalirius' LDAP Console"
-    echo -e "22) Open p0dalirius' LDAP Monitor"
-    echo -e "23) Open garrettfoster13's ACED console"
-    echo -e "24) Open LDAPPER custom options"
-    echo -e "25) Run adPEAS enumerations"
+    echo -e "16) LDAP Enumeration using LDAPPER"
+    echo -e "17) Adalanche Enumeration"
+    echo -e "18) GPO Enumeration using GPOwned"
+    echo -e "19) Enumeration of RDWA servers"
+    echo -e "20) SCCM Enumeration using netexec"
+    echo -e "21) SCCM Enumeration using sccmhunter"
+    echo -e "22) Open p0dalirius' LDAP Console"
+    echo -e "23) Open p0dalirius' LDAP Monitor"
+    echo -e "24) Open garrettfoster13's ACED console"
+    echo -e "25) Open LDAPPER custom options"
     echo -e "26) Open breads console"
-    echo -e "27) Run ADCheck enumerations"
+    echo -e "27) Run adPEAS enumerations"
+    echo -e "28) Run ADCheck enumerations"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3682,52 +3708,52 @@ ad_menu() {
         ;;
 
     16)
-        rdwatool_enum
-        ad_menu
-        ;;
-
-    17)
-        sccm_enum
-        ad_menu
-        ;;
-
-    18)
         ldapper_enum
         ad_menu
         ;;
 
-    19)
+    17)
         adalanche_enum
         ad_menu
         ;;
 
-    20)
+    18)
         GPOwned_enum
         ad_menu
         ;;
 
+    19)
+        rdwatool_enum
+        ad_menu
+        ;;
+
+    20)
+        ne_sccm
+        ad_menu
+        ;;
+
     21)
-        ldap_console
+        sccmhunter_enum
         ad_menu
         ;;
 
     22)
-        ldap_monitor
+        ldap_console
         ad_menu
         ;;
 
     23)
-        aced_console
+        ldap_monitor
         ad_menu
         ;;
 
     24)
-        ldapper_console
+        aced_console
         ad_menu
         ;;
 
     25)
-        adpeas_enum
+        ldapper_console
         ad_menu
         ;;
 
@@ -3737,6 +3763,11 @@ ad_menu() {
         ;;
 
     27)
+        adpeas_enum
+        ad_menu
+        ;;
+
+    28)
         adcheck_enum
         ad_menu
         ;;
@@ -3853,8 +3884,9 @@ bruteforce_menu() {
     echo -e "2) User Enumeration using kerbrute (Null session)"
     echo -e "3) User=Pass check using kerbrute (Noisy!)"
     echo -e "4) User=Pass check using netexec (Noisy!)"
-    echo -e "5) Pre2k computers authentication check (Noisy!)"
-    echo -e "6) User Enumeration using ldapnomnom (Null session)"
+    echo -e "5) Identify Pre-Created Computer Accounts using netexec (Noisy!)"
+    echo -e "6) Pre2k computers authentication check (Noisy!)"
+    echo -e "7) User Enumeration using ldapnomnom (Null session)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3887,11 +3919,16 @@ bruteforce_menu() {
         ;;
 
     5)
-        pre2k_check
+        ne_pre2k
         bruteforce_menu
         ;;
 
     6)
+        pre2k_check
+        bruteforce_menu
+        ;;
+
+    7)
         ldapnomnom_enum
         bruteforce_menu
         ;;
@@ -4431,10 +4468,11 @@ vulns_menu() {
     echo -e "7) SMB signing check using netexec"
     echo -e "8) ntlmv1 check using netexec"
     echo -e "9) runasppl check using netexec"
-    echo -e "10) RPC Dump and check for interesting protocols"
-    echo -e "11) Coercer RPC scan"
-    echo -e "12) PushSubscription abuse using PrivExchange"
-    echo -e "13) RunFinger scan"
+    echo -e "10) smbghost check using netexec"
+    echo -e "11) RPC Dump and check for interesting protocols"
+    echo -e "12) Coercer RPC scan"
+    echo -e "13) PushSubscription abuse using PrivExchange"
+    echo -e "14) RunFinger scan"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4497,21 +4535,26 @@ vulns_menu() {
         ;;
 
     10)
-        rpcdump_check
+        smbghost_check
         vulns_menu
         ;;
 
     11)
-        coercer_check
+        rpcdump_check
         vulns_menu
         ;;
 
     12)
-        privexchange_check
+        coercer_check
         vulns_menu
         ;;
 
     13)
+        privexchange_check
+        vulns_menu
+        ;;
+
+    14)
         runfinger_check
         vulns_menu
         ;;

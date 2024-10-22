@@ -174,18 +174,19 @@ AD Enum menu
 13) ldeep LDAP Enumeration
 14) windapsearch LDAP Enumeration
 15) LDAP Wordlist Harvester
-16) Enumeration of RDWA servers
-17) SCCM Enumeration using sccmhunter
-18) LDAP Enumeration using LDAPPER
-19) Adalanche Enumeration
-20) GPO Enumeration using GPOwned
-21) Open p0dalirius' LDAP Console
-22) Open p0dalirius' LDAP Monitor
-23) Open garrettfoster13's ACED console
-24) Open LDAPPER custom options
-25) Run adPEAS enumerations
+16) LDAP Enumeration using LDAPPER
+17) Adalanche Enumeration
+18) GPO Enumeration using GPOwned
+19) Enumeration of RDWA servers
+20) SCCM Enumeration using netexec
+21) SCCM Enumeration using sccmhunter
+22) Open p0dalirius' LDAP Console
+23) Open p0dalirius' LDAP Monitor
+24) Open garrettfoster13's ACED console
+25) Open LDAPPER custom options
 26) Open breads console
-27) Run ADCheck enumerations
+27) Run adPEAS enumerations
+28) Run ADCheck enumerations
 ```
 
 ADCS menu
@@ -206,8 +207,9 @@ BruteForce menu
 2) User Enumeration using kerbrute (Null session)
 3) User=Pass check using kerbrute (Noisy!)
 4) User=Pass check using netexec (Noisy!)
-5) Pre2k computers authentication check (Noisy!)
-6) User Enumeration using ldapnomnom (Null session)
+5) Identify Pre-Created Computer Accounts using netexec (Noisy!)
+6) Pre2k computers authentication check (Noisy!)
+7) User Enumeration using ldapnomnom (Null session)
 ```
 
 Kerberos Attacks menu
@@ -251,10 +253,11 @@ Vuln Checks menu
 7) SMB signing check using netexec
 8) ntlmv1 check using netexec
 9) runasppl check using netexec
-10) RPC Dump and check for interesting protocols
-11) Coercer RPC scan
-12) PushSubscription abuse using PrivExchange
-13) RunFinger scan
+10) smbghost check using netexec
+11) RPC Dump and check for interesting protocols
+12) Coercer RPC scan
+13) PushSubscription abuse using PrivExchange
+14) RunFinger scan
 ```
 
 MSSQL Enumeration menu

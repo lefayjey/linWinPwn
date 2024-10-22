@@ -14,8 +14,6 @@ install_tools() {
     echo -e "${BLUE}Installing tools using apt...${NC}"
     sudo apt-get update && \
     sudo apt-get install -y python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl
-    sudo mkdir -p ${scripts_dir}
-    sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
     echo -e ""
     echo -e "${BLUE}Installing Rust...${NC}"
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -23,10 +21,6 @@ install_tools() {
 
     echo -e ""
     echo -e "${BLUE}Installing python tools using pip and pipx...${NC}"
-    python3 -m venv "${scripts_dir}/.venv"
-    source "${scripts_dir}/.venv/bin/activate"
-    pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome --upgrade
-    deactivate
     pipx ensurepath
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
     pipx install git+https://github.com/Pennyw0rth/NetExec.git --force
@@ -53,10 +47,15 @@ install_tools() {
 
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
+    sudo mkdir -p ${scripts_dir}
     sudo mkdir -p ${scripts_dir}/ldapper
     sudo mkdir -p ${scripts_dir}/Responder
     sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
-
+    python3 -m venv "${scripts_dir}/.venv"
+    source "${scripts_dir}/.venv/bin/activate"
+    pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome --upgrade
+    deactivate
+    
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
     wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
