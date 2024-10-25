@@ -210,6 +210,8 @@ BruteForce menu
 5) Identify Pre-Created Computer Accounts using netexec (Noisy!)
 6) Pre2k computers authentication check (Noisy!)
 7) User Enumeration using ldapnomnom (Null session)
+8) Password spraying using kerbrute (Noisy!)
+9) Password spraying using netexec - ldap (Noisy!)
 ```
 
 Kerberos Attacks menu
@@ -307,12 +309,13 @@ Modification menu
 5) Change Owner of target (Requires: WriteOwner permission)
 6) Add GenericAll rights on target (Requires: Owner permission)
 7) Targeted Kerberoast Attack (Noisy!)
-8) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)
-9) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
-10) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
-11) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege right)
-12) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)
-13) Add userPrincipalName to perform Kerberos impersonation (Requires: GenericWrite or GenericAll on user)
+8) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)
+9) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)
+10) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
+11) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
+12) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege right)
+13) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)
+14) Add userPrincipalName to perform Kerberos impersonation (Requires: GenericWrite or GenericAll on user)
 ```
 
 Auth menu

