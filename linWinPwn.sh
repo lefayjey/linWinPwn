@@ -125,6 +125,7 @@ breads=$(which breads-ad)
 smbclientng=$(which smbclientng)
 evilwinrm=$(which evil-winrm)
 ldapnomnom="$scripts_dir/ldapnomnom"
+godap="$scripts_dir/godap"
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
@@ -138,7 +139,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.21 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.22 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -450,6 +451,7 @@ authenticate() {
             argument_pre2k="-d ${domain}"
             argument_p0dalirius="-d ${domain} -u Guest -p ''"
             argument_FindUncom="-ad ${domain} -au Guest -ap ''"
+            argument_godap=""
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
         fi
 
@@ -496,6 +498,7 @@ authenticate() {
         argument_adpeas="-d ${domain} -u ${user} -p '${password}'"
         argument_adcheck="-d ${domain} -u ${user} -p '${password}'"
         argument_evilwinrm="-u ${user} -p '${password}'"
+        argument_godap="-u ${user}@${domain} -p '${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -562,6 +565,7 @@ authenticate() {
                 argument_privexchange="-d ${domain} -u ${user} --hashes ${hash}"
                 argument_adcheck="-d ${domain} -u ${user} -H ${hash}"
                 argument_evilwinrm="-u ${user} -H ${hash:33}"
+                argument_godap="-u ${user} -d ${domain} -H ${hash}"
                 auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
             else
                 echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
@@ -607,6 +611,7 @@ authenticate() {
             argument_mssqlrelay="-u ${user}\\@${domain} -k -no-pass"
             argument_pygpoabuse="${domain}/${user} -k -ccache $(realpath "$krb5cc")"
             argument_evilwinrm="-r ${domain} -u ${user}"
+            argument_godap="-d ${domain} -k -t ldap/${target}"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -1456,6 +1461,21 @@ breads_console() {
                 echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n'${password}'${hash}\ncurrent_profile"
                 cat /dev/tty
             ) | /usr/bin/script -qc "${breads}" /dev/null | tee -a "${output_dir}/DomainRecon/breads_output_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+godap_console() {
+    if [ ! -f "${godap}" ]; then
+        echo -e "${RED}[-] Please verify the installation of godap${NC}"
+    else
+        if [ "${aeskey_bool}" == true ]; then
+            echo -e "${PURPLE}[-] godap does not support Kerberos authentication using AES Key${NC}"
+        else
+            echo -e "${BLUE}[*] Launching godap${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-S -I"; else ldaps_param=""; fi
+            run_command "${godap} ${target} ${argument_godap} --kdc ${dc_FQDN} ${ldaps_param}" 2>&1 | tee -a "${output_dir}/DomainRecon/godap_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3768,8 +3788,9 @@ ad_menu() {
     echo -e "24) Open garrettfoster13's ACED console"
     echo -e "25) Open LDAPPER custom options"
     echo -e "26) Open breads console"
-    echo -e "27) Run adPEAS enumerations"
-    echo -e "28) Run ADCheck enumerations"
+    echo -e "27) Run godap console"
+    echo -e "28) Run adPEAS enumerations"
+    echo -e "29) Run ADCheck enumerations"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -3922,11 +3943,16 @@ ad_menu() {
         ;;
 
     27)
-        adpeas_enum
+        godap_console
         ad_menu
         ;;
 
     28)
+        adpeas_enum
+        ad_menu
+        ;;
+
+    29)
         adcheck_enum
         ad_menu
         ;;
@@ -5423,6 +5449,8 @@ config_menu() {
         if [ ! -f "${smbclientng}" ]; then echo -e "${RED}[-] smbclientng is not installed${NC}"; else echo -e "${GREEN}[+] smbclientng is installed${NC}"; fi
         if [ ! -f "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not installed${NC}"; else echo -e "${GREEN}[+] ldapnomnom is installed${NC}"; fi
         if [ ! -x "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not executable${NC}"; else echo -e "${GREEN}[+] ldapnomnom is executable${NC}"; fi
+        if [ ! -f "${godap}" ]; then echo -e "${RED}[-] godap is not installed${NC}"; else echo -e "${GREEN}[+] godap is installed${NC}"; fi
+        if [ ! -x "${godap}" ]; then echo -e "${RED}[-] godap is not executable${NC}"; else echo -e "${GREEN}[+] godap is executable${NC}"; fi
         config_menu
         ;;
 

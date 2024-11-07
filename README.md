@@ -60,10 +60,10 @@ When using the automated mode, different checks are performed based on the authe
     - BloodHound data collection
     - Enumeration using netexec, enum4linux-ng, ldapdomaindump, bloodyAD, sccmhunter, rdwatool, sccmhunter, GPOwned
     - Generate wordlist for password cracking
-    - netexec find accounts with user=pass 
+    - netexec find accounts with user=pass
     - Pre2k authentication check on domain computers
     - Extract ADCS information using certipy and certi.py
-    - kerbrute find accounts with user=pas
+    - kerbrute find accounts with user=pass
     - ASREPRoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - Targeted Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
@@ -185,8 +185,9 @@ AD Enum menu
 24) Open garrettfoster13's ACED console
 25) Open LDAPPER custom options
 26) Open breads console
-27) Run adPEAS enumerations
-28) Run ADCheck enumerations
+27) Run godap console
+28) Run adPEAS enumerations
+29) Run ADCheck enumerations
 ```
 
 ADCS menu
@@ -392,6 +393,7 @@ Automated Mode:
     - [oppsec](https://github.com/oppsec) - breads
     - [ADcheck](https://github.com/CobblePot59) - ADcheck
     - [ldapnomnom](https://github.com/lkarlslund) - ldapnomnom
+    - [godap](https://github.com/Macmod) - godap
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
