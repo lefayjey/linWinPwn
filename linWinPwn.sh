@@ -139,7 +139,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.22 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.23 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -331,11 +331,14 @@ prepare() {
         if [ -z "$domain" ]; then domain=$dc_domain; fi
     fi
 
-    dc_open_ports=$(${nmap} -n -Pn -p 135,445,389,636 "${dc_ip}" -sT -T5 --open)
+    dc_open_ports=$(${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open)
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"389/tcp"* ]]; then dc_port_389="${GREEN}open${NC}"; else dc_port_389="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"636/tcp"* ]]; then dc_port_636="${GREEN}open${NC}"; else dc_port_636="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"88/tcp"* ]]; then dc_port_88="${GREEN}open${NC}"; else dc_port_88="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"3389/tcp"* ]]; then dc_port_3389="${GREEN}open${NC}"; else dc_port_3389="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"5985/tcp"* ]]; then dc_port_5985="${GREEN}open${NC}"; else dc_port_5985="${RED}filtered|closed${NC}"; fi
 
     if [ "${autoconfig_bool}" == true ]; then
         echo -e "${BLUE}[*] NTP and /etc/hosts auto-config... ${NC}"
@@ -395,6 +398,7 @@ prepare() {
     if [[ $targets == "DC" ]]; then
         curr_targets="Domain Controllers"
     elif [[ $targets == "All" ]]; then
+        dns_enum
         curr_targets="All domain servers"
     elif [[ $targets == "File="* ]]; then
         curr_targets="File containing list of servers"
@@ -3637,7 +3641,7 @@ print_info() {
     echo -e "${YELLOW}[i]${NC} Target domain: ${YELLOW}${dc_domain}${NC}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${YELLOW}${dc_FQDN}${NC}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's IP: ${YELLOW}${dc_ip}${NC}"
-    echo -e "${YELLOW}[i]${NC} Domain Controller's ports: RPC ${dc_port_135}, SMB ${dc_port_445}, LDAP ${dc_port_389}, LDAPS ${dc_port_636}"
+    echo -e "${YELLOW}[i]${NC} Domain Controller's ports: RPC ${dc_port_135}, SMB ${dc_port_445}, LDAP ${dc_port_389}, LDAPS ${dc_port_636}, KRB ${dc_port_88}, RDP ${dc_port_3389}, WinRM ${dc_port_5985}"
     echo -e "${YELLOW}[i]${NC} Output folder: ${YELLOW}${output_dir}${NC}"
     echo -e "${YELLOW}[i]${NC} User wordlist file: ${YELLOW}${user_wordlist}${NC}"
     echo -e "${YELLOW}[i]${NC} Password wordlist file: ${YELLOW}${pass_wordlist}${NC}"
@@ -3670,6 +3674,7 @@ modify_target() {
         curr_targets="All domain servers"
         custom_servers=""
         custom_ip=""
+        dns_enum
         ;;
 
     3)
@@ -3749,6 +3754,15 @@ pkinit_auth() {
     hash=$(grep "Got hash for" "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt" | cut -d " " -f 6)
     echo -e "${GREEN}[+] NTLM hash extracted:${NC} $hash"
     cd "${current_dir}" || exit
+}
+
+get_domain_sid() {
+    sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
+    if [[ ${sid_domain} == "" ]]; then
+        run_command "${netexec} ldap ${target} ${argument_ne} --get-sid --log ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" >/dev/null
+        sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
+    fi
+    echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
 }
 
 ad_menu() {
@@ -4265,6 +4279,7 @@ kerberos_menu() {
                     echo -e "${CYAN}[*] Example: 512,513,518,519,520 ${NC}"
                     read -rp ">> " tick_group_ids_value </dev/tty
                     if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="-groups ${tick_group_ids_value}"; fi
+                    get_domain_sid
                     while [[ "${sid_domain}" == "" ]]; do
                         echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
                         echo -e "${CYAN}[*] Example: S-1-5-21-1004336348-1177238915-682003330 ${NC}"
@@ -4341,6 +4356,7 @@ kerberos_menu() {
                     echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
                     read -rp ">> " tick_spn_value </dev/tty
                     if [[ ! "${tick_spn_value}" == "" ]]; then tick_spn="${tick_spn_value}"; fi
+                    get_domain_sid
                     while [[ "${sid_domain}" == "" ]]; do
                         echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
                         echo -e "${CYAN}[*] Example: S-1-5-21-1004336348-1177238915-682003330 ${NC}"
@@ -4408,6 +4424,7 @@ kerberos_menu() {
                     echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
                     read -rp ">> " tick_group_ids_value </dev/tty
                     if [[ ! "${tick_group_ids_value}" == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
+                    get_domain_sid
                     while [[ "${sid_domain}" == "" ]]; do
                         echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
                         read -rp ">> " sid_domain </dev/tty
@@ -4472,6 +4489,7 @@ kerberos_menu() {
                     echo -e "${BLUE}[*] Please specify domain admin to impersonate (press Enter to choose default value current user):"
                     read -rp ">> " tick_domain_admin_value </dev/tty
                     if [[ ! ${tick_domain_admin_value} == "" ]]; then tick_domain_admin="${tick_domain_admin_value}"; fi
+                    get_domain_sid
                     while [[ "${sid_domain}" == "" ]]; do
                         echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
                         read -rp ">> " sid_domain </dev/tty
@@ -5181,7 +5199,6 @@ init_menu() {
         ;;
 
     "")
-        dns_enum
         main_menu
         ;;
 
@@ -5592,7 +5609,7 @@ main_menu() {
     echo -e ""
     echo -e "${PURPLE}[Main menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------"
-    echo -e "1) Re-run DNS Enumeration using adidnsdump"
+    echo -e "1) Run DNS Enumeration using adidnsdump"
     echo -e "2) Active Directory Enumeration Menu"
     echo -e "3) ADCS Enumeration Menu"
     echo -e "4) Brute Force Attacks Menu"
@@ -5677,17 +5694,10 @@ main() {
     prepare
     print_info
     authenticate
-    sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
-    if [[ ${sid_domain} == "" ]]; then
-        run_command "${netexec} ldap ${target} ${argument_ne} --get-sid --log ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" >/dev/null
-        sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
-    fi
-    echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
     echo -e ""
     if [ "${interactive_bool}" == true ]; then
         init_menu
     else
-        dns_enum
         echo -e "${GREEN}[+] Start: Active Directory Enumeration${NC}"
         echo -e "${GREEN}---------------------------------------${NC}"
         echo -e ""

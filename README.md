@@ -143,7 +143,7 @@ proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user
 
 Main menu
 ```
-1) Re-run DNS Enumeration using adidnsdump
+1) Run DNS Enumeration using adidnsdump
 2) Active Directory Enumeration Menu
 3) ADCS Enumeration Menu
 4) Brute Force Attacks Menu
