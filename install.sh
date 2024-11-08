@@ -1,6 +1,7 @@
 #!/bin/bash
 #
 # Author: lefayjey
+# GNU/Linux Distro and Rust detection: ReK2, Hispagatos
 #
 
 RED='\033[1;31m'
@@ -10,14 +11,41 @@ NC='\033[0m'
 
 scripts_dir="/opt/lwp-scripts"
 
+# Detect Linux Distribution
+if command -v apt-get >/dev/null; then
+    PKG_MANAGER="apt-get"
+    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl"
+elif command -v pacman >/dev/null; then
+    PKG_MANAGER="pacman"
+    PACKAGES="python python-pip python-virtualenv nmap smbmap john libsasl openldap krb5 ntp wget zip unzip systemd python-pipx swig curl jq openssl"
+else
+    echo -e "${RED}[Error]${NC} Unsupported Linux distribution"
+    exit 1
+fi
+
 install_tools() {
-    echo -e "${BLUE}Installing tools using apt...${NC}"
-    sudo apt-get update && \
-    sudo apt-get install -y python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl
-    echo -e ""
-    echo -e "${BLUE}Installing Rust...${NC}"
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source ~/.cargo/env
+  
+    if [[ "$PKG_MANAGER" == "apt-get" ]]; then
+        echo -e "${BLUE}Installing tools using apt...${NC}"
+        sudo apt-get update && sudo apt-get install -y $PACKAGES
+    elif [[ "$PKG_MANAGER" == "pacman" ]]; then
+        echo -e "${BLUE}Installing tools using pacman...${NC}"
+        sudo pacman -Sy --needed --noconfirm $PACKAGES
+    fi
+
+    # Check if Rust is installed, and install if it's missing
+    if ! command -v rustc >/dev/null; then
+        echo -e "${BLUE}Rust not found, installing Rust...${NC}"
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source ~/.cargo/env
+        echo -e "${GREEN}Rust installed successfully.${NC}"
+    else
+        echo -e "${GREEN}Rust is already installed.${NC}"
+    fi 
+
+    for ((i = 0; i < 10; i++)); do
+      echo "$i"
+    done
 
     echo -e ""
     echo -e "${BLUE}Installing python tools using pip and pipx...${NC}"
