@@ -119,7 +119,7 @@ pygpoabuse="$scripts_dir/pyGPOAbuse-master/pygpoabuse.py"
 GPOwned="$scripts_dir/GPOwned.py"
 privexchange="$scripts_dir/privexchange.py"
 RunFinger="$scripts_dir/Responder/RunFinger.py"
-ADCheck="$scripts_dir/ADcheck/ADcheck.py"
+ADCheck=$(which adcheck)
 adPEAS=$(which adPEAS)
 breads=$(which breads-ad)
 smbclientng=$(which smbclientng)
@@ -5462,7 +5462,6 @@ config_menu() {
         if [ ! -f "${adPEAS}" ]; then echo -e "${RED}[-] adPEAS is not installed${NC}"; else echo -e "${GREEN}[+] adPEAS is installed${NC}"; fi
         if [ ! -f "${breads}" ]; then echo -e "${RED}[-] breads is not installed${NC}"; else echo -e "${GREEN}[+] breads is installed${NC}"; fi
         if [ ! -f "${ADCheck}" ]; then echo -e "${RED}[-] ADCheck is not installed${NC}"; else echo -e "${GREEN}[+] ADCheck is installed${NC}"; fi
-        if [ ! -x "${ADCheck}" ]; then echo -e "${RED}[-] ADCheck is not executable${NC}"; else echo -e "${GREEN}[+] ADCheck is executable${NC}"; fi
         if [ ! -f "${smbclientng}" ]; then echo -e "${RED}[-] smbclientng is not installed${NC}"; else echo -e "${GREEN}[+] smbclientng is installed${NC}"; fi
         if [ ! -f "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not installed${NC}"; else echo -e "${GREEN}[+] ldapnomnom is installed${NC}"; fi
         if [ ! -x "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not executable${NC}"; else echo -e "${GREEN}[+] ldapnomnom is executable${NC}"; fi

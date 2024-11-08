@@ -65,6 +65,8 @@ install_tools() {
     pipx install git+https://github.com/p0dalirius/RDWAtool --force
     pipx install git+https://github.com/almandin/krbjack --force
     pipx install git+https://github.com/CompassSecurity/mssqlrelay.git --force
+    #pipx install git+https://github.com/CobblePot59/ADcheck.git --force
+    pipx install git+https://github.com/lefayjey/ADcheck.git --force
     pipx install git+https://github.com/ajm4n/adPEAS --force
     pipx install git+https://github.com/oppsec/breads.git --force
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force
