@@ -24,15 +24,15 @@ else
 fi
 
 install_tools() {
-  
     if [[ "$PKG_MANAGER" == "apt-get" ]]; then
         echo -e "${BLUE}Installing tools using apt...${NC}"
-        sudo apt-get update && sudo apt-get install -y $PACKAGES
+        sudo apt-get update && sudo apt-get install -y "$PACKAGES"
     elif [[ "$PKG_MANAGER" == "pacman" ]]; then
         echo -e "${BLUE}Installing tools using pacman...${NC}"
-        sudo pacman -Sy --needed --noconfirm $PACKAGES
+        sudo pacman -Sy --needed --noconfirm "$PACKAGES"
     fi
 
+    echo -e ""
     # Check if Rust is installed, and install if it's missing
     if ! command -v rustc >/dev/null; then
         echo -e "${BLUE}Rust not found, installing Rust...${NC}"
@@ -42,10 +42,6 @@ install_tools() {
     else
         echo -e "${GREEN}Rust is already installed.${NC}"
     fi 
-
-    for ((i = 0; i < 10; i++)); do
-      echo "$i"
-    done
 
     echo -e ""
     echo -e "${BLUE}Installing python tools using pip and pipx...${NC}"
