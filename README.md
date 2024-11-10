@@ -141,49 +141,51 @@ proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user
 
 ### Current supported authentications
 
-| Tool                    | Null Session Support | Password Support | NTLM Hash Support | Kerberos Support | AES Support |
-|-------------------------|----------------------|------------------|-------------------|------------------|-------------|
-| `netexec`               | ✅                   | ✅               | ✅               | ✅               | ✅         |
-| `Impacket`              | ✅                   | ✅               | ✅               | ✅               | ✅         |
-| `adidnsdump`            | ✅                   | ✅               | ✅               | ❌               | ❌         |
-| `bloodhound-python`     | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `ldapdomaindump`        | ✅                   | ✅               | ✅               | ❌               | ❌         |
-| `enum4linux-ng`         | ✅                   | ✅               | ✅               | ✅               | ❌         |
-| `bloodyAD`              | ❌                   | ✅               | ✅               | ✅               | ❌         |
-| `SilentHound`           | ✅                   | ✅               | ✅               | ❌               | ❌         |
-| `ldeep`                 | ✅                   | ✅               | ✅               | ✅               | ❌         |
-| `windapsearch`          | ✅                   | ✅               | ✅               | ❌               | ❌         |
-| `LDAPWordlistHarvester` | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `LDAPConsole`           | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `pyLDAPmonitor`         | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `rdwatool`              | ✅                   | ✅               | ✅               | ✅               | ✅         |
-| `sccmhunter`            | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `ldapper`               | ❌                   | ✅               | ✅               | ❌               | ❌         |
-| `Adalanche`             | ❌                   | ✅               | ✅               | ❌               | ❌         |
-| `GPOwned`               | ❌                   | ✅               | ✅               | ❌               | ❌         |
-| `ACED`                  | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `adPEAS`                | ❌                   | ✅               | ❌               | ❌               | ❌         |
-| `breads`                | ✅                   | ✅               | ✅               | ❌               | ❌         |
-| `godap`                 | ✅                   | ✅               | ✅               | ✅               | ❌         |
-| `ADCheck`               | ❌                   | ✅               | ✅               | ❌               | ❌         |
-| `certi.py`              | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `Certipy`               | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `certsync`              | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `orpheus`               | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `smbmap`                | ✅                   | ✅               | ✅               | ❌               | ❌         |
-| `FindUncommonShares`    | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `smbclient-ng`          | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `manspider`             | ✅                   | ✅               | ✅               | ❌               | ❌         |
-| `coercer`               | ✅                   | ✅               | ✅               | ❌               | ❌         |
-| `privexchange`          | ✅                   | ✅               | ✅               | ❌               | ❌         |
-| `RunFinger.py`          | ✅                   | ✅               | ✅               | ✅               | ✅         |
-| `mssqlrelay`            | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `targetedKerberoast`    | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `pygpoabuse`            | ❌                   | ✅               | ✅               | ✅               | ❌         |
-| `DonPAPI`               | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `hekatomb`              | ❌                   | ✅               | ✅               | ❌               | ❌         |
-| `ExtractBitlockerKeys`  | ❌                   | ✅               | ✅               | ✅               | ✅         |
-| `evilwinrm`             | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| Tool                    | Null Session | Password | NTLM Hash  | Kerberos Ticket| AES Key     | Certificate |
+|-------------------------|--------------|----------|------------|----------------|-------------|-------------|
+| `netexec`               | ✅           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `Impacket`              | ✅           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `adidnsdump`            | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `bloodhound-python`     | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `ldapdomaindump`        | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `enum4linux-ng`         | ✅           | ✅       | ✅        | ✅             | ❌         | ❌         |
+| `bloodyAD`              | ❌           | ✅       | ✅        | ✅             | ❌         | ✅         |
+| `SilentHound`           | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `ldeep`                 | ✅           | ✅       | ✅        | ✅             | ❌         | ✅         |
+| `windapsearch`          | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `LDAPWordlistHarvester` | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `LDAPConsole`           | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `pyLDAPmonitor`         | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `sccmhunter`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `ldapper`               | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `Adalanche`             | ❌           | ✅       | ✅        | ✅             | ❌         | ❌         |
+| `GPOwned`               | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `ACED`                  | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `adPEAS`                | ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
+| `breads`                | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `godap`                 | ✅           | ✅       | ✅        | ✅             | ❌         | ❌         |
+| `adcheck`               | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `certi.py`              | ❌           | ✅       | ✅        | ✅             | ✅         | ✅         |
+| `Certipy`               | ❌           | ✅       | ✅        | ✅             | ✅         | ✅         |
+| `certsync`              | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `orpheus`               | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `smbmap`                | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `FindUncommonShares`    | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `smbclient-ng`          | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `manspider`             | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `coercer`               | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `privexchange`          | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `RunFinger.py`          | ✅           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `mssqlrelay`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `targetedKerberoast`    | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `pygpoabuse`            | ❌           | ✅       | ✅        | ✅             | ❌         | ❌         |
+| `DonPAPI`               | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `hekatomb`              | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `ExtractBitlockerKeys`  | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `evilwinrm`             | ❌           | ✅       | ✅        | ✅             | ✅         | ✅         |
+
+#### LDAP Channel Binding support
+ldapdomaindump (NTLM), Certipy (NTLM), bloodyAD (NTLM and Kerberos), pre2k (NTLM)
 
 ### Interactive Mode Menus
 

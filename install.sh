@@ -46,13 +46,15 @@ install_tools() {
     echo -e ""
     echo -e "${BLUE}Installing python tools using pip and pipx...${NC}"
     pipx ensurepath
+    #pipx install git+https://github.com/deadjakk/ldapdomaindump --force #LDAP Channel Binding
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
     pipx install git+https://github.com/Pennyw0rth/NetExec.git --force
     pipx install git+https://github.com/fortra/impacket.git --force
     pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
-    pipx install git+https://github.com/dirkjanm/bloodhound.py --force
+    #pipx install git+https://github.com/deadjakk/BloodHound.py --force #LDAP Channel Binding
+    pipx install git+https://github.com/dirkjanm/Bloodhound.py --force
     pipx install "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force --suffix '_ce'
     pipx install git+https://github.com/franc-pentest/ldeep.git --force
     pipx install git+https://github.com/garrettfoster13/pre2k.git --force
@@ -65,8 +67,7 @@ install_tools() {
     pipx install git+https://github.com/p0dalirius/RDWAtool --force
     pipx install git+https://github.com/almandin/krbjack --force
     pipx install git+https://github.com/CompassSecurity/mssqlrelay.git --force
-    #pipx install git+https://github.com/CobblePot59/ADcheck.git --force
-    pipx install git+https://github.com/lefayjey/ADcheck.git --force
+    pipx install git+https://github.com/CobblePot59/ADcheck.git --force
     pipx install git+https://github.com/ajm4n/adPEAS --force
     pipx install git+https://github.com/oppsec/breads.git --force
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force

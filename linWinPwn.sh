@@ -314,8 +314,7 @@ etc_resolv_update() {
         echo -e "" | tee -a "${output_dir}/resolv.conf.backup"
         echo -e "Content of /etc/resolv.conf after update:"
         echo -e "-----------------------------------------"
-        sudo sed -i '/^#/! s/^/#/g' /etc/resolv.conf
-        echo -e "nameserver ${dc_ip}" | sudo tee -a /etc/resolv.conf
+        sudo sed -i "1s/^/nameserver ${dc_ip}\n/" /etc/resolv.conf
         echo -e "${GREEN}[+] DNS update complete${NC}"
     else
         echo -e "${PURPLE}[-] Target IP already present in /etc/resolv.conf... ${NC}"
@@ -527,6 +526,7 @@ authenticate() {
             argument_pre2k="-d ${domain}"
             argument_p0dalirius="-d ${domain} -u Guest -p ''"
             argument_FindUncom="-ad ${domain} -au Guest -ap ''"
+            argument_adalanche="--authmode anonymous --username Guest\\@${domain} -p '!'"
             argument_godap=""
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
         fi
@@ -682,10 +682,12 @@ authenticate() {
             argument_p0dalirius="-d ${domain} -u ${user} -k --no-pass"
             argument_FindUncom="-ad ${domain} -au ${user} -k --no-pass"
             argument_bloodyad="-d ${domain} -u ${user} -k"
+            argument_adalanche="--authmode kerberoscache --username ${user}\\@${domain}"
             argument_aced="-k -no-pass ${domain}/${user}"
             argument_sccm="-d ${domain} -u ${user} -k -no-pass"
-            argument_mssqlrelay="-u ${user}\\@${domain} -k -no-pass"
+            argument_mssqlrelay="-u ${user}\\@${domain} -k -no-pass -target ${target}"
             argument_pygpoabuse="${domain}/${user} -k -ccache $(realpath "$krb5cc")"
+            argument_GPOwned="-d ${domain} -u ${user} -k -no-pass"
             argument_evilwinrm="-r ${domain} -u ${user}"
             argument_godap="-d ${domain} -k -t ldap/${target}"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
@@ -715,6 +717,7 @@ authenticate() {
         argument_aced="-aes ${aeskey} ${domain}/${user}"
         argument_sccm="-d ${domain} -u ${user} -aes ${aeskey}"
         argument_mssqlrelay="-u ${user}\\@${domain} -aes ${aeskey} -k"
+        argument_GPOwned="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -831,6 +834,7 @@ authenticate() {
         adalanche_verbose="--loglevel Debug"
         argument_pygpoabuse="${argument_pygpoabuse} -vv"
         argument_privexchange="${argument_privexchange} --debug"
+        argument_adcheck="${argument_adcheck} --debug"
     fi
 
     echo -e "${auth_string}"
@@ -1046,6 +1050,7 @@ ldapdomaindump_enum() {
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
                 echo -e "${PURPLE}[-] ldapdomaindump does not support Kerberos authentication ${NC}"
             else
+                #if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldap-channel-binding ldaps"; else ldaps_param="ldap"; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="ldaps"; else ldaps_param="ldap"; fi
                 run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip} -o ${output_dir}/DomainRecon/LDAPDomainDump" | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
             fi
@@ -1360,7 +1365,7 @@ rdwatool_enum() {
         echo -e "${RED}[-] Please verify the installation of rdwatool${NC}"
     else
         echo -e "${BLUE}[*] Enumerating RDWA servers using rdwatool${NC}"
-        run_command "${rdwatool} recon -tf ${servers_hostname_list}" 2>&1 | tee "${output_dir}/DomainRecon/rdwatool_output_${dc_domain}.txt"
+        run_command "${rdwatool} recon -tf ${servers_hostname_list} -k" 2>&1 | tee "${output_dir}/DomainRecon/rdwatool_output_${dc_domain}.txt"
     fi
     echo -e ""
 }
@@ -1452,8 +1457,8 @@ adalanche_enum() {
         if [ -n "$(ls -A "${output_dir}/DomainRecon/Adalanche/data" 2>/dev/null)" ]; then
             echo -e "${YELLOW}[i] Adalanche results found, skipping... ${NC}"
         else
-            if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                echo -e "${PURPLE}[-] Adalanche requires credentials and does not support Kerberos authentication${NC}"
+            if [ "${aeskey_bool}" == true ]; then
+                echo -e "${PURPLE}[-] Adalanche does not support Kerberos authentication using AES Key${NC}"
             else
                 current_dir=$(pwd)
                 cd "${output_dir}/DomainRecon/Adalanche" || exit
@@ -1471,11 +1476,12 @@ GPOwned_enum() {
         echo -e "${RED}[-] Please verify the installation of GPOwned${NC}"
     else
         echo -e "${BLUE}[*] GPO Enumeration using GPOwned${NC}"
-        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-            echo -e "${PURPLE}[-] GPOwned requires credentials and does not support Kerberos authentication${NC}"
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] GPOwned requires credentials{NC}"
         else
-            run_command "${python3} ${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcuser" | tee "${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt"
-            run_command "${python3} ${GPOwned} ${argument_GPOwned} -dc-ip ${dc_ip} -listgpo -gpcmachine" | tee -a "${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-use-ldaps"; else ldaps_param=""; fi
+            run_command "${python3} ${GPOwned} ${argument_GPOwned} ${ldaps_param} -dc-ip ${dc_ip} -listgpo -gpcuser" | tee "${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt"
+            run_command "${python3} ${GPOwned} ${argument_GPOwned} ${ldaps_param} -dc-ip ${dc_ip} -listgpo -gpcmachine" | tee -a "${output_dir}/DomainRecon/GPOwned_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1623,7 +1629,7 @@ adcheck_enum() {
             current_dir=$(pwd)
             cd "${output_dir}/DomainRecon/ADCheck" || exit
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            run_command "${python3} ${ADCheck} ${argument_adcheck} ${ldaps_param} --dc-ip ${dc_ip} -bhf" | tee "${output_dir}/DomainRecon/ADCheck/ADCheck_output_${dc_domain}.txt"
+            run_command "${ADCheck} ${argument_adcheck} ${ldaps_param} --dc-ip ${dc_ip}" | tee "${output_dir}/DomainRecon/ADCheck/ADCheck_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
             /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/ADCheck/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_adcheck_${dc_domain}.txt"
             /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/ADCheck/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_adcheck_${dc_domain}.txt"
@@ -1677,7 +1683,8 @@ certipy_enum() {
             else
                 current_dir=$(pwd)
                 cd "${output_dir}/ADCS" || exit
-                if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
+                #if [ "${ldaps_bool}" == true ]; then ldaps_param="-scheme ldaps -ldap-channel-binding"; else ldaps_param="-scheme ldap"; fi
+                if [ "${ldaps_bool}" == true ]; then ldaps_param="-scheme ldaps"; else ldaps_param="-scheme ldap"; fi
                 run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -stdout -old-bloodhound" >"${output_dir}/ADCS/certipy_output_${dc_domain}.txt"
                 run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${output_dir}/ADCS/certipy_vulnerable_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
@@ -1844,7 +1851,9 @@ certifried_check() {
             for pki_server in $pki_servers; do
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" 2>&1 | tee "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"
+                #if [ "${ldaps_bool}" == true ]; then ldaps_param="-scheme ldaps -ldap-channel-binding"; else ldaps_param="-scheme ldap"; fi
+                if [ "${ldaps_bool}" == true ]; then ldaps_param="-scheme ldaps"; else ldaps_param="-scheme ldap"; fi
+                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" 2>&1 | tee "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"
                 if ! grep -q "Certificate object SID is" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt" && ! grep -q "error" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"; then
                     echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
@@ -2132,6 +2141,7 @@ pre2k_check() {
                 run_command "${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${servers_hostname_list} -outputfile ${pre2k_outputfile}" | tee "${output_dir}/BruteForce/pre2k_output_${dc_domain}.txt"
             fi
         else
+            #if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps -binding"; else ldaps_param=""; fi
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             run_command "${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip} -outputfile ${pre2k_outputfile} ${ldaps_param}" | tee "${output_dir}/BruteForce/pre2k_output_${dc_domain}.txt"
         fi
@@ -2404,20 +2414,16 @@ smb_map() {
             echo -e "${BLUE}[*] Listing files in accessible shares - Step 2/2${NC}"
             for i in $(grep -v ':' "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] Listing files in accessible shares on ${i} ${NC}"
-                if [ "${kerb_bool}" == true ]; then
-                    echo -e "${PURPLE}[-] smbmap does not support kerberos tickets${NC}"
-                else
-                    current_dir=$(pwd)
-                    mkdir -p "${output_dir}/Shares/smbmapDump/${i}"
-                    cd "${output_dir}/Shares/smbmapDump/${i}" || exit
-                    run_command "${smbmap} -H $i ${argument_smbmap} -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -r --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'" | grep -v "Working on it..." >"${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt"
-                    if [ "${nullsess_bool}" == true ]; then
-                        echo -e "${CYAN}[*] smbmap enumeration (Guest and random user)${NC}"
-                        run_command "${smbmap} -H $i -u 'Guest' -p '' -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -r --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'" | grep -v "Working on it..." >>"${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt"
-                        run_command "${smbmap} -H $i -u ${rand_user} -p '' -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -r --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'" | grep -v "Working on it..." >>"${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt"
-                    fi
-                    cd "${current_dir}" || exit
+                current_dir=$(pwd)
+                mkdir -p "${output_dir}/Shares/smbmapDump/${i}"
+                cd "${output_dir}/Shares/smbmapDump/${i}" || exit
+                run_command "${smbmap} -H $i ${argument_smbmap} -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -r --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'" | grep -v "Working on it..." >"${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt"
+                if [ "${nullsess_bool}" == true ]; then
+                    echo -e "${CYAN}[*] smbmap enumeration (Guest and random user)${NC}"
+                    run_command "${smbmap} -H $i -u 'Guest' -p '' -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -r --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'" | grep -v "Working on it..." >>"${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt"
+                    run_command "${smbmap} -H $i -u ${rand_user} -p '' -A '\.cspkg|\.publishsettings|\.xml|\.json|\.ini|\.bat|\.log|\.pl|\.py|\.ps1|\.txt|\.config|\.conf|\.cnf|\.sql|\.yml|\.cmd|\.vbs|\.php|\.cs|\.inf' -r --exclude 'ADMIN$' 'C$' 'C' 'IPC$' 'print$' 'SYSVOL' 'NETLOGON' 'prnproc$'" | grep -v "Working on it..." >>"${output_dir}/Shares/smbmapDump/smb_files_${dc_domain}_${i}.txt"
                 fi
+                cd "${current_dir}" || exit
             done
         fi
     fi
@@ -2532,7 +2538,7 @@ smbclientng_console() {
             read -rp ">> " smbclient_target </dev/tty
         done
         if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
-        run_command "${smbclientng} ${argument_p0dalirius} ${verbose_p0dalirius} --target ${smbclient_target} --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${output_dir}/Shares/smbclientng_output_${dc_domain}.txt"
+        run_command "${smbclientng} ${argument_p0dalirius} ${verbose_p0dalirius} --host ${smbclient_target} --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${output_dir}/Shares/smbclientng_output_${dc_domain}.txt"
     fi
     echo -e ""
 }
@@ -5435,7 +5441,7 @@ auth_menu() {
             echo -e "${RED}[-] Please verify the installation of certipy${NC}"
         else
             if [[ ${cert_bool} == false ]]; then
-                echo -e "${BLUE}[*] Please specify location of certificate file:"
+                echo -e "${BLUE}[*] Please specify location of certificate file:${NC}"
                 read -rp ">> " pfxcert </dev/tty
                 while [ ! -s "${pfxcert}" ]; do
                     echo -e "${RED}Invalid pfx file.${NC} Please specify location of certificate file:"
