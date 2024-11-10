@@ -139,6 +139,52 @@ On the Linux machine, first update `/etc/proxychains4.conf` to include `socks5 1
 proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] [--auto]
 ```
 
+### Current supported authentications
+
+| Tool                    | Null Session Support | Password Support | NTLM Hash Support | Kerberos Support | AES Support |
+|-------------------------|----------------------|------------------|-------------------|------------------|-------------|
+| `netexec`               | ✅                   | ✅               | ✅               | ✅               | ✅         |
+| `Impacket`              | ✅                   | ✅               | ✅               | ✅               | ✅         |
+| `adidnsdump`            | ✅                   | ✅               | ✅               | ❌               | ❌         |
+| `bloodhound-python`     | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `ldapdomaindump`        | ✅                   | ✅               | ✅               | ❌               | ❌         |
+| `enum4linux-ng`         | ✅                   | ✅               | ✅               | ✅               | ❌         |
+| `bloodyAD`              | ❌                   | ✅               | ✅               | ✅               | ❌         |
+| `SilentHound`           | ✅                   | ✅               | ✅               | ❌               | ❌         |
+| `ldeep`                 | ✅                   | ✅               | ✅               | ✅               | ❌         |
+| `windapsearch`          | ✅                   | ✅               | ✅               | ❌               | ❌         |
+| `LDAPWordlistHarvester` | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `LDAPConsole`           | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `pyLDAPmonitor`         | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `rdwatool`              | ✅                   | ✅               | ✅               | ✅               | ✅         |
+| `sccmhunter`            | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `ldapper`               | ❌                   | ✅               | ✅               | ❌               | ❌         |
+| `Adalanche`             | ❌                   | ✅               | ✅               | ❌               | ❌         |
+| `GPOwned`               | ❌                   | ✅               | ✅               | ❌               | ❌         |
+| `ACED`                  | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `adPEAS`                | ❌                   | ✅               | ❌               | ❌               | ❌         |
+| `breads`                | ✅                   | ✅               | ✅               | ❌               | ❌         |
+| `godap`                 | ✅                   | ✅               | ✅               | ✅               | ❌         |
+| `ADCheck`               | ❌                   | ✅               | ✅               | ❌               | ❌         |
+| `certi.py`              | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `Certipy`               | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `certsync`              | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `orpheus`               | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `smbmap`                | ✅                   | ✅               | ✅               | ❌               | ❌         |
+| `FindUncommonShares`    | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `smbclient-ng`          | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `manspider`             | ✅                   | ✅               | ✅               | ❌               | ❌         |
+| `coercer`               | ✅                   | ✅               | ✅               | ❌               | ❌         |
+| `privexchange`          | ✅                   | ✅               | ✅               | ❌               | ❌         |
+| `RunFinger.py`          | ✅                   | ✅               | ✅               | ✅               | ✅         |
+| `mssqlrelay`            | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `targetedKerberoast`    | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `pygpoabuse`            | ❌                   | ✅               | ✅               | ✅               | ❌         |
+| `DonPAPI`               | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `hekatomb`              | ❌                   | ✅               | ✅               | ❌               | ❌         |
+| `ExtractBitlockerKeys`  | ❌                   | ✅               | ✅               | ✅               | ✅         |
+| `evilwinrm`             | ❌                   | ✅               | ✅               | ✅               | ✅         |
+
 ### Interactive Mode Menus
 
 Main menu
@@ -226,12 +272,14 @@ Kerberos Attacks menu
 7) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)
 8) AP-REQ hijack with DNS unsecure updates abuse using krbjack
 9) Run custom Kerberoast attack using Orpheus
-10) Generate Golden Ticket (requires: hash of krbtgt or DCSync rights)
-11) Generate Silver Ticket (requires: hash of SPN service account or DCSync rights)
-12) Generate Diamond Ticket (requires: hash of krbtgt or DCSync rights)
-13) Generate Sapphire Ticket (requires: hash of krbtgt or DCSync rights)
-14) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)
-15) Request impersonated ticket using Constrained Delegation rights (requires: hash of account allowed for delegation or DCSync rights)
+10) Request TGS for current user (requires: authenticated)
+11) Generate Golden Ticket (requires: hash of krbtgt or DCSync rights)
+12) Generate Silver Ticket (requires: hash of SPN service account or DCSync rights)
+13) Request ticket for another user using S4U2self (OPSEC alternative to Silver Ticket) (requires: authenticated session of SPN service account, for example 'svc')
+14) Generate Diamond Ticket (requires: hash of krbtgt or DCSync rights)
+15) Generate Sapphire Ticket (requires: hash of krbtgt or DCSync rights)
+16) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)
+17) Request impersonated ticket using Constrained Delegation rights (requires: authenticated session of account allowed for delegation, for example 'gmsa')
 ```
 
 SMB Shares menu
