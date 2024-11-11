@@ -168,6 +168,7 @@ proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user
 | `certi.py`              | ❌           | ✅       | ✅        | ✅             | ✅         | ✅         |
 | `Certipy`               | ❌           | ✅       | ✅        | ✅             | ✅         | ✅         |
 | `certsync`              | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `pre2k`                 | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `orpheus`               | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `smbmap`                | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `FindUncommonShares`    | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
@@ -185,7 +186,8 @@ proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user
 | `evilwinrm`             | ❌           | ✅       | ✅        | ✅             | ✅         | ✅         |
 
 #### LDAP Channel Binding support
-ldapdomaindump (NTLM), Certipy (NTLM), bloodyAD (NTLM and Kerberos), pre2k (NTLM)
+ldap3: ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep
+msldap: bloodyAD
 
 ### Interactive Mode Menus
 

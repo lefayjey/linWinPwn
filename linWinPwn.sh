@@ -34,6 +34,7 @@ aeskey_bool=false
 cert_bool=false
 autoconfig_bool=false
 ldaps_bool=false
+ldapbinding_bool=false
 forcekerb_bool=false
 verbose_bool=false
 
@@ -139,7 +140,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.24 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.25 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -163,6 +164,7 @@ help_linWinPwn() {
     echo -e "-o/--output         Output directory (default: current dir)"
     echo -e "--auto-config       Run NTP sync with target DC and adds entry to /etc/hosts"
     echo -e "--ldaps             Use LDAPS instead of LDAP (port 636)"
+    echo -e "--ldap-binding      Use LDAP Channel Binding on LDAPS (port 636)"
     echo -e "--force-kerb        Use Kerberos authentication instead of NTLM when possible (requires password or NTLM hash)"
     echo -e "--verbose           Enable all verbose and debug outputs"
     echo -e "-I/--interface      Attacker's network interface (default: eth0)"
@@ -258,6 +260,11 @@ while test $# -gt 0; do
         ldaps_bool=true
         args+=("$1")
         ;;
+    --ldap-binding)
+        ldaps_bool=true
+        ldapbinding_bool=true
+        args+=("$1")
+        ;;
     --force-kerb)
         forcekerb_bool=true
         args+=("$1")
@@ -340,7 +347,6 @@ etc_krb5conf_update() {
     echo -e "        proxiable = true" | sudo tee -a /etc/krb5.conf
     echo -e "        rdns = false" | sudo tee -a /etc/krb5.conf
     echo -e "" | sudo tee -a /etc/krb5.conf
-    echo -e "" | sudo tee -a /etc/krb5.conf
     echo -e "        fcc-mit-ticketflags = true" | sudo tee -a /etc/krb5.conf
     echo -e "        dns_canonicalize_hostname = false" | sudo tee -a /etc/krb5.conf
     echo -e "        dns_lookup_realm = false" | sudo tee -a /etc/krb5.conf
@@ -392,6 +398,7 @@ prepare() {
     dc_domain=$(echo "$dc_info" | cut -d ":" -f 3 | sed "s/) (signing//g" | head -n 1)
     if [[ "${dc_NETBIOS}" == *"${dc_domain}"* ]]; then
         dc_FQDN=${dc_NETBIOS}
+        dc_NETBIOS=$(echo "${dc_FQDN}" | cut -d "." -f 1)
     else
         dc_FQDN=${dc_NETBIOS}"."${dc_domain}
     fi
@@ -944,7 +951,9 @@ bhd_enum() {
             else
                 current_dir=$(pwd)
                 cd "${output_dir}/DomainRecon/BloodHound" || exit
-                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN}" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_${dc_domain}.txt"
+                if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="--ldap-channel-binding"; else ldapbinding_param=""; fi
+                if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbinding_param}"; else ldaps_param=""; fi
+                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 #run_command "${netexec} ${ne_verbose} ldap ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhd_${dc_domain}.txt"
@@ -972,7 +981,9 @@ bhd_enum_dconly() {
             else
                 current_dir=$(pwd)
                 cd "${output_dir}/DomainRecon/BloodHound" || exit
-                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN}" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_dconly_${dc_domain}.txt"
+                if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="--ldap-channel-binding"; else ldapbinding_param=""; fi
+                if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbinding_param}"; else ldaps_param=""; fi
+                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 #run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhd_${dc_domain}.txt"
@@ -992,7 +1003,7 @@ bhdce_enum() {
         mkdir -p "${output_dir}/DomainRecon/BloodhoundCE"
         echo -e "${BLUE}[*] BloodhoundCE Enumeration using all collection methods (Noisy!)${NC}"
         if [ -n "$(find "${output_dir}/DomainRecon/BloodhoundCE/" -type f -name '*.json' -print -quit)" ]; then
-            echo -e "${YELLOW}[i] BloodhoundCE results found, skipping... ${NC}"
+            echo -e "${YELLOW}[i] BloodHoundCE results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${PURPLE}[-] BloodhoundCE requires credentials${NC}"
@@ -1044,14 +1055,14 @@ ldapdomaindump_enum() {
     else
         mkdir -p "${output_dir}/DomainRecon/LDAPDomainDump"
         echo -e "${BLUE}[*] ldapdomaindump Enumeration${NC}"
-        if [ -n "$(find "${output_dir}"/DomainRecon/LDAPDomainDump/ -type f -name '*ldd_output*' -print -quit)" ]; then
+        if [ -n "$(find "${output_dir}/DomainRecon/LDAPDomainDump/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] ldapdomaindump results found, skipping... ${NC}"
         else
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
                 echo -e "${PURPLE}[-] ldapdomaindump does not support Kerberos authentication ${NC}"
             else
-                #if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldap-channel-binding ldaps"; else ldaps_param="ldap"; fi
-                if [ "${ldaps_bool}" == true ]; then ldaps_param="ldaps"; else ldaps_param="ldap"; fi
+                if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="--ldap-channel-binding"; else ldapbinding_param=""; fi
+                if [ "${ldaps_bool}" == true ]; then ldaps_param="${ldapbinding_param} ldaps"; else ldaps_param="ldap"; fi
                 run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip} -o ${output_dir}/DomainRecon/LDAPDomainDump" | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
             fi
             /usr/bin/jq -r ".[].attributes.sAMAccountName[]" "${output_dir}/DomainRecon/LDAPDomainDump/domain_users.json" 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_ldd_${dc_domain}.txt"
@@ -1650,8 +1661,8 @@ ne_adcs_enum() {
     else
         echo -e "${YELLOW}[i] ADCS info found, skipping...${NC}"
     fi
-    pki_servers=$(grep "Found PKI Enrollment Server" "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" | cut -d ":" -f 4 | cut -d " " -f 2 | awk '!x[$0]++')
-    pki_cas=$(grep "Found CN" "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" | cut -d ":" -f 4 | cut -d " " -f 2- | sed "s/ /SPACE/g" | awk '!x[$0]++')
+    pki_servers=$(grep -o "Found PKI Enrollment Server.*" "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" | cut -d " " -f 5- | awk '!x[$0]++')
+    pki_cas=$(grep -o "Found CN.*" "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" | cut -d " " -f 3- | sed "s/ /SPACE/g" | awk '!x[$0]++')
 }
 
 certi_py_enum() {
@@ -1683,8 +1694,8 @@ certipy_enum() {
             else
                 current_dir=$(pwd)
                 cd "${output_dir}/ADCS" || exit
-                #if [ "${ldaps_bool}" == true ]; then ldaps_param="-scheme ldaps -ldap-channel-binding"; else ldaps_param="-scheme ldap"; fi
-                if [ "${ldaps_bool}" == true ]; then ldaps_param="-scheme ldaps"; else ldaps_param="-scheme ldap"; fi
+                if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="-ldap-channel-binding"; else ldapbinding_param=""; fi
+                if [ "${ldaps_bool}" == true ]; then ldaps_param="-scheme ldaps ${ldapbinding_param}"; else ldaps_param="-scheme ldap"; fi
                 run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -stdout -old-bloodhound" >"${output_dir}/ADCS/certipy_output_${dc_domain}.txt"
                 run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${output_dir}/ADCS/certipy_vulnerable_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
@@ -1851,9 +1862,8 @@ certifried_check() {
             for pki_server in $pki_servers; do
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                #if [ "${ldaps_bool}" == true ]; then ldaps_param="-scheme ldaps -ldap-channel-binding"; else ldaps_param="-scheme ldap"; fi
-                if [ "${ldaps_bool}" == true ]; then ldaps_param="-scheme ldaps"; else ldaps_param="-scheme ldap"; fi
-                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldaps_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" 2>&1 | tee "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"
+                if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="-ldap-channel-binding"; else ldapbinding_param=""; fi
+                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldapbinding_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" 2>&1 | tee "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"
                 if ! grep -q "Certificate object SID is" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt" && ! grep -q "error" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"; then
                     echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
@@ -2141,8 +2151,8 @@ pre2k_check() {
                 run_command "${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${servers_hostname_list} -outputfile ${pre2k_outputfile}" | tee "${output_dir}/BruteForce/pre2k_output_${dc_domain}.txt"
             fi
         else
-            #if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps -binding"; else ldaps_param=""; fi
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
+            if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="-binding"; else ldapbinding_param=""; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps ${ldapbinding_param}"; else ldaps_param=""; fi
             run_command "${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip} -outputfile ${pre2k_outputfile} ${ldaps_param}" | tee "${output_dir}/BruteForce/pre2k_output_${dc_domain}.txt"
         fi
     fi
@@ -3875,10 +3885,10 @@ pkinit_auth() {
 }
 
 get_domain_sid() {
-    sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 7)
+    sid_domain=$(grep -o "Domain SID.*" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | cut -d " " -f 3)
     if [[ ${sid_domain} == "" ]]; then
         run_command "${netexec} ldap ${target} ${argument_ne} --get-sid | tee ${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" >/dev/null
-        sid_domain=$(grep -a "Domain SID" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" | head -n 1 | sed 's/[ ][ ]*/ /g' | cut -d " " -f 7)
+        sid_domain=$(grep -o "Domain SID.*" "${output_dir}/DomainRecon/ne_sid_output_${dc_domain}.txt" | head -n 1 | cut -d " " -f 3)
     fi
     echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
 }

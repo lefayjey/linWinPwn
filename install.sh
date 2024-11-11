@@ -47,13 +47,16 @@ install_tools() {
     echo -e "${BLUE}Installing python tools using pip and pipx...${NC}"
     pipx ensurepath
     #pipx install git+https://github.com/deadjakk/ldapdomaindump --force #LDAP Channel Binding
+    #/home/$(whoami)/.local/share/pipx/venvs/ldapdomaindump/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
     pipx install git+https://github.com/Pennyw0rth/NetExec.git --force
     pipx install git+https://github.com/fortra/impacket.git --force
     pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
+    #/home$(whoami)/.local/share/pipx/venvs/certipy-ad/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     #pipx install git+https://github.com/deadjakk/BloodHound.py --force #LDAP Channel Binding
+    #/home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx install git+https://github.com/dirkjanm/Bloodhound.py --force
     pipx install "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force --suffix '_ce'
     pipx install git+https://github.com/franc-pentest/ldeep.git --force
