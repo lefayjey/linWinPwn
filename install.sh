@@ -14,7 +14,7 @@ scripts_dir="/opt/lwp-scripts"
 # Detect Linux Distribution
 if command -v apt-get >/dev/null; then
     PKG_MANAGER="apt-get"
-    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl"
+    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl rlwrap"
 elif command -v pacman >/dev/null; then
     PKG_MANAGER="pacman"
     PACKAGES="python python-pip python-virtualenv nmap smbmap john libsasl openldap krb5 ntp wget zip unzip systemd python-pipx swig curl jq openssl"
@@ -74,6 +74,7 @@ install_tools() {
     pipx install git+https://github.com/ajm4n/adPEAS --force
     pipx install git+https://github.com/oppsec/breads.git --force
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force
+    pipx install 'git+https://github.com/ScorpionesLabs/MSSqlPwner.git' --force
 
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
@@ -113,6 +114,7 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/lgandx/Responder/master/tools/RunFingerPackets.py" -O "$scripts_dir/Responder/RunFingerPackets.py"
     wget -q "https://github.com/lkarlslund/ldapnomnom/releases/latest/download/ldapnomnom-linux-x64" -O "$scripts_dir/ldapnomnom"
     wget -q "https://github.com/Macmod/godap/releases/download/v2.8.0/godap-v2.8.0-linux-amd64.tar.gz" -O "$scripts_dir/godap-v2.8.0-linux-amd64.tar.gz"
+    wget -q "https://raw.githubusercontent.com/Tw1sm/aesKrbKeyGen/refs/heads/master/aesKrbKeyGen.py" -O "$scripts_dir/aesKrbKeyGen.py"
 
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
@@ -145,6 +147,7 @@ install_tools() {
     chmod +x "$scripts_dir/Responder/RunFingerPackets.py"
     chmod +x "$scripts_dir/ldapnomnom"
     chmod +x "$scripts_dir/godap"
+    chmod +x "$scripts_dir/aesKrbKeyGen.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }

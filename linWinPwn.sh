@@ -127,6 +127,8 @@ smbclientng=$(which smbclientng)
 evilwinrm=$(which evil-winrm)
 ldapnomnom="$scripts_dir/ldapnomnom"
 godap="$scripts_dir/godap"
+mssqlpwner=$(which mssqlpwner)
+aesKrbKeyGen="$scripts_dir/aesKrbKeyGen.py"
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
@@ -140,7 +142,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.25 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.26 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -303,9 +305,13 @@ ntp_update() {
 etc_hosts_update() {
     echo -e ""
     if ! grep -q "${dc_ip}" "/etc/hosts" >/dev/null 2>&1; then
+        hosts_bak="/etc/hosts.$(date +%Y%m%d%H%M%S).backup"
+        sudo cp /etc/hosts "${hosts_bak}"
+        echo -e "${YELLOW}[i] Backup file of /etc/hosts created: ${hosts_bak}${NC}"
+        sudo sed -i "/${dc_FQDN}/d" /etc/hosts
         echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
         echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
-        echo -e "${GREEN}[+] /etc/hosts update complete${NC}"
+        echo -e "${GREEN}[+] Hosts file update complete${NC}"
     else
         echo -e "${PURPLE}[-] Target IP already present in /etc/hosts... ${NC}"
     fi
@@ -314,15 +320,11 @@ etc_hosts_update() {
 etc_resolv_update() {
     echo -e ""
     if ! grep -q "${dc_ip}" "/etc/resolv.conf" >/dev/null 2>&1; then
-        date "+%Y-%m-%d\ %H:%M:%S" | tee -a "${output_dir}/resolv.conf.backup"
-        echo -e "Content of /etc/resolv.conf before update:" | tee -a "${output_dir}/resolv.conf.backup"
-        echo -e "------------------------------------------" | tee -a "${output_dir}/resolv.conf.backup"
-        tee -a "${output_dir}/resolv.conf.backup" </etc/resolv.conf
-        echo -e "" | tee -a "${output_dir}/resolv.conf.backup"
-        echo -e "Content of /etc/resolv.conf after update:"
-        echo -e "-----------------------------------------"
-        sudo sed -i "1s/^/nameserver ${dc_ip}\n/" /etc/resolv.conf
-        echo -e "${GREEN}[+] DNS update complete${NC}"
+        resolv_bak="/etc/resolv.conf.$(date +%Y%m%d%H%M%S).backup"
+        sudo cp /etc/resolv.conf "${resolv_bak}"
+        echo -e "${YELLOW}[i] Backup file of /etc/resolv.conf created: ${resolv_bak}${NC}"
+        sed "1s/^/\# \/etc\/resolv.conf entry added by linWinPwn\nnameserver ${dc_ip}\n/" /etc/resolv.conf | sudo tee /etc/resolv.conf
+        echo -e "${GREEN}[+] DNS resolv config update complete${NC}"
     else
         echo -e "${PURPLE}[-] Target IP already present in /etc/resolv.conf... ${NC}"
     fi
@@ -330,37 +332,38 @@ etc_resolv_update() {
 
 etc_krb5conf_update() {
     echo -e ""
-    date "+%Y-%m-%d\ %H:%M:%S" | tee -a "${output_dir}/krb5.conf.backup"
-    echo -e "Content of /etc/krb5.conf before update:" | tee -a "${output_dir}/krb5.conf.backup"
-    echo -e "----------------------------------------" | tee -a "${output_dir}/krb5.conf.backup"
-    tee -a "${output_dir}/krb5.conf.backup" </etc/krb5.conf
-    echo -e "" | tee -a "${output_dir}/krb5.conf.backup"
-    echo -e "Content of /etc/krb5.conf after update:"
-    echo -e "---------------------------------------"
-    echo -e "[libdefaults]" | sudo tee /etc/krb5.conf
-    echo -e "        default_realm = ${domain^^}" | sudo tee -a /etc/krb5.conf
-    echo -e "" | sudo tee -a /etc/krb5.conf
-    echo -e "# The following krb5.conf variables are only for MIT Kerberos." | sudo tee -a /etc/krb5.conf
-    echo -e "        kdc_timesync = 1" | sudo tee -a /etc/krb5.conf
-    echo -e "        ccache_type = 4" | sudo tee -a /etc/krb5.conf
-    echo -e "        forwardable = true" | sudo tee -a /etc/krb5.conf
-    echo -e "        proxiable = true" | sudo tee -a /etc/krb5.conf
-    echo -e "        rdns = false" | sudo tee -a /etc/krb5.conf
-    echo -e "" | sudo tee -a /etc/krb5.conf
-    echo -e "        fcc-mit-ticketflags = true" | sudo tee -a /etc/krb5.conf
-    echo -e "        dns_canonicalize_hostname = false" | sudo tee -a /etc/krb5.conf
-    echo -e "        dns_lookup_realm = false" | sudo tee -a /etc/krb5.conf
-    echo -e "        dns_lookup_kdc = true" | sudo tee -a /etc/krb5.conf
-    echo -e "        k5login_authoritative = false" | sudo tee -a /etc/krb5.conf
-    echo -e "" | sudo tee -a /etc/krb5.conf
-    echo -e "[realms]" | sudo tee -a /etc/krb5.conf
-    echo -e "        ${domain^^} = {" | sudo tee -a /etc/krb5.conf
-    echo -e "                kdc = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
-    echo -e "        }" | sudo tee -a /etc/krb5.conf
-    echo -e "" | sudo tee -a /etc/krb5.conf
-    echo -e "[domain_realm]" | sudo tee -a /etc/krb5.conf
-    echo -e "        .${domain,,} = ${domain^^}" | sudo tee -a /etc/krb5.conf
-    echo -e "${GREEN}[+] KRB5 config update complete${NC}"
+    if ! grep -q "${dc_domain}" "/etc/krb5.conf" >/dev/null 2>&1; then
+        krb5_bak="/etc/krb5.conf.$(date +%Y%m%d%H%M%S)".backup
+        sudo cp /etc/krb5.conf "${krb5_bak}"
+        echo -e "${YELLOW}[i] Backup file of /etc/krb5.conf created: ${krb5_bak}${NC}"
+        echo -e "# /etc/krb5.conf file modified added by linWinPwn" | sudo tee /etc/krb5.conf
+        echo -e "[libdefaults]" | sudo tee -a /etc/krb5.conf
+        echo -e "        default_realm = ${domain^^}" | sudo tee -a /etc/krb5.conf
+        echo -e "" | sudo tee -a /etc/krb5.conf
+        echo -e "# The following krb5.conf variables are only for MIT Kerberos." | sudo tee -a /etc/krb5.conf
+        echo -e "        kdc_timesync = 1" | sudo tee -a /etc/krb5.conf
+        echo -e "        ccache_type = 4" | sudo tee -a /etc/krb5.conf
+        echo -e "        forwardable = true" | sudo tee -a /etc/krb5.conf
+        echo -e "        proxiable = true" | sudo tee -a /etc/krb5.conf
+        echo -e "        rdns = false" | sudo tee -a /etc/krb5.conf
+        echo -e "" | sudo tee -a /etc/krb5.conf
+        echo -e "        fcc-mit-ticketflags = true" | sudo tee -a /etc/krb5.conf
+        echo -e "        dns_canonicalize_hostname = false" | sudo tee -a /etc/krb5.conf
+        echo -e "        dns_lookup_realm = false" | sudo tee -a /etc/krb5.conf
+        echo -e "        dns_lookup_kdc = true" | sudo tee -a /etc/krb5.conf
+        echo -e "        k5login_authoritative = false" | sudo tee -a /etc/krb5.conf
+        echo -e "" | sudo tee -a /etc/krb5.conf
+        echo -e "[realms]" | sudo tee -a /etc/krb5.conf
+        echo -e "        ${domain^^} = {" | sudo tee -a /etc/krb5.conf
+        echo -e "                kdc = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
+        echo -e "        }" | sudo tee -a /etc/krb5.conf
+        echo -e "" | sudo tee -a /etc/krb5.conf
+        echo -e "[domain_realm]" | sudo tee -a /etc/krb5.conf
+        echo -e "        .${domain,,} = ${domain^^}" | sudo tee -a /etc/krb5.conf
+        echo -e "${GREEN}[+] KRB5 config update complete${NC}"
+    else
+        echo -e "${PURPLE}[-] Domain already present in /etc/krb5.conf... ${NC}"
+    fi
 }
 
 prepare() {
@@ -582,6 +585,7 @@ authenticate() {
         argument_adcheck="-d ${domain} -u ${user} -p '${password}'"
         argument_evilwinrm="-u ${user} -p '${password}'"
         argument_godap="-u ${user}@${domain} -p '${password}'"
+        argument_mssqlpwner="${domain}/${user}:'${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -649,6 +653,7 @@ authenticate() {
                 argument_adcheck="-d ${domain} -u ${user} -H ${hash}"
                 argument_evilwinrm="-u ${user} -H ${hash:33}"
                 argument_godap="-u ${user} -d ${domain} -H ${hash}"
+                argument_mssqlpwner="-hashes ${hash} ${domain}/${user}"
                 auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
             else
                 echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
@@ -697,6 +702,7 @@ authenticate() {
             argument_GPOwned="-d ${domain} -u ${user} -k -no-pass"
             argument_evilwinrm="-r ${domain} -u ${user}"
             argument_godap="-d ${domain} -k -t ldap/${target}"
+            argument_mssqlpwner=" -k -no-pass ${domain}/${user}"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -725,6 +731,7 @@ authenticate() {
         argument_sccm="-d ${domain} -u ${user} -aes ${aeskey}"
         argument_mssqlrelay="-u ${user}\\@${domain} -aes ${aeskey} -k"
         argument_GPOwned="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
+        argument_mssqlpwner="${domain}/${user} -aesKey ${aeskey} -k"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -842,6 +849,7 @@ authenticate() {
         argument_pygpoabuse="${argument_pygpoabuse} -vv"
         argument_privexchange="${argument_privexchange} --debug"
         argument_adcheck="${argument_adcheck} --debug"
+        argument_mssqlpwner="-debug ${argument_mssqlpwner}"
     fi
 
     echo -e "${auth_string}"
@@ -2815,6 +2823,27 @@ mssqlclient_console() {
         done
         echo -e "${BLUE}[*] Opening mssqlclient.py console on target: $mssqlclient_target ${NC}"
         run_command "${impacket_mssqlclient} ${argument_imp}\\@${mssqlclient_target} -windows-auth" 2>&1 | tee -a "${output_dir}/DomainRecon/impacket_mssqlclient_output.txt"
+    fi
+    echo -e ""
+}
+
+mssqlpwner_console() {
+    if [ ! -f "${mssqlpwner}" ]; then
+        echo -e "${RED}[-] Please verify the location of mssqlpwner${NC}"
+    else
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] mssqlpwner requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+            echo -e "${CYAN}[*] Example: 10.1.0.5 or SQL01 or SQL01.domain.com ${NC}"
+            read -rp ">> " mssqlpwner_target </dev/tty
+            while [ "${mssqlpwner_target}" == "" ]; do
+                echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+                read -rp ">> " mssqlpwner_target </dev/tty
+            done
+            echo -e "${BLUE}[*] Opening mssqlpwner console${NC}"
+            run_command "${mssqlpwner} ${argument_mssqlpwner}@${mssqlpwner_target} -dc-ip ${dc_ip} -windows-auth interactive" | tee -a "${output_dir}/DomainRecon/mssqlpwner_output_${dc_domain}.txt" 2>&1
+        fi
     fi
     echo -e ""
 }
@@ -4968,6 +4997,7 @@ mssql_menu() {
         echo -e "1) MSSQL Enumeration using netexec"
         echo -e "2) MSSQL Relay check"
         echo -e "3) Open mssqlclient.py console on target"
+        echo -e "4) Open mssqlpwner in interactive mode"
     fi
     echo -e "back) Go back"
     echo -e "exit) Exit"
@@ -4992,6 +5022,11 @@ mssql_menu() {
 
     3)
         mssqlclient_console
+        mssql_menu
+        ;;
+
+    4)
+        mssqlpwner_console
         mssql_menu
         ;;
 
@@ -5374,6 +5409,7 @@ auth_menu() {
     echo -e "3) Generate TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
     echo -e "4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
     echo -e "5) Request certificate (requires: authentication)"
+    echo -e "6) Generate AES Key using aesKrbKeyGen (requires: password)"
     echo -e "back) Go back to Init Menu"
     echo -e "exit) Exit"
 
@@ -5391,7 +5427,7 @@ auth_menu() {
     1)
         if [ "${pass_bool}" == true ]; then
             hash_gen="$(iconv -f ASCII -t UTF-16LE <(printf "%s" "$password") | $(which openssl) dgst -md4 | cut -d " " -f 2)"
-            echo -e "${GREEN}[+] NTLM hash generated:${NC} $hash_gen"
+            echo -e "${GREEN}[+] NTLM hash generated:${NC} ${hash_gen}"
             echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -H ${hash_gen}"
         else
             echo -e "${RED}[-] Error! Requires password...${NC}"
@@ -5504,6 +5540,21 @@ auth_menu() {
         auth_menu
         ;;
 
+    6) 
+        if [[ ! -f "${aesKrbKeyGen}" ]]; then
+            echo -e "${RED}[-] Please verify the installation of aesKrbKeyGen.py${NC}"
+        else
+            if [ "${pass_bool}" == true ]; then
+                aes_gen=$("${python3}" "${aesKrbKeyGen}" -domain "${domain}" -u "${user}" -pass "${password}")
+                echo -e "${GREEN}[+] AES Keys generated:${NC} ${aes_gen}"
+                aes_key=$(echo -e "${aes_gen}" | grep "AES256" | cut -d " " -f 4)
+                echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -A ${aes_key}"
+            else
+                echo -e "${RED}[-] Error! Requires password...${NC}"
+            fi
+        fi
+        auth_menu
+        ;;
     back)
         init_menu
         ;;
@@ -5619,6 +5670,7 @@ config_menu() {
         if [ ! -x "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not executable${NC}"; else echo -e "${GREEN}[+] ldapnomnom is executable${NC}"; fi
         if [ ! -f "${godap}" ]; then echo -e "${RED}[-] godap is not installed${NC}"; else echo -e "${GREEN}[+] godap is installed${NC}"; fi
         if [ ! -x "${godap}" ]; then echo -e "${RED}[-] godap is not executable${NC}"; else echo -e "${GREEN}[+] godap is executable${NC}"; fi
+        if [ ! -f "${mssqlpwner }" ]; then echo -e "${RED}[-] mssqlpwner  is not installed${NC}"; else echo -e "${GREEN}[+] mssqlpwner  is installed${NC}"; fi
         config_menu
         ;;
 

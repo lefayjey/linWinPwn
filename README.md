@@ -35,6 +35,9 @@ The linWinPwn script can be executed in interactive mode (default), or in automa
 ./linWinPwn.sh -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
 ```
 
+**Tip:** Run linWinPwn using rlwrap for a better wrapping of commands
+`rlwrap -n ./linWinPwn.sh`
+
 **2. Automated Mode** - Using the `--auto` parameter, run enumeration tools (no exploitation, modifications or password dumping)
 
 When using the automated mode, different checks are performed based on the authentication method.
@@ -184,6 +187,7 @@ proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user
 | `hekatomb`              | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `ExtractBitlockerKeys`  | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `evilwinrm`             | ❌           | ✅       | ✅        | ✅             | ✅         | ✅         |
+| `mssqlpwner`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 
 #### LDAP Channel Binding support
 ldap3: ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep
@@ -320,6 +324,7 @@ MSSQL Enumeration menu
 1) MSSQL Enumeration using netexec
 2) MSSQL Relay check
 3) Open mssqlclient.py console on target
+4) Open mssqlpwner in interactive mode
 ```
 
 Password Dump menu
@@ -378,6 +383,7 @@ Auth menu
 3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash
 4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)
 5) Request and use certificate (requires: authentication)
+6) Generate AES Key using aesKrbKeyGen (requires: password)
 ```
 
 Config menu
@@ -446,6 +452,7 @@ Automated Mode:
     - [ADcheck](https://github.com/CobblePot59) - ADcheck
     - [ldapnomnom](https://github.com/lkarlslund) - ldapnomnom
     - [godap](https://github.com/Macmod) - godap
+    - [MSSqlPwner](https://github.com/ScorpionesLabs/) - MSSqlPwner
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
