@@ -449,10 +449,10 @@ Automated Mode:
     - [lgandx](https://github.com/lgandx) - Responder
     - [ajm4n](https://github.com/ajm4n) - adPEAS
     - [oppsec](https://github.com/oppsec) - breads
-    - [ADcheck](https://github.com/CobblePot59) - ADcheck
-    - [ldapnomnom](https://github.com/lkarlslund) - ldapnomnom
-    - [godap](https://github.com/Macmod) - godap
-    - [MSSqlPwner](https://github.com/ScorpionesLabs/) - MSSqlPwner
+    - [CobblePot59](https://github.com/CobblePot59) - ADcheck
+    - [lkarlslund](https://github.com/lkarlslund) - ldapnomnom
+    - [Macmod](https://github.com/Macmod) - godap
+    - [ScorpionesLabs](https://github.com/ScorpionesLabs) - MSSqlPwner
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/

