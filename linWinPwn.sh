@@ -416,11 +416,6 @@ prepare() {
         if [ -z "$domain" ]; then domain=$dc_domain; fi
     fi
 
-    mkdir -p "${output_dir}/Credentials"
-    mkdir -p "${output_dir}/DomainRecon/Servers"
-    mkdir -p "${output_dir}/DomainRecon/Users"
-    mkdir -p "${output_dir}/Scans"
-
     dc_open_ports=$(${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open -oG "${output_dir}/Scans/${dc_ip}"_mainports)
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
@@ -453,6 +448,10 @@ prepare() {
     target_dc=${dc_ip_list}
     target_sql=${sql_ip_list}
 
+    mkdir -p "${output_dir}/Credentials"
+    mkdir -p "${output_dir}/DomainRecon/Servers"
+    mkdir -p "${output_dir}/DomainRecon/Users"
+    mkdir -p "${output_dir}/Scans"
 
     if [ ! -f "${servers_ip_list}" ]; then /bin/touch "${servers_ip_list}"; fi
     if [ ! -f "${servers_hostname_list}" ]; then /bin/touch "${servers_hostname_list}"; fi
@@ -1187,6 +1186,10 @@ deleg_enum() {
             echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
         fi
     fi
+    echo -e "${BLUE}[*] findDelegation check (netexec)${NC}"
+    if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
+    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} ${ldaps_param} --find-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_find-delegation_output_${dc_domain}.txt" 2>&1
+    echo -e ""
     echo -e "${BLUE}[*] Trusted-for-delegation check (netexec)${NC}"
     if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
     run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} ${ldaps_param} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
