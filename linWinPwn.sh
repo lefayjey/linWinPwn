@@ -5874,6 +5874,7 @@ main() {
     if [ "${interactive_bool}" == true ]; then
         init_menu
     else
+        dns_enum
         echo -e "${GREEN}[+] Start: Active Directory Enumeration${NC}"
         echo -e "${GREEN}---------------------------------------${NC}"
         echo -e ""
