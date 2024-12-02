@@ -267,6 +267,7 @@ BruteForce menu
 7) User Enumeration using ldapnomnom (Null session)
 8) Password spraying using kerbrute (Noisy!)
 9) Password spraying using netexec - ldap (Noisy!)
+10) Timeroast attack against NTP
 ```
 
 Kerberos Attacks menu
