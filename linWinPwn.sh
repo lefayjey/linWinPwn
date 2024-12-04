@@ -305,7 +305,7 @@ ntp_update() {
 etc_hosts_update() {
     echo -e ""
     if ! grep -q "${dc_ip}" "/etc/hosts" >/dev/null 2>&1; then
-        hosts_bak="/etc/hosts.$(date +%Y%m%d%H%M%S).backup"
+        hosts_bak="${output_dir}/Config/hosts.$(date +%Y%m%d%H%M%S).backup"
         sudo cp /etc/hosts "${hosts_bak}"
         echo -e "${YELLOW}[i] Backup file of /etc/hosts created: ${hosts_bak}${NC}"
         sudo sed -i "/${dc_FQDN}/d" /etc/hosts
@@ -320,7 +320,7 @@ etc_hosts_update() {
 etc_resolv_update() {
     echo -e ""
     if ! grep -q "${dc_ip}" "/etc/resolv.conf" >/dev/null 2>&1; then
-        resolv_bak="/etc/resolv.conf.$(date +%Y%m%d%H%M%S).backup"
+        resolv_bak="${output_dir}/Config/resolv.conf.$(date +%Y%m%d%H%M%S).backup"
         sudo cp /etc/resolv.conf "${resolv_bak}"
         echo -e "${YELLOW}[i] Backup file of /etc/resolv.conf created: ${resolv_bak}${NC}"
         sed "1s/^/\# \/etc\/resolv.conf entry added by linWinPwn\nnameserver ${dc_ip}\n/" /etc/resolv.conf | sudo tee /etc/resolv.conf
@@ -333,7 +333,7 @@ etc_resolv_update() {
 etc_krb5conf_update() {
     echo -e ""
     if ! grep -q "${dc_domain}" "/etc/krb5.conf" >/dev/null 2>&1; then
-        krb5_bak="/etc/krb5.conf.$(date +%Y%m%d%H%M%S)".backup
+        krb5_bak="${output_dir}/Config/krb5.conf.$(date +%Y%m%d%H%M%S)".backup
         sudo cp /etc/krb5.conf "${krb5_bak}"
         echo -e "${YELLOW}[i] Backup file of /etc/krb5.conf created: ${krb5_bak}${NC}"
         echo -e "# /etc/krb5.conf file modified by linWinPwn" | sudo tee /etc/krb5.conf
@@ -447,6 +447,7 @@ prepare() {
 
     if [ "${autoconfig_bool}" == true ]; then
         echo -e "${BLUE}[*] Running auto-config... ${NC}"
+        mkdir -p "${output_dir}/Config"
         ntp_update
         etc_hosts_update
         etc_resolv_update
@@ -4473,7 +4474,7 @@ kerberos_menu() {
                 echo -e "${RED}[-] Requesting ticket using getST requires credentials${NC}"
             else
                 tick_spn="CIFS/${dc_FQDN}"
-                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_FQDN}):"
+                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_FQDN}):${NC}"
                 read -rp ">> " tick_spn_value </dev/tty
                 if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
                 echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
@@ -4509,7 +4510,7 @@ kerberos_menu() {
             done
             gethash_user="krbtgt"
             gethash_hash=""
-            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
+            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):${NC}"
             read -rp ">> " gethash_hash </dev/tty
             if [[ ${gethash_hash} == "" ]]; then
                 get_hash
@@ -4525,13 +4526,13 @@ kerberos_menu() {
                 tick_randuser="Administrator"
                 tick_user_id=""
                 tick_groups=""
-                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):"
+                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):${NC}"
                 read -rp ">> " tick_randuser_value </dev/tty
                 if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "${BLUE}[*] Please specify custom user id (press Enter to skip):"
+                echo -e "${BLUE}[*] Please specify custom user id (press Enter to skip):${NC}"
                 read -rp ">> " tick_user_id_value </dev/tty
                 if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="-user-id ${tick_user_id_value}"; fi
-                echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to skip):"
+                echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to skip):${NC}"
                 echo -e "${CYAN}[*] Example: 512,513,518,519,520 ${NC}"
                 read -rp ">> " tick_group_ids_value </dev/tty
                 if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="-groups ${tick_group_ids_value}"; fi
@@ -4571,21 +4572,21 @@ kerberos_menu() {
             tick_groups=""
             tick_servuser=""
 
-            echo -e "${BLUE}[*] Please specify name of SPN account (Example: 'sql_svc'):"
+            echo -e "${BLUE}[*] Please specify name of SPN account (Example: 'sql_svc'):${NC}"
             read -rp ">> " tick_servuser </dev/tty
             while [[ "${tick_servuser}" == "" ]]; do
                 echo -e "${RED}Invalid username.${NC} Please specify another:"
                 read -rp ">> " tick_servuser </dev/tty
             done
 
-            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:${NC}"
             read -rp ">> " rc4_or_aes </dev/tty
             while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
                 echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
                 read -rp ">> " rc4_or_aes </dev/tty
             done
             gethash_hash=""
-            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
+            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):${NC}"
             read -rp ">> " gethash_hash </dev/tty
             if [[ ${gethash_hash} == "" ]]; then
                 gethash_user=$tick_servuser
@@ -4599,13 +4600,13 @@ kerberos_menu() {
             else
                 if [[ ${rc4_or_aes} == "RC4" ]]; then gethash_key="-nthash ${gethash_nt}"; else gethash_key="-aesKey ${gethash_aes}"; fi
 
-                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):"
+                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'Administrator'):${NC}"
                 read -rp ">> " tick_randuser_value </dev/tty
                 if [[ ! "${tick_randuser_value}" == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "${BLUE}[*] Please specify the chosen user's ID (press Enter to choose default value EMPTY):"
+                echo -e "${BLUE}[*] Please specify the chosen user's ID (press Enter to choose default value EMPTY):${NC}"
                 read -rp ">> " tick_randuserid_value </dev/tty
                 if [[ ! "${tick_randuserid_value}" == "" ]]; then tick_randuserid="-user-id ${tick_randuserid_value}"; fi
-                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):${NC}"
                 read -rp ">> " tick_spn_value </dev/tty
                 if [[ ! "${tick_spn_value}" == "" ]]; then tick_spn="${tick_spn_value}"; fi
                 get_domain_sid
@@ -4646,10 +4647,10 @@ kerberos_menu() {
                 tick_randuser="Administrator"
                 tick_spn="CIFS/${dc_domain}"
 
-                echo -e "${BLUE}[*] Please specify username of user to impersonate (press Enter to choose default value 'Administrator'):"
+                echo -e "${BLUE}[*] Please specify username of user to impersonate (press Enter to choose default value 'Administrator'):${NC}"
                 read -rp ">> " tick_randuser_value </dev/tty
                 if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):${NC}"
                 read -rp ">> " tick_spn_value </dev/tty
                 if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
                 echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
@@ -4676,15 +4677,15 @@ kerberos_menu() {
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
-            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:${NC}"
             read -rp ">> " rc4_or_aes </dev/tty
             while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
-                echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
+                echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':${NC}"
                 read -rp ">> " rc4_or_aes </dev/tty
             done
             gethash_user="krbtgt"
             gethash_hash=""
-            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
+            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):${NC}"
             read -rp ">> " gethash_hash </dev/tty
             if [[ ${gethash_hash} == "" ]]; then
                 get_hash
@@ -4699,13 +4700,13 @@ kerberos_menu() {
                 tick_randuser="sql_svc"
                 tick_user_id="1337"
                 tick_groups="512,513,518,519,520"
-                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):${NC}"
                 read -rp ">> " tick_randuser_value </dev/tty
                 if [[ ! "${tick_randuser_value}" == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):"
+                echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):${NC}"
                 read -rp ">> " tick_user_id_value </dev/tty
                 if [[ ! "${tick_user_id_value}" == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
-                echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):${NC}"
                 read -rp ">> " tick_group_ids_value </dev/tty
                 if [[ ! "${tick_group_ids_value}" == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
                 get_domain_sid
@@ -4733,7 +4734,7 @@ kerberos_menu() {
         if [ ! -f "${impacket_ticketer}" ]; then
             echo -e "${RED}[-] ticketer.py not found! Please verify the installation of impacket${NC}"
         else
-            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:"
+            echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:${NC}"
             read -rp ">> " rc4_or_aes </dev/tty
             while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
                 echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
@@ -4741,7 +4742,7 @@ kerberos_menu() {
             done
             gethash_user="krbtgt"
             gethash_hash=""
-            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):"
+            echo -e "${BLUE}[*] Please specify the RC4 (NTLM) or AES key of krbtgt (press Enter to extract from NTDS - requires DCSync rights):${NC}"
             read -rp ">> " gethash_hash </dev/tty
             if [[ ${gethash_hash} == "" ]]; then
                 get_hash
@@ -4757,16 +4758,16 @@ kerberos_menu() {
                 tick_user_id="1337"
                 tick_groups="512,513,518,519,520"
                 tick_domain_admin="${user}"
-                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):"
+                echo -e "${BLUE}[*] Please specify random user name (press Enter to choose default value 'sql_svc'):${NC}"
                 read -rp ">> " tick_randuser_value </dev/tty
                 if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):"
+                echo -e "${BLUE}[*] Please specify custom user id (press Enter to choose default value '1337'):${NC}"
                 read -rp ">> " tick_user_id_value </dev/tty
                 if [[ ! ${tick_user_id_value} == "" ]]; then tick_user_id="${tick_user_id_value}"; fi
-                echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):"
+                echo -e "${BLUE}[*] Please specify comma separated custom groups ids (press Enter to choose default value '512,513,518,519,520'):${NC}"
                 read -rp ">> " tick_group_ids_value </dev/tty
                 if [[ ! ${tick_group_ids_value} == "" ]]; then tick_groups="${tick_group_ids_value}"; fi
-                echo -e "${BLUE}[*] Please specify domain admin to impersonate (press Enter to choose default value current user):"
+                echo -e "${BLUE}[*] Please specify domain admin to impersonate (press Enter to choose default value current user):${NC}"
                 read -rp ">> " tick_domain_admin_value </dev/tty
                 if [[ ! ${tick_domain_admin_value} == "" ]]; then tick_domain_admin="${tick_domain_admin_value}"; fi
                 get_domain_sid
@@ -4805,10 +4806,10 @@ kerberos_menu() {
                 tick_randuser="Administrator"
                 tick_spn="CIFS/${dc_domain}"
 
-                echo -e "${BLUE}[*] Please specify username of user to impersonate (press Enter to choose default value 'Administrator'):"
+                echo -e "${BLUE}[*] Please specify username of user to impersonate (press Enter to choose default value 'Administrator'):${NC}"
                 read -rp ">> " tick_randuser_value </dev/tty
                 if [[ ! ${tick_randuser_value} == "" ]]; then tick_randuser="${tick_randuser_value}"; fi
-                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):"
+                echo -e "${BLUE}[*] Please specify spn (press Enter to choose default value CIFS/${dc_domain}):${NC}"
                 read -rp ">> " tick_spn_value </dev/tty
                 if [[ ! ${tick_spn_value} == "" ]]; then tick_spn="${tick_spn_value}"; fi
                 echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
@@ -5578,7 +5579,7 @@ auth_menu() {
                     read -rp ">> " pfxcert </dev/tty
                 done
                 if [[ ${pfxpass} == "" ]]; then
-                    echo -e "${BLUE}[*] Please specify password of certificate file (press Enter if no password):"
+                    echo -e "${BLUE}[*] Please specify password of certificate file (press Enter if no password):${NC}"
                     read -rp ">> " pfxpass </dev/tty
                 fi
             fi
@@ -5659,6 +5660,7 @@ auth_menu() {
 }
 
 config_menu() {
+    mkdir -p "${output_dir}/Config"
     echo -e ""
     echo -e "${YELLOW}[Config menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------"
@@ -5799,14 +5801,14 @@ config_menu() {
         ;;
 
     7)
-        echo -e "${BLUE}[*] Please specify new users wordlist file:"
+        echo -e "${BLUE}[*] Please specify new users wordlist file:${NC}"
         read -rp ">> " user_wordlist </dev/tty
         echo -e "${GREEN}[+] Users wordlist file updated${NC}"
         config_menu
         ;;
 
     8)
-        echo -e "${BLUE}[*] Please specify new passwords wordlist file:"
+        echo -e "${BLUE}[*] Please specify new passwords wordlist file:${NC}"
         read -rp ">> " pass_wordlist </dev/tty
         echo -e "${GREEN}[+] Passwords wordlist file updated${NC}"
         config_menu

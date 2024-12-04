@@ -76,7 +76,7 @@ When using the automated mode, different checks are performed based on the authe
     - Check mssql privilege escalation paths
     - Check mssql relay possibilities
 ```bash
-proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] --auto
+proxychains -q ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] --auto
 ```
 
 ### Parameters
@@ -139,7 +139,7 @@ ssh.exe kali@<linux_machine> -R 1080 -NCqf
 ```
 On the Linux machine, first update `/etc/proxychains4.conf` to include `socks5 127.0.0.1 1080`, then run:
 ```bash
-proxychains ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] [--auto]
+proxychains -q ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] [--auto]
 ```
 
 ### Current supported authentications
