@@ -318,6 +318,7 @@ Vuln Checks menu
 12) Coercer RPC scan
 13) PushSubscription abuse using PrivExchange
 14) RunFinger scan
+15) Run LDAPNightmare check
 ```
 
 MSSQL Enumeration menu
@@ -456,6 +457,7 @@ Automated Mode:
     - [lkarlslund](https://github.com/lkarlslund) - ldapnomnom
     - [Macmod](https://github.com/Macmod) - godap
     - [ScorpionesLabs](https://github.com/ScorpionesLabs) - MSSqlPwner
+    - [barcrange](https://github.com/barcrange) - CVE-2024-49113-Checker
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/

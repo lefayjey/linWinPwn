@@ -116,6 +116,7 @@ install_tools() {
     wget -q "https://github.com/lkarlslund/ldapnomnom/releases/latest/download/ldapnomnom-linux-x64" -O "$scripts_dir/ldapnomnom"
     wget -q "https://github.com/Macmod/godap/releases/download/v2.8.0/godap-v2.8.0-linux-amd64.tar.gz" -O "$scripts_dir/godap-v2.8.0-linux-amd64.tar.gz"
     wget -q "https://raw.githubusercontent.com/Tw1sm/aesKrbKeyGen/refs/heads/master/aesKrbKeyGen.py" -O "$scripts_dir/aesKrbKeyGen.py"
+    wget -q "https://github.com/barcrange/CVE-2024-49113-Checker/blob/main/CVE-2024-49113-checker.py" -O "$scripts_dir/CVE-2024-49113-checker.py"
 
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
@@ -149,6 +150,7 @@ install_tools() {
     chmod +x "$scripts_dir/ldapnomnom"
     chmod +x "$scripts_dir/godap"
     chmod +x "$scripts_dir/aesKrbKeyGen.py"
+    chmod +x "$scripts_dir/CVE-2024-49113-checker.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }

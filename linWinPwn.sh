@@ -120,6 +120,7 @@ pygpoabuse="$scripts_dir/pyGPOAbuse-master/pygpoabuse.py"
 GPOwned="$scripts_dir/GPOwned.py"
 privexchange="$scripts_dir/privexchange.py"
 RunFinger="$scripts_dir/Responder/RunFinger.py"
+LDAPNightmare="$scripts_dir/CVE-2024-49113-checker.py"
 ADCheck=$(which adcheck)
 adPEAS=$(which adPEAS)
 breads=$(which breads-ad)
@@ -142,7 +143,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.29 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.30 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -2009,7 +2010,6 @@ kerbrute_enum() {
 }
 
 userpass_ne_check() {
-    parse_users
     target_userslist="${users_list}"
     if [ ! -s "${users_list}" ]; then
         userslist_ans="N"
@@ -2036,7 +2036,6 @@ userpass_kerbrute_check() {
     if [ ! -f "${kerbrute}" ]; then
         echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
     else
-        parse_users
         target_userslist="${users_list}"
         user_pass_wordlist="${output_dir}/BruteForce/kerbrute_userpass_wordlist_${dc_domain}.txt"
         echo -e "${BLUE}[*] kerbrute User=Pass Check (Noisy!)${NC}"
@@ -2067,7 +2066,6 @@ userpass_kerbrute_check() {
 }
 
 ne_passpray() {
-    parse_users
     target_userslist="${users_list}"
     if [ ! -s "${users_list}" ]; then
         userslist_ans="N"
@@ -2100,7 +2098,6 @@ kerbrute_passpray() {
     if [ ! -f "${kerbrute}" ]; then
         echo -e "${RED}[-] Please verify the location of kerbrute${NC}"
     else
-        parse_users
         target_userslist="${users_list}"
         if [ ! -s "${users_list}" ]; then
             userslist_ans="N"
@@ -2190,7 +2187,6 @@ asrep_attack() {
     if [ ! -f "${impacket_GetNPUsers}" ]; then
         echo -e "${RED}[-] GetNPUsers.py not found! Please verify the installation of impacket${NC}"
     else
-        parse_users
         echo -e "${BLUE}[*] AS REP Roasting Attack${NC}"
         if [[ "${dc_domain,,}" != "${domain,,}" ]] || [ "${nullsess_bool}" == true ]; then
             if [ -s "${users_list}" ]; then
@@ -2250,7 +2246,6 @@ kerberoast_attack() {
         echo -e "${RED}[-] GetUserSPNs.py not found! Please verify the installation of impacket${NC}"
     else
         if [[ "${dc_domain,,}" != "${domain,,}" ]] || [ "${nullsess_bool}" == true ]; then
-            parse_users
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
             asrep_user=$(cut -d "@" -f 1 "${output_dir}/Kerberos/asreproast_hashes_${dc_domain}.txt" | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
@@ -2766,6 +2761,16 @@ runfinger_check() {
         cd "${output_dir}/Vulnerabilities" || exit
         run_command "${python3} ${RunFinger} -f ${servers_smb_list}" | tee -a "${output_dir}/Vulnerabilities/RunFinger_${dc_domain}.txt"
         cd "${current_dir}" || exit
+    fi
+    echo -e ""
+}
+
+ldapnightmare_check() {
+    if [ ! -f "${LDAPNightmare}" ]; then
+        echo -e "${RED}[-] LDAPNightmare (CVE-2024-49113-checker) not found! Please verify the installation of LDAPNightmare${NC}"
+    else
+        echo -e "${BLUE}[*] Running LDAPNightmare check against domain${NC}"
+        run_command "${python3} ${LDAPNightmare} ${target_dc}" | tee -a "${output_dir}/Vulnerabilities/LDAPNightmare_${dc_domain}.txt"
     fi
     echo -e ""
 }
@@ -3827,6 +3832,7 @@ vuln_checks() {
     ntlmv1_check
     runasppl_check
     rpcdump_check
+    ldapnightmare_check
 }
 
 mssql_checks() {
@@ -4939,7 +4945,7 @@ vulns_menu() {
     echo -e "${CYAN}[Vuln Checks menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
-    echo -e "A) VULNERABILITY CHECKS #1-2-3-4-5-6-7-8-9-10-11-12"
+    echo -e "A) VULNERABILITY CHECKS #1-2-3-4-5-6-7-8-9-10-11-12-15"
     echo -e "m) Modify target(s)"
     echo -e "1) zerologon check using netexec (only on DC)"
     echo -e "2) MS17-010 check using netexec"
@@ -4955,6 +4961,7 @@ vulns_menu() {
     echo -e "12) Coercer RPC scan"
     echo -e "13) PushSubscription abuse using PrivExchange"
     echo -e "14) RunFinger scan"
+    echo -e "15) Run LDAPNightmare check"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5038,6 +5045,11 @@ vulns_menu() {
 
     14)
         runfinger_check
+        vulns_menu
+        ;;
+
+    15)
+        ldapnightmare_check
         vulns_menu
         ;;
 
@@ -5754,6 +5766,8 @@ config_menu() {
         if [ ! -x "${privexchange}" ]; then echo -e "${RED}[-] privexchange is not executable${NC}"; else echo -e "${GREEN}[+] privexchange is executable${NC}"; fi
         if [ ! -f "${RunFinger}" ]; then echo -e "${RED}[-] RunFinger is not installed${NC}"; else echo -e "${GREEN}[+] RunFinger is installed${NC}"; fi
         if [ ! -x "${RunFinger}" ]; then echo -e "${RED}[-] RunFinger is not executable${NC}"; else echo -e "${GREEN}[+] RunFinger is executable${NC}"; fi
+        if [ ! -f "${LDAPNightmare}" ]; then echo -e "${RED}[-] LDAPNightmare is not installed${NC}"; else echo -e "${GREEN}[+] LDAPNightmare is installed${NC}"; fi
+        if [ ! -x "${LDAPNightmare}" ]; then echo -e "${RED}[-] LDAPNightmare is not executable${NC}"; else echo -e "${GREEN}[+] LDAPNightmare is executable${NC}"; fi
         if [ ! -f "${adPEAS}" ]; then echo -e "${RED}[-] adPEAS is not installed${NC}"; else echo -e "${GREEN}[+] adPEAS is installed${NC}"; fi
         if [ ! -f "${breads}" ]; then echo -e "${RED}[-] breads is not installed${NC}"; else echo -e "${GREEN}[+] breads is installed${NC}"; fi
         if [ ! -f "${ADCheck}" ]; then echo -e "${RED}[-] ADCheck is not installed${NC}"; else echo -e "${GREEN}[+] ADCheck is installed${NC}"; fi
@@ -5857,6 +5871,8 @@ config_menu() {
 }
 
 main_menu() {
+    parse_users
+    parse_servers
     echo -e ""
     echo -e "${PURPLE}[Main menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------"
@@ -5949,6 +5965,8 @@ main() {
     if [ "${interactive_bool}" == true ]; then
         init_menu
     else
+        parse_users
+        parse_servers
         dns_enum
         echo -e "${GREEN}[+] Start: Active Directory Enumeration${NC}"
         echo -e "${GREEN}---------------------------------------${NC}"
