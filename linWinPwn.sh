@@ -143,7 +143,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.30 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.31 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -398,8 +398,8 @@ prepare() {
         dc_info=$(${netexec} ldap "${dc_ip}" | grep -v "Connection refused")
     fi
 
-    dc_NETBIOS=$(echo "$dc_info" | cut -d ":" -f 2 | sed "s/) (domain//g" | head -n 1)
-    dc_domain=$(echo "$dc_info" | cut -d ":" -f 3 | sed "s/) (signing//g" | head -n 1)
+    dc_NETBIOS=$(echo "$dc_info" | sed -E 's/.*\((name:)([^)]+)\).*/\2/' | head -n 1)
+    dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
     if [[ "${dc_NETBIOS}" == *"${dc_domain}"* ]]; then
         dc_FQDN=${dc_NETBIOS}
         dc_NETBIOS=$(echo "${dc_FQDN}" | cut -d "." -f 1)
