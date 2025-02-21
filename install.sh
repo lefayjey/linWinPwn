@@ -55,7 +55,7 @@ install_tools() {
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
     #pipx install git+https://github.com/zimedev/certipy-merged --force #Certipy with more features
-    #/home$(whoami)/.local/share/pipx/venvs/certipy-ad/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
+    #/home/$(whoami)/.local/share/pipx/venvs/certipy-ad/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     #pipx install git+https://github.com/deadjakk/BloodHound.py --force #LDAP Channel Binding
     #/home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx install git+https://github.com/dirkjanm/Bloodhound.py --force
@@ -75,7 +75,8 @@ install_tools() {
     pipx install git+https://github.com/ajm4n/adPEAS --force
     pipx install git+https://github.com/oppsec/breads.git --force
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force
-    pipx install 'git+https://github.com/ScorpionesLabs/MSSqlPwner.git' --force
+    pipx install git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
+    pipx install git+https://github.com/xforcered/SoaPy --force
 
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
@@ -116,7 +117,7 @@ install_tools() {
     wget -q "https://github.com/lkarlslund/ldapnomnom/releases/latest/download/ldapnomnom-linux-x64" -O "$scripts_dir/ldapnomnom"
     wget -q "https://github.com/Macmod/godap/releases/download/v2.8.0/godap-v2.8.0-linux-amd64.tar.gz" -O "$scripts_dir/godap-v2.8.0-linux-amd64.tar.gz"
     wget -q "https://raw.githubusercontent.com/Tw1sm/aesKrbKeyGen/refs/heads/master/aesKrbKeyGen.py" -O "$scripts_dir/aesKrbKeyGen.py"
-    wget -q "https://github.com/barcrange/CVE-2024-49113-Checker/blob/main/CVE-2024-49113-checker.py" -O "$scripts_dir/CVE-2024-49113-checker.py"
+    wget -q "https://raw.githubusercontent.com/barcrange/CVE-2024-49113-Checker/refs/heads/main/CVE-2024-49113-checker.py" -O "$scripts_dir/CVE-2024-49113-checker.py"
 
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"

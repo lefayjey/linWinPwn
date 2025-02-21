@@ -458,6 +458,7 @@ Automated Mode:
     - [Macmod](https://github.com/Macmod) - godap
     - [ScorpionesLabs](https://github.com/ScorpionesLabs) - MSSqlPwner
     - [barcrange](https://github.com/barcrange) - CVE-2024-49113-Checker
+    - [xforcered](https://github.com/xforcered/) - SoaPy
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
