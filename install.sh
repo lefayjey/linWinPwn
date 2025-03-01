@@ -72,7 +72,7 @@ install_tools() {
     pipx install git+https://github.com/almandin/krbjack --force
     pipx install git+https://github.com/CompassSecurity/mssqlrelay.git --force
     pipx install git+https://github.com/CobblePot59/ADcheck.git --force
-    pipx install git+https://github.com/ajm4n/adPEAS --force
+    pipx install --force --pip-args="--use-deprecated=legacy-resolver" "git+https://github.com/ajm4n/adPEAS#egg=adPEAS"
     pipx install git+https://github.com/oppsec/breads.git --force
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force
     pipx install git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
