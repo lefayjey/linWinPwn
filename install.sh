@@ -14,7 +14,7 @@ scripts_dir="/opt/lwp-scripts"
 # Detect Linux Distribution
 if command -v apt-get >/dev/null; then
     PKG_MANAGER="apt-get"
-    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl rlwrap"
+    PACKAGES="python3 python3-dev python3-pip python3-venv python3.11 python3.11-venv python3.11-dev nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl rlwrap"
 elif command -v pacman >/dev/null; then
     PKG_MANAGER="pacman"
     PACKAGES="python python-pip python-virtualenv nmap smbmap john libsasl openldap krb5 ntp wget zip unzip systemd python-pipx swig curl jq openssl"
@@ -72,12 +72,11 @@ install_tools() {
     pipx install git+https://github.com/almandin/krbjack --force
     pipx install git+https://github.com/CompassSecurity/mssqlrelay.git --force
     pipx install git+https://github.com/CobblePot59/ADcheck.git --force
-    pipx install git+https://github.com/ajm4n/adPEAS --force
+    pipx install --force --pip-args="--use-deprecated=legacy-resolver" "git+https://github.com/ajm4n/adPEAS#egg=adPEAS"
     pipx install git+https://github.com/oppsec/breads.git --force
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force
-    pipx install git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
-    pipx install git+https://github.com/xforcered/SoaPy --force
-
+    pipx install --python python3.11 git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
+    pipx install --python python3.11 git+https://github.com/xforcered/SoaPy --force
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}
