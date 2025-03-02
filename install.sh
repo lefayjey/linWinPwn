@@ -75,7 +75,7 @@ install_tools() {
     pipx install --force --pip-args="--use-deprecated=legacy-resolver" "git+https://github.com/ajm4n/adPEAS#egg=adPEAS"
     pipx install git+https://github.com/oppsec/breads.git --force
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force
-    pipx install git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
+    pipx install --python python3.11 git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
     pipx install --python python3.11 git+https://github.com/xforcered/SoaPy --force
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
