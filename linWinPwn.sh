@@ -5730,7 +5730,7 @@ config_menu() {
         if [ ! -x "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not executable${NC}"; else echo -e "${GREEN}[+] ldapnomnom is executable${NC}"; fi
         if [ ! -f "${godap}" ]; then echo -e "${RED}[-] godap is not installed${NC}"; else echo -e "${GREEN}[+] godap is installed${NC}"; fi
         if [ ! -x "${godap}" ]; then echo -e "${RED}[-] godap is not executable${NC}"; else echo -e "${GREEN}[+] godap is executable${NC}"; fi
-        if [ ! -f "${mssqlpwner}" ]; then echo -e "${RED}[-] mssqlpwner  is not installed${NC}"; else echo -e "${GREEN}[+] mssqlpwner  is installed${NC}"; fi
+        if [ ! -f "${mssqlpwner}" ]; then echo -e "${RED}[-] mssqlpwner is not installed${NC}"; else echo -e "${GREEN}[+] mssqlpwner is installed${NC}"; fi
         if [ ! -f "${soapy}" ]; then echo -e "${RED}[-] soapy is not installed${NC}"; else echo -e "${GREEN}[+] soapy is installed${NC}"; fi
         config_menu
         ;;
