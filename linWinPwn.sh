@@ -168,7 +168,7 @@ help_linWinPwn() {
     echo -e "--auto              Run automatic enumeration"
     echo -e "-o/--output         Output directory (default: current dir)"
     echo -e "--auto-config       Run NTP sync with target DC and adds entry to /etc/hosts"
-    echo -e "--ldap-port         Use custom LDAP port (default port 389). Will apply to: netexec, ldapdomaindump, ldeep, windapsearch, godap, pre2k, ldapnomnom"
+    echo -e "--ldap-port         Use custom LDAP port (default port 389)"
     echo -e "--ldaps             Use LDAPS instead of LDAP (port 636)"
     echo -e "--ldap-binding      Use LDAP Channel Binding on LDAPS (port 636)"
     echo -e "--force-kerb        Use Kerberos authentication instead of NTLM when possible (requires password or NTLM hash)"
