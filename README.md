@@ -146,7 +146,7 @@ proxychains -q ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_u
 
 | Tool                    | Null Session | Password | NTLM Hash  | Kerberos Ticket| AES Key     | Certificate |
 |-------------------------|--------------|----------|------------|----------------|-------------|-------------|
-| `netexec`               | ✅           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `netexec`               | ✅           | ✅       | ✅        | ✅             | ✅         | ✅         |
 | `Impacket`              | ✅           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `adidnsdump`            | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `bloodhound-python`     | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
@@ -190,7 +190,7 @@ proxychains -q ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_u
 | `mssqlpwner`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 
 #### LDAP Channel Binding support
-ldap3: ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep
+ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep
 msldap: bloodyAD
 
 #### LDAP Custom port support
@@ -271,6 +271,7 @@ BruteForce menu
 8) Password spraying using kerbrute (Noisy!)
 9) Password spraying using netexec - ldap (Noisy!)
 10) Timeroast attack against NTP
+11) MSSQL RID Brute Force (Null session) using netexec
 ```
 
 Kerberos Attacks menu
@@ -309,19 +310,16 @@ Vuln Checks menu
 ```
 1) zerologon check using netexec (only on DC)
 2) MS17-010 check using netexec
-3) Print Spooler check using netexec
-4) Printnightmare check using netexec
-5) WebDAV check using netexec
-6) shadowcoerce check using netexec
-7) SMB signing check using netexec
-8) ntlmv1 check using netexec
-9) runasppl check using netexec
-10) smbghost check using netexec
-11) RPC Dump and check for interesting protocols
-12) Coercer RPC scan
-13) PushSubscription abuse using PrivExchange
-14) RunFinger scan
-15) Run LDAPNightmare check
+3) Print Spooler and Printnightmare checks using netexec
+4) WebDAV check using netexec
+5) coerce check using netexec
+6) SMB signing check using netexec
+7) ntlmv1, smbghost and remove-mic checks using netexec
+8) RPC Dump and check for interesting protocols
+9) Coercer RPC scan
+10) PushSubscription abuse using PrivExchange
+11) RunFinger scan
+12) Run LDAPNightmare check
 ```
 
 MSSQL Enumeration menu
@@ -340,8 +338,8 @@ Password Dump menu
 4) Dump SAM and LSA using secretsdump
 5) Dump SAM and SYSTEM using reg
 6) Dump NTDS using netexec
-7) Dump SAM using netexec
-8) Dump LSA secrets using netexec
+7) Dump SAM and LSA secrets using netexec
+8) Dump SAM and LSA secrets using netexec without touching disk (regdump)
 9) Dump LSASS using lsassy
 10) Dump LSASS using handlekatz
 11) Dump LSASS using procdump
@@ -349,7 +347,7 @@ Password Dump menu
 13) Dump dpapi secrets using netexec
 14) Dump secrets using DonPAPI
 15) Dump secrets using hekatomb (only on DC)
-16) Search for juicy credentials (Firefox, KeePass, Rdcman, Teams, WiFi, WinScp)
+16) Search for juicy credentials (KeePass, Rdcman, Teams, WiFi, WinScp, Snipped)
 17) Dump Veeam credentials (only from Veeam server)
 18) Dump Msol password (only from Azure AD-Connect server)
 19) Extract Bitlocker Keys
