@@ -26,7 +26,6 @@ attacker_IP=$(ip -f inet addr show $attacker_interface | sed -En -e 's/.*inet ([
 curr_targets="Domain Controllers"
 targets="DC"
 ldap_port="389"
-custom_target_scanned=false
 nullsess_bool=false
 pass_bool=false
 hash_bool=false
@@ -106,6 +105,7 @@ windapsearch="$scripts_dir/windapsearch"
 CVE202233679="$scripts_dir/CVE-2022-33679.py"
 targetedKerberoast="$scripts_dir/targetedKerberoast.py"
 FindUncommonShares="$scripts_dir/FindUncommonShares.py"
+FindUnusualSessions="$scripts_dir/FindUnusualSessions.py"
 ExtractBitlockerKeys="$scripts_dir/ExtractBitlockerKeys.py"
 ldapconsole="$scripts_dir/ldapconsole.py"
 pyLDAPmonitor="$scripts_dir/pyLDAPmonitor.py"
@@ -145,7 +145,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.36 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.37 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -503,7 +503,6 @@ prepare() {
         curr_targets="All domain servers"
     elif [[ $targets == "File="* ]]; then
         curr_targets="File containing list of servers"
-        /bin/rm "${custom_servers_list}" 2>/dev/null
         custom_servers=$(echo "$targets" | cut -d "=" -f 2)
         /bin/cp "${custom_servers}" "${custom_servers_list}" 2>/dev/null
         if [ ! -s "${custom_servers_list}" ]; then
@@ -514,7 +513,6 @@ prepare() {
     elif [[ $targets == "IP="* ]]; then
         curr_targets="IP or hostname"
         custom_ip=$(echo "$targets" | cut -d "=" -f 2)
-        /bin/rm "${custom_servers_list}" 2>/dev/null
         echo -n "$custom_ip" >"${custom_servers_list}" 2>/dev/null
         if [ ! -s "${custom_servers_list}" ]; then
             echo -e "${RED}Invalid servers list.${NC} Choosing Domain Controllers as targets instead."
@@ -955,11 +953,12 @@ ne_smb_scan() {
         servers_scan_out="${output_dir}/Scans/ne_smb_custom_output_${dc_domain}.txt"
         /bin/rm "${servers_scan_out}" 2>/dev/null
     fi
-
-    if [ ! -f "${servers_smb_list}" ] || [ "${custom_target_scanned}" == false ]; then
+    if [ ! -f "${servers_smb_list}" ]; then
         run_command "${netexec} ${ne_verbose} smb ${servers_scan_list} --log ${servers_scan_out}" 2>&1
         grep -a "SMB" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_smb_list}"
-        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+        servers_smb_all="${output_dir}/DomainRecon/Servers/servers_smb_${dc_domain}.txt"
+        /bin/cat "${servers_smb_list}" >> "${servers_smb_all}"
+        sort -u "${servers_smb_all}" -o "${servers_smb_all}" 2>/dev/null
     else
         echo -e "${YELLOW}[i] SMB scan results found ${NC}"
     fi
@@ -990,10 +989,12 @@ ne_rdp_scan() {
         servers_scan_out="${output_dir}/Scans/ne_rdp_custom_output_${dc_domain}.txt"
         /bin/rm "${servers_scan_out}" 2>/dev/null
     fi
-    if [ ! -f "${servers_rdp_list}" ] || [ "${custom_target_scanned}" == false ]; then
+    if [ ! -f "${servers_rdp_list}" ]; then
         run_command "${netexec} ${ne_verbose} rdp ${servers_scan_list} --log ${servers_scan_out}" 2>&1
         grep -a "RDP" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_rdp_list}"
-        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+        servers_rdp_all="${output_dir}/DomainRecon/Servers/servers_rdp_${dc_domain}.txt"
+        /bin/cat "${servers_rdp_list}" >> "${servers_rdp_all}"
+        sort -u "${servers_rdp_all}" -o "${servers_rdp_all}" 2>/dev/null
     else
         echo -e "${YELLOW}[i] RDP scan results found ${NC}"
     fi
@@ -1024,10 +1025,12 @@ ne_winrm_scan() {
         servers_scan_out="${output_dir}/Scans/ne_winrm_custom_output_${dc_domain}.txt"
         /bin/rm "${servers_scan_out}" 2>/dev/null
     fi
-    if [ ! -f "${servers_winrm_list}" ] || [ "${custom_target_scanned}" == false ]; then
+    if [ ! -f "${servers_winrm_list}" ]; then
         run_command "${netexec} ${ne_verbose} winrm ${servers_scan_list} --log ${servers_scan_out}" 2>&1
         grep -a "WinRM" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_winrm_list}"
-        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+        servers_winrm_all="${output_dir}/DomainRecon/Servers/servers_winrm_${dc_domain}.txt"
+        /bin/cat "${servers_winrm_list}" >> "${servers_winrm_all}"
+        sort -u "${servers_winrm_all}" -o "${servers_winrm_all}" 2>/dev/null
     else
         echo -e "${YELLOW}[i] WinRM scan results found ${NC}"
     fi
@@ -1035,6 +1038,7 @@ ne_winrm_scan() {
 }
 
 ne_ssh_scan() {
+    echo -e "${BLUE}[*] Scanning for SSH ports...${NC}"
     if [ "${curr_targets}" == "Domain Controllers" ]; then
         servers_scan_list=${target_dc}
         servers_ssh_list="${output_dir}/Scans/servers_dc_ssh_${dc_domain}.txt"
@@ -1057,10 +1061,12 @@ ne_ssh_scan() {
         servers_scan_out="${output_dir}/Scans/ne_ssh_custom_output_${dc_domain}.txt"
         /bin/rm "${servers_scan_out}" 2>/dev/null
     fi
-    if [ ! -f "${servers_ssh_list}" ] || [ "${custom_target_scanned}" == false ]; then
+    if [ ! -f "${servers_ssh_list}" ]; then
         run_command "${netexec} ${ne_verbose} ssh ${servers_scan_list} --log ${servers_scan_out}" 2>&1
         grep -a "SSH" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_ssh_list}"
-        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+        servers_ssh_all="${output_dir}/DomainRecon/Servers/servers_ssh_${dc_domain}.txt"
+        /bin/cat "${servers_ssh_list}" >> "${servers_ssh_all}"
+        sort -u "${servers_ssh_all}" -o "${servers_ssh_all}" 2>/dev/null
     else
         echo -e "${YELLOW}[i] SSH scan results found ${NC}"
     fi
@@ -1091,10 +1097,12 @@ ne_ftp_scan() {
         servers_scan_out="${output_dir}/Scans/ne_ftp_custom_output_${dc_domain}.txt"
         /bin/rm "${servers_scan_out}" 2>/dev/null
     fi
-    if [ ! -f "${servers_ftp_list}" ] || [ "${custom_target_scanned}" == false ]; then
+    if [ ! -f "${servers_ftp_list}" ]; then
         run_command "${netexec} ${ne_verbose} ftp ${servers_scan_list} --log ${servers_scan_out}" 2>&1
         grep -a "FTP" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_ftp_list}"
-        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+        servers_ftp_all="${output_dir}/DomainRecon/Servers/servers_ftp_${dc_domain}.txt"
+        /bin/cat "${servers_ftp_list}" >> "${servers_ftp_all}"
+        sort -u "${servers_ftp_all}" -o "${servers_ftp_all}" 2>/dev/null
     else
         echo -e "${YELLOW}[i] FTP scan results found ${NC}"
     fi
@@ -1125,10 +1133,12 @@ ne_vnc_scan() {
         servers_scan_out="${output_dir}/Scans/ne_vnc_custom_output_${dc_domain}.txt"
         /bin/rm "${servers_scan_out}" 2>/dev/null
     fi
-    if [ ! -f "${servers_vnc_list}" ] || [ "${custom_target_scanned}" == false ]; then
+    if [ ! -f "${servers_vnc_list}" ]; then
         run_command "${netexec} ${ne_verbose} vnc ${servers_scan_list} --log ${servers_scan_out}" 2>&1
         grep -a "VNC" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_vnc_list}"
-        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+        servers_vnc_all="${output_dir}/DomainRecon/Servers/servers_vnc_${dc_domain}.txt"
+        /bin/cat "${servers_vnc_list}" >> "${servers_vnc_all}"
+        sort -u "${servers_vnc_all}" -o "${servers_vnc_all}" 2>/dev/null
     else
         echo -e "${YELLOW}[i] VNC scan results found ${NC}"
     fi
@@ -1160,11 +1170,10 @@ ne_mssql_scan() {
         /bin/rm "${servers_scan_out}" 2>/dev/null
     fi
 
-    if [ ! -f "${servers_mssql_list}" ] || [ "${custom_target_scanned}" == false ]; then
+    if [ ! -f "${servers_mssql_list}" ]; then
         run_command "${netexec} ${ne_verbose} mssql ${servers_scan_list} --log ${servers_scan_out}" 2>&1
         grep -a "MSSQL" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_mssql_list}"
         /bin/cat "${servers_mssql_list}" >> "${sql_ip_list}"
-        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
     else
         echo -e "${YELLOW}[i] MSSQL scan results found ${NC}"
     fi
@@ -2711,8 +2720,8 @@ smb_map() {
                 fi
             done
 
-            grep -iaH READ "${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_*.txt" 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print $1 ";"  $2 ";" $3}' >"${output_dir}/Shares/all_network_shares_${dc_domain}.csv"
-            grep -iaH READ "${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}_*.txt" 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print "\\\\" $1 "\\" $2}' >"${output_dir}/Shares/all_network_shares_${dc_domain}.txt"
+            grep -iaH READ "${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}"_*".txt" 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print $1 ";"  $2 ";" $3}' >"${output_dir}/Shares/all_network_shares_${dc_domain}.csv"
+            grep -iaH READ "${output_dir}/Shares/smbmapDump/smb_shares_${dc_domain}"_*".txt" 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print "\\\\" $1 "\\" $2}' >"${output_dir}/Shares/all_network_shares_${dc_domain}.txt"
 
             echo -e "${BLUE}[*] Listing files in accessible shares - Step 2/2${NC}"
             for i in $(grep -v ':' "${servers_smb_list}"); do
@@ -3003,6 +3012,23 @@ ldapnightmare_check() {
     else
         echo -e "${BLUE}[*] Running LDAPNightmare check against domain${NC}"
         run_command "${python3} ${LDAPNightmare} ${target_dc}" | tee -a "${output_dir}/Vulnerabilities/LDAPNightmare_${dc_domain}.txt"
+    fi
+    echo -e ""
+}
+
+findunusess_check() {
+    if [ ! -f "${FindUnusualSessions}" ]; then
+        echo -e "${RED}[-] Please verify the installation of FindUnusualSessions${NC}"
+    else
+        echo -e "${BLUE}[*] Finding unsual active sessions using FindUnusualSessions${NC}"
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] FindUnusualSessions requires credentials ${NC}"
+        else
+            ne_smb_scan
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
+            run_command "${python3} ${FindUnusualSessions} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${servers_smb_list} --export-xlsx ${output_dir}/Vulnerabilities/findususess_${dc_domain}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${output_dir}/Vulnerabilities/findususess_output_${dc_domain}.txt"
+        fi
     fi
     echo -e ""
 }
@@ -4152,8 +4178,8 @@ modify_target() {
         curr_targets="File containing list of servers"
         custom_servers=""
         custom_ip=""
-        custom_target_scanned=false
         /bin/rm "${custom_servers_list}" 2>/dev/null
+        /bin/rm "${output_dir}"/Scans/servers_custom_*_"${dc_domain}.txt"
         read -rp ">> " custom_servers </dev/tty
         /bin/cp "$custom_servers" "${custom_servers_list}" 2>/dev/null
         while [ ! -s "${custom_servers_list}" ]; do
@@ -4167,8 +4193,8 @@ modify_target() {
         curr_targets="IP or hostname"
         custom_servers=""
         custom_ip=""
-        custom_target_scanned=false
         /bin/rm "${custom_servers_list}" 2>/dev/null
+        /bin/rm "${output_dir}"/Scans/servers_custom_*_"${dc_domain}.txt"
         read -rp ">> " custom_ip </dev/tty
         echo -n "$custom_ip" >"${custom_servers_list}" 2>/dev/null
         while [ ! -s "${custom_servers_list}" ]; do
@@ -5220,6 +5246,7 @@ vulns_menu() {
     echo -e "10) PushSubscription abuse using PrivExchange"
     echo -e "11) RunFinger scan"
     echo -e "12) Run LDAPNightmare check"
+    echo -e "13) Check for unusual sessions"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5293,6 +5320,11 @@ vulns_menu() {
 
     12)
         ldapnightmare_check
+        vulns_menu
+        ;;
+
+    13)
+        findunusess_check
         vulns_menu
         ;;
 
@@ -6064,6 +6096,8 @@ config_menu() {
         if [ ! -f "${hekatomb}" ]; then echo -e "${RED}[-] HEKATOMB is not installed${NC}"; else echo -e "${GREEN}[+] hekatomb is installed${NC}"; fi
         if [ ! -f "${FindUncommonShares}" ]; then echo -e "${RED}[-] FindUncommonShares is not installed${NC}"; else echo -e "${GREEN}[+] FindUncommonShares is installed${NC}"; fi
         if [ ! -x "${FindUncommonShares}" ]; then echo -e "${RED}[-] FindUncommonShares is not executable${NC}"; else echo -e "${GREEN}[+] FindUncommonShares is executable${NC}"; fi
+        if [ ! -f "${FindUnusualSessions}" ]; then echo -e "${RED}[-] FindUnusualSessions is not installed${NC}"; else echo -e "${GREEN}[+] FindUnusualSessions is installed${NC}"; fi
+        if [ ! -x "${FindUnusualSessions}" ]; then echo -e "${RED}[-] FindUnusualSessions is not executable${NC}"; else echo -e "${GREEN}[+] FindUnusualSessions is executable${NC}"; fi
         if [ ! -f "${ExtractBitlockerKeys}" ]; then echo -e "${RED}[-] ExtractBitlockerKeys is not installed${NC}"; else echo -e "${GREEN}[+] ExtractBitlockerKeys is installed${NC}"; fi
         if [ ! -x "${ExtractBitlockerKeys}" ]; then echo -e "${RED}[-] ExtractBitlockerKeys is not executable${NC}"; else echo -e "${GREEN}[+] ExtractBitlockerKeys is executable${NC}"; fi
         if [ ! -f "${ldapconsole}" ]; then echo -e "${RED}[-] ldapconsole is not installed${NC}"; else echo -e "${GREEN}[+] ldapconsole is installed${NC}"; fi

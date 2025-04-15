@@ -320,6 +320,7 @@ Vuln Checks menu
 10) PushSubscription abuse using PrivExchange
 11) RunFinger scan
 12) Run LDAPNightmare check
+13) Check for unusual sessions
 ```
 
 MSSQL Enumeration menu
@@ -453,7 +454,7 @@ Automated Mode:
     - [franc-pentest](https://github.com/franc-pentest) - ldeep
     - [garrettfoster13](https://github.com/garrettfoster13/) - pre2k, aced, sccmhunter
     - [zblurx](https://github.com/zblurx/) - certsync
-    - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares, ExtractBitlockerKeys, LDAPWordlistHarvester, ldapconsole, pyLDAPmonitor, RDWAtool, smbclient-ng
+    - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares, ExtractBitlockerKeys, LDAPWordlistHarvester, ldapconsole, pyLDAPmonitor, RDWAtool, smbclient-ng, FindUnusualSessions
     - [blacklanternsecurity](https://github.com/blacklanternsecurity/) - MANSPIDER
     - [CravateRouge](https://github.com/CravateRouge) - bloodyAD
     - [shellster](https://github.com/shellster) - LDAPPER
