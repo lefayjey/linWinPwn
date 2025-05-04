@@ -9,6 +9,7 @@ linWinPwn is a bash script that wraps a number of Active Directory tools for enu
 Git clone the repository and install requirements using the `install.sh` script
 ```bash
 git clone https://github.com/lefayjey/linWinPwn
+cd linWinPwn
 chmod +x install.sh
 ./install.sh
 ```
