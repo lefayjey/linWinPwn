@@ -469,10 +469,10 @@ prepare() {
     DomainRecon_dir="${output_dir}/DomainRecon"
     Config_dir="${output_dir}/Config"
     Scans_dir="${output_dir}/Scans"
-    ADCS_dir="${output_dir}/ADCS"
+    ADCS_dir="${useroutput_dir}/ADCS"
     Modification_dir="${useroutput_dir}/Modification"
     CommandExec_dir="${useroutput_dir}/CommandExec"
-    MSSQL_dir="${output_dir}/MSSQL"
+    MSSQL_dir="${useroutput_dir}/MSSQL"
     BruteForce_dir="${output_dir}/BruteForce"
     Vulnerabilities_dir="${output_dir}/Vulnerabilities"
     Kerberos_dir="${output_dir}/Kerberos"
@@ -1201,24 +1201,24 @@ bhd_enum() {
     if [ ! -f "${bloodhound}" ]; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
     else
-        mkdir -p "${DomainRecon_dir}/BloodHound"
+        mkdir -p "${DomainRecon_dir}/BloodHound_${user_out}"
         echo -e "${BLUE}[*] BloodHound Enumeration using all collection methods (Noisy!)${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHound/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_out}/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] BloodHound results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
             else
                 current_dir=$(pwd)
-                cd "${DomainRecon_dir}/BloodHound" || exit
+                cd "${DomainRecon_dir}/BloodHound_${user_out}" || exit
                 if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="--ldap-channel-binding"; else ldapbinding_param=""; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbinding_param}"; else ldaps_param=""; fi
-                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound/bloodhound_output_${dc_domain}.txt"
+                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_out}/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${DomainRecon_dir}/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${dc_domain}.txt"
+                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${DomainRecon_dir}/BloodHound_${user_out}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1231,23 +1231,23 @@ bhd_enum_dconly() {
     if [ ! -f "${bloodhound}" ]; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
     else
-        mkdir -p "${DomainRecon_dir}/BloodHound"
+        mkdir -p "${DomainRecon_dir}/BloodHound_${user_out}"
         echo -e "${BLUE}[*] BloodHound Enumeration using DCOnly${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHound/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_out}/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] BloodHound results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
             else
                 current_dir=$(pwd)
-                cd "${DomainRecon_dir}/BloodHound" || exit
+                cd "${DomainRecon_dir}/BloodHound_${user_out}" || exit
                 if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="--ldap-channel-binding"; else ldapbinding_param=""; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbinding_param}"; else ldaps_param=""; fi
-                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound/bloodhound_output_dconly_${dc_domain}.txt"
+                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_out}/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${dc_domain}.txt"
+                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound_${user_out}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1495,7 +1495,7 @@ bloodyad_write_enum() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] bloodyad search for writable objects${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get writable" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get writable" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_${user_out}_${dc_domain}.txt"
         fi
     fi
     echo -e ""
