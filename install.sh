@@ -10,6 +10,7 @@ BLUE='\033[1;34m'
 NC='\033[0m'
 
 scripts_dir="/opt/lwp-scripts"
+install_dir="$(dirname "$(readlink -f "$0")")"
 
 # Detect Linux Distribution
 if command -v apt-get >/dev/null; then
@@ -22,6 +23,14 @@ else
     echo -e "${RED}[Error]${NC} Unsupported Linux distribution"
     exit 1
 fi
+
+#Add to PATH
+echo -e "${BLUE}Adding "linWinPwn" to PATH ...${NC}"
+echo -e "rlwrap -Nn ${install_dir}/linWinPwn.sh" | sudo tee "/usr/sbin/linWinPwn"
+sudo chmod 755 /usr/sbin/linWinPwn
+echo -e "${BLUE}Adding "linWinPwn_proxychains" to PATH ...${NC}"
+echo -e "rlwrap -Nn proxychains -q ${install_dir}/linWinPwn.sh" | sudo tee "/usr/sbin/linWinPwn_proxychains"
+sudo chmod 755 /usr/sbin/linWinPwn_proxychains
 
 install_tools() {
     if [[ "$PKG_MANAGER" == "apt-get" ]]; then

@@ -145,7 +145,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.39 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.1.0 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -448,8 +448,8 @@ prepare() {
 
     if [ "${user}" == "" ]; then user_out="null"; else user_out=${user// /}; fi
     output_dir="${output_dir}/linWinPwn_${dc_domain}"
-    useroutput_dir="${output_dir}/_${user_out}"
-    command_log="${useroutput_dir}/$(date +%Y-%m-%d)_command.log"
+    user_var="${user_out}@${domain}"
+    command_log="${output_dir}/$(date +%Y-%m-%d)_command_${user_var}.log"
 
     Users_dir="${output_dir}/Users"
     Servers_dir="${output_dir}/Servers"
@@ -465,27 +465,27 @@ prepare() {
     target_dc=${dc_ip_list}
     target_sql=${sql_ip_list}
 
-    Credentials_dir="${useroutput_dir}/Credentials"
+    Credentials_dir="${output_dir}/Credentials_${user_var}"
     DomainRecon_dir="${output_dir}/DomainRecon"
     Config_dir="${output_dir}/Config"
     Scans_dir="${output_dir}/Scans"
-    ADCS_dir="${useroutput_dir}/ADCS"
-    Modification_dir="${useroutput_dir}/Modification"
-    CommandExec_dir="${useroutput_dir}/CommandExec"
-    MSSQL_dir="${useroutput_dir}/MSSQL"
+    ADCS_dir="${output_dir}/ADCS_${user_var}"
+    Modification_dir="${output_dir}/Modification_${user_var}"
+    CommandExec_dir="${output_dir}/CommandExec_${user_var}"
+    MSSQL_dir="${output_dir}/MSSQL_${user_var}"
     BruteForce_dir="${output_dir}/BruteForce"
     Vulnerabilities_dir="${output_dir}/Vulnerabilities"
     Kerberos_dir="${output_dir}/Kerberos"
-    Shares_dir="${useroutput_dir}/Shares"
+    Shares_dir="${output_dir}/Shares_${user_var}"
 
-    mkdir -p "${useroutput_dir}"
     mkdir -p "${Credentials_dir}"
     mkdir -p "${DomainRecon_dir}"
     mkdir -p "${Servers_dir}"
     mkdir -p "${Users_dir}"
     mkdir -p "${Scans_dir}"
 
-    dc_open_ports=$(${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open -oG "${Scans_dir}/${dc_ip}"_mainports)
+    if [ ! -f "${Scans_dir}/${dc_ip}_mainports.txt" ]; then ${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open > "${Scans_dir}/${dc_ip}"_mainports.txt; fi
+    dc_open_ports=$(/bin/cat "${Scans_dir}/${dc_ip}"_mainports.txt)
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"389/tcp"* ]]; then dc_port_389="${GREEN}open${NC}"; else dc_port_389="${RED}filtered|closed${NC}"; fi
@@ -798,8 +798,8 @@ authenticate() {
 
     #Perform authentication using provided credentials
     if [ "${nullsess_bool}" == false ]; then
-        run_command "${netexec} smb ${target} ${argument_ne}" 2>&1 > "${useroutput_dir}/netexec_authcheck_${dc_domain}.txt"
-        auth_check=$(/bin/cat "${useroutput_dir}/netexec_authcheck_${dc_domain}.txt" | grep -v " Error checking if user is admin on "|  grep "\[-\]\|Traceback" -A 10 2>&1)
+        run_command "${netexec} smb ${target} ${argument_ne}" 2>&1 > "${output_dir}/netexec_authcheck_${user_var}.txt"
+        auth_check=$(/bin/cat "${output_dir}/netexec_authcheck_${user_var}.txt" | grep -v " Error checking if user is admin on "|  grep "\[-\]\|Traceback" -A 10 2>&1)
         if [ -n "$auth_check" ]; then
             echo "$auth_check"
             if [[ $auth_check == *"STATUS_NOT_SUPPORTED"* ]]; then
@@ -810,7 +810,7 @@ authenticate() {
                     run_command "${netexec} ${ne_verbose} smb ${dc_FQDN} ${argument_ne} -k --kdcHost ${dc_FQDN} --generate-tgt ${krb_ticket} --log ${Credentials_dir}/getTGT_output_${dc_domain}.txt"
                     if [ -f "${krb_ticket}.ccache" ]; then
                         echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket.ccache'"
-                        echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
+                        echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
                         exit 1
                     else
                         echo -e "${RED}[-] Failed to generate TGT${NC}"
@@ -1201,24 +1201,24 @@ bhd_enum() {
     if [ ! -f "${bloodhound}" ]; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
     else
-        mkdir -p "${DomainRecon_dir}/BloodHound_${user_out}"
+        mkdir -p "${DomainRecon_dir}/BloodHound_${user_var}"
         echo -e "${BLUE}[*] BloodHound Enumeration using all collection methods (Noisy!)${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_out}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] BloodHound results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
             else
                 current_dir=$(pwd)
-                cd "${DomainRecon_dir}/BloodHound_${user_out}" || exit
+                cd "${DomainRecon_dir}/BloodHound_${user_var}" || exit
                 if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="--ldap-channel-binding"; else ldapbinding_param=""; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbinding_param}"; else ldaps_param=""; fi
-                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_out}/bloodhound_output_${dc_domain}.txt"
+                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${DomainRecon_dir}/BloodHound_${user_out}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
                 /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${user_out}_${dc_domain}.txt"
                 /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_out}_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1231,24 +1231,24 @@ bhd_enum_dconly() {
     if [ ! -f "${bloodhound}" ]; then
         echo -e "${RED}[-] Please verify the installation of bloodhound${NC}"
     else
-        mkdir -p "${DomainRecon_dir}/BloodHound_${user_out}"
+        mkdir -p "${DomainRecon_dir}/BloodHound_${user_var}"
         echo -e "${BLUE}[*] BloodHound Enumeration using DCOnly${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_out}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] BloodHound results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${PURPLE}[-] BloodHound requires credentials${NC}"
             else
                 current_dir=$(pwd)
-                cd "${DomainRecon_dir}/BloodHound_${user_out}" || exit
+                cd "${DomainRecon_dir}/BloodHound_${user_var}" || exit
                 if [ "${ldapbinding_bool}" == true ]; then ldapbinding_param="--ldap-channel-binding"; else ldapbinding_param=""; fi
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbinding_param}"; else ldaps_param=""; fi
-                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_out}/bloodhound_output_dconly_${dc_domain}.txt"
+                run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound_${user_out}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_out}_${dc_domain}.txt"
+                #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_out}_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1261,21 +1261,21 @@ bhdce_enum() {
     if [ ! -f "${bloodhoundce}" ]; then
         echo -e "${RED}[-] Please verify the installation of BloodHoundCE${NC}"
     else
-        mkdir -p "${DomainRecon_dir}/BloodHoundCE_${user_out}"
+        mkdir -p "${DomainRecon_dir}/BloodHoundCE_${user_var}"
         echo -e "${BLUE}[*] BloodHoundCE Enumeration using all collection methods (Noisy!)${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_out}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] BloodHoundCE results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${PURPLE}[-] BloodHoundCE requires credentials${NC}"
             else
                 current_dir=$(pwd)
-                cd "${DomainRecon_dir}/BloodHoundCE_${user_out}" || exit
-                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_out}/bloodhound_output_${dc_domain}.txt"
+                cd "${DomainRecon_dir}/BloodHoundCE_${user_var}" || exit
+                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1288,21 +1288,21 @@ bhdce_enum_dconly() {
     if [ ! -f "${bloodhoundce}" ]; then
         echo -e "${RED}[-] Please verify the installation of BloodHoundCE${NC}"
     else
-        mkdir -p "${DomainRecon_dir}/BloodHoundCE_${user_out}"
+        mkdir -p "${DomainRecon_dir}/BloodHoundCE_${user_var}"
         echo -e "${BLUE}[*] BloodHoundCE Enumeration using DCOnly${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_out}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] BloodHoundCE results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${PURPLE}[-] BloodHoundCE requires credentials${NC}"
             else
                 current_dir=$(pwd)
-                cd "${DomainRecon_dir}/BloodHoundCE_${user_out}" || exit
-                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_out}/bloodhound_output_dconly_${dc_domain}.txt"
+                cd "${DomainRecon_dir}/BloodHoundCE_${user_var}" || exit
+                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -5969,7 +5969,7 @@ auth_menu() {
         if [ "${pass_bool}" == true ]; then
             hash_gen="$(iconv -f ASCII -t UTF-16LE <(printf "%s" "$password") | $(which openssl) dgst -md4 | cut -d " " -f 2)"
             echo -e "${GREEN}[+] NTLM hash generated:${NC} ${hash_gen}"
-            echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -H ${hash_gen}"
+            echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -H ${hash_gen}"
         else
             echo -e "${RED}[-] Error! Requires password...${NC}"
         fi
@@ -5988,7 +5988,7 @@ auth_menu() {
                 if [[ "${john_out}" == *"1 password"* ]]; then
                     password_cracked=$(echo "$john_out" | cut -d ":" -f 2 | cut -d " " -f 1)
                     echo -e "${GREEN}[+] NTLM hash successfully cracked:${NC} $password_cracked"
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use password instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -p ${password_cracked}"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use password instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -p ${password_cracked}"
                 else
                     echo -e "${RED}[-] Failed to crack NTLM hash${NC}"
                 fi
@@ -6006,7 +6006,7 @@ auth_menu() {
             run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --generate-tgt ${krb_ticket} --log ${Credentials_dir}/getTGT_output_${dc_domain}.txt"
             if [ -f "${krb_ticket}.ccache" ]; then
                 echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket.ccache'"
-                echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
+                echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
             else
                 echo -e "${RED}[-] Failed to generate TGT${NC}"
             fi
@@ -6063,7 +6063,7 @@ auth_menu() {
                         pem_cert="${Credentials_dir}/${user}.pem"
                         echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} '${pem_cert}'"
                     fi
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use certificate instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -C '${pfxcert}'"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use certificate instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -C '${pfxcert}'"
                 else
                     echo -e "${RED}[-] Failed to request certificate${NC}"
                 fi
@@ -6083,7 +6083,7 @@ auth_menu() {
                 aes_key=$(echo -e "${aes_gen}" | grep "AES256" | cut -d " " -f 4)
                 if [[ ! "${aes_key}" == "" ]]; then 
                     echo -e "${GREEN}[+] AES Keys generated:${NC} ${aes_gen}"
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -A ${aes_key}"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -A ${aes_key}"
                 else
                     echo -e "${RED}[-] Error generating AES Keys${NC}"
                 fi

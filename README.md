@@ -18,7 +18,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-Alternatively, build a Docker image and run the Docker container  
+Alternatively, build a Docker image and run the Docker container
 ```bash
 docker build -t "linwinpwn:latest" .
 docker run --rm -it linwinpwn:latest
@@ -32,11 +32,8 @@ The linWinPwn script can be executed in interactive mode (default), or in automa
 **1. Interactive Mode (Default)** - Open interactive menu to run checks separately
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
+linWinPwn -t <Domain_Controller_IP> [-d <AD_domain> -u <AD_user> -p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]> -o <output_dir>]
 ```
-
-**Tip:** Run linWinPwn using rlwrap for a better wrapping of commands
-`rlwrap -n ./linWinPwn.sh`
 
 **2. Automated Mode** - Using the `--auto` parameter, run enumeration tools (no exploitation, modifications or password dumping)
 
@@ -55,7 +52,7 @@ When using the automated mode, different checks are performed based on the authe
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on identified servers
     - Check for ms17-010, zerologon, petitpotam, nopac, smb-sigining, ntlmv1, runasppl weaknesses
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --auto [-o <output_dir>]
+linWinPwn -t <Domain_Controller_IP> --auto [-o <output_dir>]
 ```
 
 - Authenticated (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)
@@ -76,7 +73,7 @@ When using the automated mode, different checks are performed based on the authe
     - Check mssql privilege escalation paths
     - Check mssql relay possibilities
 ```bash
-proxychains -q ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] --auto
+linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] --auto
 ```
 
 ### Parameters
@@ -84,48 +81,48 @@ proxychains -q ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_u
 **Auto config** - Run NTP sync with target DC and add entry to /etc/hosts before running the modules
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --auto-config
+linWinPwn -t <Domain_Controller_IP> --auto-config
 ```
 
 **LDAPS** - Use LDAPS instead of LDAP (port 636)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --ldaps
+linWinPwn -t <Domain_Controller_IP> --ldaps
 ```
 
 **Force Kerberos Auth** - Force using Kerberos authentication instead of NTLM (when possible)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --force-kerb
+linWinPwn -t <Domain_Controller_IP> --force-kerb
 ```
 
 **Verbose** - Enable all verbose and debug outputs
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --verbose
+linWinPwn -t <Domain_Controller_IP> --verbose
 ```
 
 **Interface** - Choose attacker's network interface
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -I tun0
-./linWinPwn.sh -t <Domain_Controller_IP> --interface eth0
+linWinPwn -t <Domain_Controller_IP> -I tun0
+linWinPwn -t <Domain_Controller_IP> --interface eth0
 ```
 
 **Targets** - Choose targets to be scanned (DC, All, IP=IP_or_hostname, File=./path_to_file)
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> --targets All
-./linWinPwn.sh -t <Domain_Controller_IP> --targets DC
-./linWinPwn.sh -t <Domain_Controller_IP> -T IP=192.168.0.1
-./linWinPwn.sh -t <Domain_Controller_IP> -T File=./list_servers.txt
+linWinPwn -t <Domain_Controller_IP> --targets All
+linWinPwn -t <Domain_Controller_IP> --targets DC
+linWinPwn -t <Domain_Controller_IP> -T IP=192.168.0.1
+linWinPwn -t <Domain_Controller_IP> -T File=./list_servers.txt
 ```
 
 **Custom wordlists** - Choose custom user and password wordlists
 
 ```bash
-./linWinPwn.sh -t <Domain_Controller_IP> -U /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt
-./linWinPwn.sh -t <Domain_Controller_IP> -P /usr/share/seclists/Passwords/xato-net-10-million-passwords.txt
+linWinPwn -t <Domain_Controller_IP> -U /usr/share/seclists/Usernames/xato-net-10-million-usernames.txt
+linWinPwn -t <Domain_Controller_IP> -P /usr/share/seclists/Passwords/xato-net-10-million-passwords.txt
 ```
 
 ### Tunneling
@@ -139,7 +136,7 @@ ssh.exe kali@<linux_machine> -R 1080 -NCqf
 ```
 On the Linux machine, first update `/etc/proxychains4.conf` to include `socks5 127.0.0.1 1080`, then run:
 ```bash
-proxychains -q ./linWinPwn.sh -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] [--auto]
+linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] [--auto]
 ```
 
 ### Current supported authentications
