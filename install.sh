@@ -31,6 +31,7 @@ sudo chmod 755 /usr/sbin/linWinPwn
 echo -e "${BLUE}Adding "linWinPwn_proxychains" to PATH ...${NC}"
 echo -e "rlwrap -Nn proxychains -q ${install_dir}/linWinPwn.sh" | sudo tee "/usr/sbin/linWinPwn_proxychains"
 sudo chmod 755 /usr/sbin/linWinPwn_proxychains
+sudo chmod +x ${install_dir}/linWinPwn.sh
 
 install_tools() {
     if [[ "$PKG_MANAGER" == "apt-get" ]]; then
