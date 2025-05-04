@@ -1216,9 +1216,9 @@ bhd_enum() {
                 run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_out}/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${DomainRecon_dir}/BloodHound_${user_out}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_out}_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1246,8 +1246,9 @@ bhd_enum_dconly() {
                 run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_out}/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound_${user_out}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_out}_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1260,21 +1261,21 @@ bhdce_enum() {
     if [ ! -f "${bloodhoundce}" ]; then
         echo -e "${RED}[-] Please verify the installation of BloodHoundCE${NC}"
     else
-        mkdir -p "${DomainRecon_dir}/BloodHoundCE"
+        mkdir -p "${DomainRecon_dir}/BloodHoundCE_${user_out}"
         echo -e "${BLUE}[*] BloodHoundCE Enumeration using all collection methods (Noisy!)${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_out}/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] BloodHoundCE results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${PURPLE}[-] BloodHoundCE requires credentials${NC}"
             else
                 current_dir=$(pwd)
-                cd "${DomainRecon_dir}/BloodHoundCE" || exit
-                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE/bloodhound_output_${dc_domain}.txt"
+                cd "${DomainRecon_dir}/BloodHoundCE_${user_out}" || exit
+                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_out}/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1287,20 +1288,21 @@ bhdce_enum_dconly() {
     if [ ! -f "${bloodhoundce}" ]; then
         echo -e "${RED}[-] Please verify the installation of BloodHoundCE${NC}"
     else
-        mkdir -p "${DomainRecon_dir}/BloodHoundCE"
+        mkdir -p "${DomainRecon_dir}/BloodHoundCE_${user_out}"
         echo -e "${BLUE}[*] BloodHoundCE Enumeration using DCOnly${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_out}/" -type f -name '*.json' -print -quit)" ]; then
             echo -e "${YELLOW}[i] BloodHoundCE results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${PURPLE}[-] BloodHoundCE requires credentials${NC}"
             else
                 current_dir=$(pwd)
-                cd "${DomainRecon_dir}/BloodHoundCE" || exit
-                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE/bloodhound_output_dconly_${dc_domain}.txt"
+                cd "${DomainRecon_dir}/BloodHoundCE_${user_out}" || exit
+                run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 --dns-tcp -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_out}/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_out}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
