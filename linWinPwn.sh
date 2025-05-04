@@ -145,7 +145,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.0.37 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.0.38 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -168,6 +168,7 @@ help_linWinPwn() {
     echo -e "--auto              Run automatic enumeration"
     echo -e "-o/--output         Output directory (default: current dir)"
     echo -e "--auto-config       Run NTP sync with target DC and adds entry to /etc/hosts"
+    echo -e "--dc-domain         Specify the Domain Controller's domain, if netexec fails to obtain it"
     echo -e "--ldap-port         Use custom LDAP port (default port 389)"
     echo -e "--ldaps             Use LDAPS instead of LDAP (port 636)"
     echo -e "--ldap-binding      Use LDAP Channel Binding on LDAPS (port 636)"
@@ -262,6 +263,10 @@ while test $# -gt 0; do
         autoconfig_bool=true
         args+=("$1")
         ;;
+    --dc-domain)
+        dc_domain="${2}"
+        shift
+        ;;
     --ldap-port)
         ldap_port="${2}"
         shift
@@ -350,27 +355,27 @@ etc_krb5conf_update() {
         echo -e "# /etc/krb5.conf file modified by linWinPwn" | sudo tee /etc/krb5.conf
         echo -e "[libdefaults]" | sudo tee -a /etc/krb5.conf
         echo -e "        default_realm = ${domain^^}" | sudo tee -a /etc/krb5.conf
-        echo -e "" | sudo tee -a /etc/krb5.conf
-        echo -e "# The following krb5.conf variables are only for MIT Kerberos." | sudo tee -a /etc/krb5.conf
         echo -e "        kdc_timesync = 1" | sudo tee -a /etc/krb5.conf
         echo -e "        ccache_type = 4" | sudo tee -a /etc/krb5.conf
         echo -e "        forwardable = true" | sudo tee -a /etc/krb5.conf
         echo -e "        proxiable = true" | sudo tee -a /etc/krb5.conf
         echo -e "        rdns = false" | sudo tee -a /etc/krb5.conf
-        echo -e "" | sudo tee -a /etc/krb5.conf
         echo -e "        fcc-mit-ticketflags = true" | sudo tee -a /etc/krb5.conf
         echo -e "        dns_canonicalize_hostname = false" | sudo tee -a /etc/krb5.conf
         echo -e "        dns_lookup_realm = false" | sudo tee -a /etc/krb5.conf
-        echo -e "        dns_lookup_kdc = true" | sudo tee -a /etc/krb5.conf
+        echo -e "        dns_lookup_kdc = false" | sudo tee -a /etc/krb5.conf
         echo -e "        k5login_authoritative = false" | sudo tee -a /etc/krb5.conf
         echo -e "" | sudo tee -a /etc/krb5.conf
         echo -e "[realms]" | sudo tee -a /etc/krb5.conf
         echo -e "        ${domain^^} = {" | sudo tee -a /etc/krb5.conf
         echo -e "                kdc = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
+        echo -e "                admin_server = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
+        echo -e "                default_domain = ${domain,,}" | sudo tee -a /etc/krb5.conf
         echo -e "        }" | sudo tee -a /etc/krb5.conf
         echo -e "" | sudo tee -a /etc/krb5.conf
         echo -e "[domain_realm]" | sudo tee -a /etc/krb5.conf
         echo -e "        .${domain,,} = ${domain^^}" | sudo tee -a /etc/krb5.conf
+        echo -e "        ${domain,,} = ${domain^^}" | sudo tee -a /etc/krb5.conf
         echo -e "${GREEN}[+] KRB5 config update complete${NC}"
     else
         echo -e "${PURPLE}[-] Domain already present in /etc/krb5.conf... ${NC}"
@@ -420,15 +425,13 @@ prepare() {
 
     # Extract NETBIOS name and domain from dc_info
     dc_NETBIOS=$(echo "$dc_info" | sed -E 's/.*\((name:)([^)]+)\).*/\2/' | head -n 1)
-    dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
 
-    # If dc_domain is missing, use the provided domain if available
+    # If dc_domain is missing, use the provided dc domain
     if [ -z "$dc_domain" ]; then
-        if [ -z "$domain" ]; then
-            echo -e "${RED}[-] Error finding DC's domain, please specify domain... ${NC}"
+        dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
+        if [ -z "$dc_domain" ]; then
+            echo -e "${RED}[-] Error finding DC's domain, please specify it using '--dc-domain'${NC}"
             exit 1
-        else
-            dc_domain="$domain"
         fi
     fi
 
@@ -781,26 +784,18 @@ authenticate() {
             echo "$auth_check"
             if [[ $auth_check == *"STATUS_NOT_SUPPORTED"* ]]; then
                 echo -e "${BLUE}[*] Domain does not support NTLM authentication. Attempting to generate TGT ticket to use Kerberos instead..${NC}"
-                if [ ! -f "${impacket_getTGT}" ]; then
-                    echo -e "${RED}[-] getTGT.py not found! Please verify the installation of impacket${NC}"
-                else
-                    if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                        current_dir=$(pwd)
-                        cd "${output_dir}/Credentials" || exit
-                        echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
-                        run_command "${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee "${output_dir}/Credentials/getTGT_output_${dc_domain}"
-                        cd "${current_dir}" || exit
-                        if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
-                            krb_ticket="${output_dir}/Credentials/${user}.ccache"
-                            echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket'"
-                            echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}'"
-                            exit 1
-                        else
-                            echo -e "${RED}[-] Failed to generate TGT${NC}"
-                        fi
+                if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+                    echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
+                    krb_ticket="${output_dir}/Credentials/${user}.ccache"
+                    run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --generate-tgt ${krb_ticket} --log ${output_dir}/Credentials/getTGT_output_${dc_domain}.txt"
+                    if [ -f "${krb_ticket}" ]; then
+                        echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket'"
+                        echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}'"
                     else
-                        echo -e "${RED}[-] Error! Requires password, NTLM hash or AES key...${NC}"
+                        echo -e "${RED}[-] Failed to generate TGT${NC}"
                     fi
+                else
+                    echo -e "${RED}[-] Error! Requires password, NTLM hash or AES key...${NC}"
                 fi
             fi
             if [[ $auth_check == *"STATUS_PASSWORD_MUST_CHANGE"* ]] || [[ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]]; then
@@ -5899,7 +5894,7 @@ auth_menu() {
             if [ "${hash_bool}" == true ]; then
                 echo "$hash" | cut -d ":" -f 2 >"${output_dir}/Credentials/ntlm_hash"
                 echo -e "${CYAN}[*] Cracking NTLM hash using john the ripper${NC}"
-                run_command "$john ${output_dir}/Credentials/ntlm_hash --format=NT --wordlist=$pass_wordlist" | tee "${output_dir}/Credentials/johnNTLM_output_${dc_domain}"
+                run_command "$john ${output_dir}/Credentials/ntlm_hash --format=NT --wordlist=$pass_wordlist" | tee "${output_dir}/Credentials/johnNTLM_output_${dc_domain}.txt"
                 john_out=$($john "${output_dir}/Credentials/ntlm_hash" --format=NT --show)
                 if [[ "${john_out}" == *"1 password"* ]]; then
                     password_cracked=$(echo "$john_out" | cut -d ":" -f 2 | cut -d " " -f 1)
@@ -5916,25 +5911,18 @@ auth_menu() {
         ;;
 
     3)
-        if [ ! -f "${impacket_getTGT}" ]; then
-            echo -e "${RED}[-] getTGT.py not found! Please verify the installation of impacket${NC}"
-        else
-            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                current_dir=$(pwd)
-                cd "${output_dir}/Credentials" || exit
-                echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
-                run_command "${impacket_getTGT} ${argument_imp} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee "${output_dir}/Credentials/getTGT_output_${dc_domain}"
-                cd "${current_dir}" || exit
-                if [ -f "${output_dir}/Credentials/${user}.ccache" ]; then
-                    krb_ticket="${output_dir}/Credentials/${user}.ccache"
-                    echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket'"
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}'"
-                else
-                    echo -e "${RED}[-] Failed to generate TGT${NC}"
-                fi
+        if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
+            krb_ticket="${output_dir}/Credentials/${user}.ccache"
+            run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --generate-tgt ${krb_ticket} --log ${output_dir}/Credentials/getTGT_output_${dc_domain}.txt"
+            if [ -f "${krb_ticket}" ]; then
+                echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket'"
+                echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn.sh -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}'"
             else
-                echo -e "${RED}[-] Error! Requires password, NTLM hash or AES key...${NC}"
+                echo -e "${RED}[-] Failed to generate TGT${NC}"
             fi
+        else
+            echo -e "${RED}[-] Error! Requires password, NTLM hash or AES key...${NC}"
         fi
         auth_menu
         ;;
