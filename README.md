@@ -69,7 +69,7 @@ linWinPwn -t <Domain_Controller_IP> --auto [-o <output_dir>]
     - Check mssql privilege escalation paths
     - Check mssql relay possibilities
 ```bash
-linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] --auto
+linWinPwn -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p <AD_password> -H <hash[LM:NT]> -K <kerbticket[./krb5cc_ticket]> -A <AES_key> -C <cert[./cert.pfx]>] [-o <output_dir>] --auto
 ```
 
 ### Parameters
