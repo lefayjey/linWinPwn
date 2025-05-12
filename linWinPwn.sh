@@ -1391,43 +1391,43 @@ ne_smb_enum() {
 ne_ldap_enum() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${BLUE}[*] Users Enumeration (LDAP Null session)${NC}"
-        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u Guest -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u ${rand_user} -p '' ${ldaps_param} --users --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --users --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u Guest -p '' --users --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u ${rand_user} -p '' --users --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
         grep -vE '\[-|\[+|\[\*' "${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${Users_dir}/users_list_ne_ldap_nullsess_${dc_domain}.txt" 2>&1
     else
         echo -e "${BLUE}[*] Users Enumeration (LDAP authenticated)${NC}"
-        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --users-export ${Users_dir}/users_list_ne_ldap_${dc_domain}.txt --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_auth_ldap_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --users-export ${Users_dir}/users_list_ne_ldap_${dc_domain}.txt --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_auth_ldap_${dc_domain}.txt" 2>&1
     fi
     parse_users
     echo -e ""
     echo -e "${BLUE}[*] DC List Enumeration${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --dc-list --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --dc-list --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" 2>&1
     grep -vE '\[-|\[+|\[\*' "${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $12}' >"${Servers_dir}/dc_list_ne_ldap_${dc_domain}.txt" 2>&1
     grep -vE '\[-|\[+|\[\*' "${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $14}' >"${Servers_dir}/dc_ip_list_ne_ldap_${dc_domain}.txt" 2>&1
     parse_servers
     echo -e ""
     echo -e ""
     echo -e "${BLUE}[*] Password not required Enumeration${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --password-not-required --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_passnotrequired_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --password-not-required --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_passnotrequired_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Users Description containing word: pass${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M get-desc-users --kdcHost ${dc_FQDN}" >"${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt"
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-desc-users --kdcHost ${dc_FQDN}" >"${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt"
     echo -e "${BLUE}[*] Attributes userPassword or unixUserPassword of users ${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M get-unixUserPassword -M get-userPassword --kdcHost ${dc_FQDN}" >"${DomainRecon_dir}/ne_get-userpass_output_${dc_domain}.txt"
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-unixUserPassword -M get-userPassword --kdcHost ${dc_FQDN}" >"${DomainRecon_dir}/ne_get-userpass_output_${dc_domain}.txt"
     grep -i "pass\|pwd\|passwd\|password\|pswd\|pword" "${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt" 2>/dev/null | tee "${DomainRecon_dir}/ne_get-desc-users_pass_results_${dc_domain}.txt" 2>&1
     if [ ! -s "${DomainRecon_dir}/ne_get-desc-users_pass_results_${dc_domain}.txt" ]; then
         echo -e "${PURPLE}[-] No users with passwords in description found${NC}"
     fi
     echo -e ""
     echo -e "${BLUE}[*] Get MachineAccountQuota${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M maq --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_MachineAccountQuota_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M maq --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_MachineAccountQuota_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Subnets Enumeration${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M subnets --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_subnets_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M subnets --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_subnets_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] LDAP-signing check${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} ${ldaps_param} -M ldap-checker --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_ldap-checker_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target_dc} ${argument_ne} -M ldap-checker --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_ldap-checker_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -1442,10 +1442,10 @@ deleg_enum() {
         fi
     fi
     echo -e "${BLUE}[*] findDelegation check (netexec)${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --find-delegation --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_find-delegation_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --find-delegation --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_find-delegation_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Trusted-for-delegation check (netexec)${NC}"
-    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --trusted-for-delegation --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_trusted-for-delegation_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -1939,8 +1939,7 @@ ne_adcs_enum() {
     mkdir -p "${ADCS_dir}"
     if [ ! -f "${ADCS_dir}/ne_adcs_output_${dc_domain}.txt" ]; then
         echo -e "${BLUE}[*] ADCS Enumeration${NC}"
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="--port ${ldap_port}"; else ldaps_param=""; fi
-        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} ${ldaps_param} -M adcs --kdcHost ${dc_FQDN} --log ${ADCS_dir}/ne_adcs_output_${dc_domain}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M adcs --kdcHost ${dc_FQDN} --log ${ADCS_dir}/ne_adcs_output_${dc_domain}.txt" 2>&1
     else
         echo -e "${YELLOW}[i] ADCS info found, skipping...${NC}"
     fi
