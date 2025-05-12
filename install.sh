@@ -27,10 +27,10 @@ fi
 #Add to PATH
 echo -e "${BLUE}Adding "linWinPwn" to PATH ...${NC}"
 echo -e "rlwrap -Nn ${install_dir}/linWinPwn.sh" | sudo tee "/usr/local/sbin/linWinPwn"
-sudo chmod 755 /usr/sbin/linWinPwn
+sudo chmod 755 /usr/local/sbin/linWinPwn
 echo -e "${BLUE}Adding "linWinPwn_proxychains" to PATH ...${NC}"
 echo -e "rlwrap -Nn proxychains -q ${install_dir}/linWinPwn.sh" | sudo tee "/usr/local/sbin/linWinPwn_proxychains"
-sudo chmod 755 /usr/sbin/linWinPwn_proxychains
+sudo chmod 755 /usr/local/sbin/linWinPwn_proxychains
 sudo chmod +x ${install_dir}/linWinPwn.sh
 
 install_tools() {
