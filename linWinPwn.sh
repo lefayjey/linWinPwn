@@ -145,7 +145,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.1.0 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.1.1 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -413,9 +413,11 @@ prepare() {
         dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused")
         if [[ $dc_info == *"First time use detected"* ]]; then
             dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused")
-            #dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused")
         fi
-        #dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused")
+        if [ -z "$dc_info" ]; then
+            echo -e "${PURPLE}[!] Error connecting to LDAP! Please ensure the LDAP port is correct and accessible (--ldaps, --ldap-port 3268). Using SMB only ... ${NC}"
+            dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused")
+        fi
     fi
 
     if [ -z "$dc_info" ]; then
