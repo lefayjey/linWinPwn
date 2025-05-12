@@ -421,7 +421,7 @@ prepare() {
     fi
 
     if [ -z "$dc_info" ]; then
-        echo -e "${RED}[-] Error connecting to target! Please ensure the target is a Domain Controller and try again... ${NC}"
+        echo -e "${RED}[-] Error connecting to LDAP and SMB ports of target ! Please ensure the target is a Domain Controller and is accessible, and try again... ${NC}"
         exit 1
     fi
 
