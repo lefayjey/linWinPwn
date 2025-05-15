@@ -2,7 +2,7 @@
 
 ## Description
 
-linWinPwn is a bash script that wraps a number of Active Directory tools for enumeration (LDAP, RPC, ADCS, MSSQL, Kerberos), vulnerability checks (noPac, ZeroLogon, MS17-010, MS14-068), object modifications (password change, add user to group, RBCD, Shadow Credentials) and password dumping (secretsdump, lsassy, nanodump, DonPAPI). The script streamlines the use of a large number of tools: impacket, bloodhound, netexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, bloodyAD, DonPAPI and many others.
+linWinPwn is a bash script that wraps a number of Active Directory tools for enumeration (LDAP, RPC, ADCS, MSSQL, Kerberos, SCCM), vulnerability checks (noPac, ZeroLogon, MS17-010, MS14-068), object modifications (password change, add user to group, RBCD, Shadow Credentials) and password dumping (secretsdump, lsassy, nanodump, DonPAPI). The script streamlines the use of a large number of tools: impacket, bloodhound, netexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, bloodyAD, DonPAPI and many others.
 
 ## Setup
 
@@ -181,6 +181,8 @@ linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p
 | `ExtractBitlockerKeys`  | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `evilwinrm`             | ❌           | ✅       | ✅        | ✅             | ✅         | ✅         |
 | `mssqlpwner`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `SoaPy`                 | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `SCCMSecrets`           | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep
