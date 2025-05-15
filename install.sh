@@ -95,7 +95,7 @@ install_tools() {
     sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
     python3 -m venv "${scripts_dir}/.venv"
     source "${scripts_dir}/.venv/bin/activate"
-    pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome --upgrade
+    pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules --upgrade
     deactivate
     
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
@@ -128,10 +128,12 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/Tw1sm/aesKrbKeyGen/refs/heads/master/aesKrbKeyGen.py" -O "$scripts_dir/aesKrbKeyGen.py"
     wget -q "https://raw.githubusercontent.com/barcrange/CVE-2024-49113-Checker/refs/heads/main/CVE-2024-49113-checker.py" -O "$scripts_dir/CVE-2024-49113-checker.py"
     wget -q "https://raw.githubusercontent.com/p0dalirius/FindUnusualSessions/refs/heads/main/FindUnusualSessions.py" -O "$scripts_dir/FindUnusualSessions.py"
+    wget -q "https://github.com/synacktiv/SCCMSecrets/archive/refs/heads/master.zip" -O "$scripts_dir/SCCMSecrets.zip"
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/orpheus.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/pyGPOAbuse.zip" -d "$scripts_dir"
+    unzip -o "$scripts_dir/SCCMSecrets.zip" -d "$scripts_dir"
     tar -C $scripts_dir -xf "$scripts_dir/godap-v2.8.0-linux-amd64.tar.gz" godap
 
     chmod +x "$scripts_dir/aced-main/aced.py"
@@ -162,6 +164,7 @@ install_tools() {
     chmod +x "$scripts_dir/aesKrbKeyGen.py"
     chmod +x "$scripts_dir/CVE-2024-49113-checker.py"
     chmod +x "$scripts_dir/FindUnusualSessions.py"
+    chmod +x "$scripts_dir/SCCMSecrets-master/SCCMSecrets.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }
