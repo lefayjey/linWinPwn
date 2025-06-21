@@ -65,7 +65,7 @@ linWinPwn -t <Domain_Controller_IP> --auto [-o <output_dir>]
     - Targeted Kerberoasting (and cracking hashes using john-the-ripper and the rockyou wordlist)
     - SMB shares enumeration on all domain servers using smbmap, FindUncommonShares and cme's spider_plus
     - Enumeration for WebDav, dfscoerce, shadowcoerce and Spooler services on all domain servers (using cme, Coercer and RPC Dump)
-    - Check for ms17-010, ms14-068, zerologon, petitpotam, nopac, smb-signing, ntlmv1, runasppl, certifried weaknesses
+    - Check for ms17-010, ms14-068, zerologon, petitpotam, nopac, smb-signing, ntlmv1, runasppl, certifried weaknesses, ldapnightmare, badsuccessor
     - Check mssql privilege escalation paths
     - Check mssql relay possibilities
 ```bash
@@ -211,34 +211,36 @@ AD Enum menu
 ```
 1) BloodHound Enumeration using all collection methods (Noisy!)
 2) BloodHound Enumeration using DCOnly
-1bis) BloodHoundCE Enumeration using all collection methods (Noisy!)
-2bis) BloodHoundCE Enumeration using DCOnly
+1ce) BloodHoundCE Enumeration using all collection methods (Noisy!)
+2ce) BloodHoundCE Enumeration using DCOnly
 3) ldapdomaindump LDAP Enumeration
 4) enum4linux-ng LDAP-MS-RPC Enumeration
 5) GPP Enumeration using netexec
-6) MS-RPC Enumeration using netexec (Users, pass pol)
-7) LDAP Enumeration using netexec (Users, passnotreq, userdesc, maq, ldap-checker, subnets)
-8) Delegation Enumeration using findDelegation and netexec
-9) bloodyAD All Enumeration
-10) bloodyAD write rights Enumeration
-11) bloodyAD query DNS server
-12) SilentHound LDAP Enumeration
-13) ldeep LDAP Enumeration
-14) windapsearch LDAP Enumeration
-15) LDAP Wordlist Harvester
-16) LDAP Enumeration using LDAPPER
-17) Adalanche Enumeration
-18) GPO Enumeration using GPOwned
-19) Enumeration of RDWA servers
-20) Open p0dalirius' LDAP Console
-21) Open p0dalirius' LDAP Monitor
-22) Open garrettfoster13's ACED console
-23) Open LDAPPER custom options
-24) Open breads console
-25) Run godap console
-26) Run adPEAS enumerations
-27) Run ADCheck enumerations
-28) Run soapy enumerations
+6) MS-RPC Users Enumeration using netexec
+7) Password policy Enumeration using netexec
+8) LDAP Users Enumeration using netexec
+9) LDAP Enumeration using netexec (passnotreq, userdesc, maq, subnets)
+10) Delegation Enumeration using findDelegation and netexec
+11) bloodyAD All Enumeration
+12) bloodyAD write rights Enumeration
+13) bloodyAD query DNS server
+14) SilentHound LDAP Enumeration
+15) ldeep LDAP Enumeration
+16) windapsearch LDAP Enumeration
+17) LDAP Wordlist Harvester
+18) LDAP Enumeration using LDAPPER
+19) Adalanche Enumeration
+20) GPO Enumeration using GPOwned
+21) Enumeration of RDWA servers
+22) Open p0dalirius' LDAP Console
+23) Open p0dalirius' LDAP Monitor
+24) Open garrettfoster13's ACED console
+25) Open LDAPPER custom options
+26) Open breads console
+27) Run godap console
+28) Run adPEAS enumerations
+29) Run ADCheck enumerations
+30) Run soapy enumerations
 ```
 
 ADCS menu
@@ -324,6 +326,7 @@ Vuln Checks menu
 11) RunFinger scan
 12) Run LDAPNightmare check
 13) Check for unusual sessions
+14) Check for BadSuccessor vuln using netexec
 ```
 
 MSSQL Enumeration menu
