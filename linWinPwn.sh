@@ -147,7 +147,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.1.3 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.1.4 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -314,7 +314,7 @@ set -- "${args[@]}"
 
 run_command() {
     echo "$(date +%Y-%m-%d\ %H:%M:%S); $*" >>"$command_log"
-    echo -e "${YELLOW}[i]${NC} Running command: $*" > /dev/tty
+    echo -e "${YELLOW}[i]${NC} Running command: $*\n" > /dev/tty
     /usr/bin/script -qc "$@" /dev/null
 }
 
@@ -585,6 +585,7 @@ authenticate() {
             argument_ldeep="-d ${dc_domain} -a"
             argument_pre2k="-d ${domain}"
             argument_p0dalirius="-d ${domain} -u Guest -p ''"
+            argument_p0dalirius_smbclient="-d ${domain} -u Guest -p ''"
             argument_FindUncom="-ad ${domain} -au Guest -ap ''"
             argument_adalanche="--authmode anonymous --username Guest\\@${domain} -p '!'"
             argument_godap=""
@@ -619,6 +620,7 @@ authenticate() {
         argument_windap="-d ${domain} -u '${user}' -p '${password}'"
         argument_targkerb="-d ${domain} -u '${user}' -p '${password}'"
         argument_p0dalirius="-d ${domain} -u '${user}' -p '${password}'"
+        argument_p0dalirius_smbclient="-d ${domain} -u '${user}' -p '${password}'"
         argument_FindUncom="-ad ${domain} -au '${user}' -ap '${password}'"
         argument_manspider="-d ${domain} -u '${user}' -p '${password}'"
         argument_coercer="-d ${domain} -u '${user}' -p '${password}'"
@@ -687,6 +689,7 @@ authenticate() {
             argument_windap="-d ${domain} -u '${user}' --hash ${hash}"
             argument_targkerb="-d ${domain} -u '${user}' -H ${hash}"
             argument_p0dalirius="-d ${domain} -u '${user}' -H ${hash:33})"
+            argument_p0dalirius_smbclient="-d ${domain} -u '${user}' -H ${hash:33})"
             argument_FindUncom="-ad ${domain} -au '${user}' -ah ${hash}"
             argument_manspider="-d ${domain} -u '${user}' -H ${hash:33}"
             argument_coercer="-d ${domain} -u '${user}' --hashes ${hash}"
@@ -751,6 +754,7 @@ authenticate() {
             argument_donpapi="-k --no-pass -d ${domain} -u '${user}'"
             argument_targkerb="-d ${domain} -u '${user}' -k --no-pass"
             argument_p0dalirius="-d ${domain} -u '${user}' -k --no-pass"
+            argument_p0dalirius_smbclient="-d ${domain} -u '${user}' -k"
             argument_FindUncom="-ad ${domain} -au '${user}' -k --no-pass"
             argument_bloodyad="-d ${domain} -u '${user}' -k"
             argument_adalanche="--authmode kerberoscache --username '${user}'\\@${domain}"
@@ -785,6 +789,7 @@ authenticate() {
         argument_donpapi="-k --aesKey ${aeskey} -d ${domain} -u '${user}'"
         argument_targkerb="-d ${domain} -u '${user}' --aes-key ${aeskey} -k"
         argument_p0dalirius="-d ${domain} -u '${user}' --aes-key ${aeskey} -k"
+        argument_p0dalirius_smbclient="-d ${domain} -u '${user}' --aes-key ${aeskey} -k"
         argument_FindUncom="-ad ${domain} -au '${user}' --aes-key ${aeskey} -k"
         argument_aced="-aes ${aeskey} ${domain}/'${user}'"
         argument_sccm="-d ${domain} -u '${user}' -aes ${aeskey}"
@@ -2949,7 +2954,7 @@ smbclientng_console() {
         done
         if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then kdc_param="--kdcHost ${dc_FQDN}"; else kdc_param=""; fi
-        run_command "${smbclientng} ${argument_p0dalirius} ${verbose_p0dalirius} --host ${smbclient_target} ${kdc_param}" 2>&1 | tee -a "${Shares_dir}/smbclientng_output_${user_var}.txt"
+        run_command "${smbclientng} ${argument_p0dalirius_smbclient} ${verbose_p0dalirius} --host ${smbclient_target} ${kdc_param}" 2>&1 | tee -a "${Shares_dir}/smbclientng_output_${user_var}.txt"
     fi
     echo -e ""
 }
