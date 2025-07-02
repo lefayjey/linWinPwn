@@ -224,19 +224,19 @@ AD Enum menu
 11) bloodyAD All Enumeration
 12) bloodyAD write rights Enumeration
 13) bloodyAD query DNS server
-14) SilentHound LDAP Enumeration
-15) ldeep LDAP Enumeration
-16) windapsearch LDAP Enumeration
-17) LDAP Wordlist Harvester
-18) LDAP Enumeration using LDAPPER
-19) Adalanche Enumeration
-20) GPO Enumeration using GPOwned
-21) Enumeration of RDWA servers
-22) Open p0dalirius' LDAP Console
-23) Open p0dalirius' LDAP Monitor
-24) Open garrettfoster13's ACED console
-25) Open LDAPPER custom options
-26) Open breads console
+14) bloodyAD enumerate object
+15) SilentHound LDAP Enumeration
+16) ldeep LDAP Enumeration
+17) windapsearch LDAP Enumeration
+18) LDAP Wordlist Harvester
+19) LDAP Enumeration using LDAPPER
+20) Adalanche Enumeration
+21) GPO Enumeration using GPOwned
+22) Enumeration of RDWA servers
+23) Open p0dalirius' LDAP Console
+24) Open p0dalirius' LDAP Monitor
+25) Open garrettfoster13's ACED console
+26) Open LDAPPER custom options
 27) Run godap console
 28) Run adPEAS enumerations
 29) Run ADCheck enumerations
@@ -304,11 +304,12 @@ SMB Shares menu
 ```
 1) SMB shares Scan using smbmap
 2) SMB shares Enumeration using netexec
-3) SMB shares Spidering using netexec 
+3) SMB shares Spidering using netexec
 4) SMB shares Scan using FindUncommonShares
-5) SMB shares Scan using manspider
-6) Open smbclient.py console on target
-7) Open p0dalirius's smbclientng console on target
+5) List all servers and run SMB shares Scan using FindUncommonShares
+6) SMB shares Scan using manspider
+7) Open smbclient.py console on target
+8) Open p0dalirius's smbclientng console on target
 ```
 
 Vuln Checks menu
@@ -368,18 +369,21 @@ Modification menu
 3) Add new computer (Requires: MAQ > 0)
 4) Add new DNS entry
 5) Enable account
-6) Change Owner of target (Requires: WriteOwner permission)
-7) Add GenericAll rights on target (Requires: Owner permission)
-8) Targeted Kerberoast Attack (Noisy!)
-9) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)
-10)Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)
-11) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
-12) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
-13) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
-14) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)
-15) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)
-16) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
-17) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
+6) Disable account
+7) Change Owner of target (Requires: WriteOwner permission)
+8) Add GenericAll rights on target (Requires: Owner permission)
+9) Delete object (Requires: GenericWrite or GenericAll on object)
+10) Targeted Kerberoast Attack (Noisy!)
+11) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)
+12) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)
+13) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
+14) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)
+15) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
+16) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
+17) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)
+18) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)
+19) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
+20) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
 ```
 Command Execution menu
 ```
@@ -472,7 +476,6 @@ Automated Mode:
     - [CompassSecurity](https://github.com/CompassSecurity) - mssqlrelay
     - [lgandx](https://github.com/lgandx) - Responder
     - [ajm4n](https://github.com/ajm4n) - adPEAS
-    - [oppsec](https://github.com/oppsec) - breads
     - [CobblePot59](https://github.com/CobblePot59) - ADcheck
     - [lkarlslund](https://github.com/lkarlslund) - ldapnomnom
     - [Macmod](https://github.com/Macmod) - godap

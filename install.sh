@@ -29,7 +29,7 @@ echo -e "${BLUE}Adding "linWinPwn" to PATH ...${NC}"
 echo -e "rlwrap -Nn ${install_dir}/linWinPwn.sh \$@" | sudo tee "/usr/local/sbin/linWinPwn"
 sudo chmod 755 /usr/local/sbin/linWinPwn
 echo -e "${BLUE}Adding "linWinPwn_proxychains" to PATH ...${NC}"
-echo -e "rlwrap -Nn proxychains -q ${install_dir}/linWinPwn.sh \$@" | sudo tee "/usr/local/sbin/linWinPwn_proxychains"
+echo -e "rlwrap -Nn proxychains -q ${install_dir}/linWinPwn.sh --dns-tcp \$@" | sudo tee "/usr/local/sbin/linWinPwn_proxychains"
 sudo chmod 755 /usr/local/sbin/linWinPwn_proxychains
 sudo chmod +x ${install_dir}/linWinPwn.sh
 
@@ -83,7 +83,6 @@ install_tools() {
     pipx install git+https://github.com/CompassSecurity/mssqlrelay.git --force
     pipx install git+https://github.com/CobblePot59/ADcheck.git --force
     pipx install git+https://github.com/ajm4n/adPEAS --force --pip-args="--use-deprecated=legacy-resolver"
-    pipx install git+https://github.com/oppsec/breads.git --force
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force
     pipx install git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
     pipx install git+https://github.com/xforcered/SoaPy --force
