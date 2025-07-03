@@ -366,24 +366,25 @@ Modification menu
 ```
 1) Change user or computer password (Requires: ForceChangePassword on user or computer)
 2) Add user to group (Requires: GenericWrite or GenericAll on group)
-3) Add new computer (Requires: MAQ > 0)
-4) Add new DNS entry
-5) Enable account
-6) Disable account
-7) Change Owner of target (Requires: WriteOwner permission)
-8) Add GenericAll rights on target (Requires: Owner permission)
-9) Delete object (Requires: GenericWrite or GenericAll on object)
-10) Targeted Kerberoast Attack (Noisy!)
-11) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)
-12) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)
-13) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
-14) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)
-15) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
-16) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
-17) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)
-18) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)
-19) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
-20) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
+3) Remove user from group (Requires: GenericWrite or GenericAll on group)
+4) Add new computer (Requires: MAQ > 0)
+5) Add new DNS entry
+6) Enable account
+7) Disable account
+8) Change Owner of target (Requires: WriteOwner permission)
+9) Add GenericAll rights on target (Requires: Owner permission)
+10) Delete object (Requires: GenericWrite or GenericAll on object)
+11) Targeted Kerberoast Attack (Noisy!)
+12) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)
+13) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)
+14) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
+15) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)
+16) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
+17) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
+18) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)
+19) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)
+20) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
+21) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
 ```
 Command Execution menu
 ```

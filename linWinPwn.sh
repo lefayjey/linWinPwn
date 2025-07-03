@@ -3331,6 +3331,34 @@ add_group_member() {
     echo -e ""
 }
 
+remove_group_member() {
+    if [ ! -f "${bloodyad}" ]; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Removing user from group. Please specify target group:${NC}"
+            echo -e "${CYAN}[*] Example: group01 ${NC}"
+            target_groupmem=""
+            read -rp ">> " target_groupmem </dev/tty
+            while [ "${target_groupmem}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify target group:"
+                read -rp ">> " target_groupmem </dev/tty
+            done
+            echo -e "${BLUE}[*] Please specify user to remove from the group (default: current user):${NC}"
+            user_groupmem=""
+            read -rp ">> " user_groupmem </dev/tty
+            if [ "${user_groupmem}" == "" ]; then user_groupmem="${user}"; fi
+            echo -e "${CYAN}[*] Removing ${user_groupmem} from group ${target_groupmem}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove groupMember '${target_groupmem}' '${user_groupmem}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_groupmem_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
 add_computer() {
     if [ ! -f "${bloodyad}" ]; then
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
@@ -5941,24 +5969,25 @@ modif_menu() {
     echo -e "m) Modify target(s)"
     echo -e "1) Change user or computer password (Requires: ForceChangePassword on user or computer)"
     echo -e "2) Add user to group (Requires: GenericWrite or GenericAll on group)"
-    echo -e "3) Add new computer (Requires: MAQ > 0)"
-    echo -e "4) Add new DNS entry"
-    echo -e "5) Enable account"
-    echo -e "6) Disable account"
-    echo -e "7) Change Owner of target (Requires: WriteOwner permission)"
-    echo -e "8) Add GenericAll rights on target (Requires: Owner permission)"
-    echo -e "9) Delete object (Requires: GenericWrite or GenericAll on object)"
-    echo -e "10) Targeted Kerberoast Attack (Noisy!)"
-    echo -e "11) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)"
-    echo -e "12) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)"
-    echo -e "13) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
-    echo -e "14) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)"
-    echo -e "15) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
-    echo -e "16) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "17) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)"
-    echo -e "18) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)"
-    echo -e "19) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "20) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)"
+    echo -e "3) Remove user from group (Requires: GenericWrite or GenericAll on group)"
+    echo -e "4) Add new computer (Requires: MAQ > 0)"
+    echo -e "5) Add new DNS entry"
+    echo -e "6) Enable account"
+    echo -e "7) Disable account"
+    echo -e "8) Change Owner of target (Requires: WriteOwner permission)"
+    echo -e "9) Add GenericAll rights on target (Requires: Owner permission)"
+    echo -e "10) Delete object (Requires: GenericWrite or GenericAll on object)"
+    echo -e "11) Targeted Kerberoast Attack (Noisy!)"
+    echo -e "12) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)"
+    echo -e "13) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)"
+    echo -e "14) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
+    echo -e "15) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)"
+    echo -e "16) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
+    echo -e "17) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "18) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)"
+    echo -e "19) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)"
+    echo -e "20) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "21) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5976,91 +6005,96 @@ modif_menu() {
         ;;
 
     3)
-        add_computer
+        remove_group_member
         modif_menu
         ;;
 
     4)
-        dnsentry_add
+        add_computer
         modif_menu
         ;;
 
     5)
-        enable_account
+        dnsentry_add
         modif_menu
         ;;
 
     6)
-        disable_account
+        enable_account
         modif_menu
         ;;
 
     7)
-        change_owner
+        disable_account
         modif_menu
         ;;
 
     8)
-        add_genericall
+        change_owner
         modif_menu
         ;;
 
     9)
-        delete_object
+        add_genericall
         modif_menu
         ;;
 
     10)
-        targetedkerberoast_attack
+        delete_object
         modif_menu
         ;;
 
     11)
-        rbcd_attack
+        targetedkerberoast_attack
         modif_menu
         ;;
 
     12)
-        rbcd_spnless_attack
+        rbcd_attack
         modif_menu
         ;;
 
     13)
-        shadowcreds_attack
+        rbcd_spnless_attack
         modif_menu
         ;;
 
     14)
-        shadowcreds_delete
+        shadowcreds_attack
         modif_menu
         ;;
 
     15)
-        pygpo_abuse
+        shadowcreds_delete
         modif_menu
         ;;
 
     16)
-        add_unconstrained
+        pygpo_abuse
         modif_menu
         ;;
 
     17)
-        add_spn
+        add_unconstrained
         modif_menu
         ;;
 
     18)
-        add_upn
+        add_spn
         modif_menu
         ;;
 
     19)
-        add_constrained
+        add_upn
         modif_menu
         ;;
 
     20)
+        add_constrained
+        modif_menu
+        ;;
+
+    21)
         add_spn_constrained
         modif_menu
         ;;
