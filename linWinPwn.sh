@@ -146,7 +146,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.1.5 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.1.6 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -456,7 +456,7 @@ prepare() {
 
     if [ "${user}" == "" ]; then user_out="null"; else user_out=${user// /}; fi
     output_dir="${output_dir}/linWinPwn_${dc_domain}"
-    user_var="${user_out}@${domain}"
+    user_var="${user_out/\$/}@${domain}"
     command_log="${output_dir}/$(date +%Y-%m)_command_${user_var}.log"
 
     Users_dir="${output_dir}/Users"
@@ -946,11 +946,13 @@ dns_enum() {
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
                 run_command "${adidnsdump} ${argument_adidns} ${ldaps_param} ${dnstcp_param} ${dc_ip}" | tee "${Servers_dir}/adidnsdump_output_${dc_domain}.txt"
-                mv records.csv "${Servers_dir}/dns_records_${dc_domain}.csv" 2>/dev/null
-                grep "A," "${Servers_dir}/dns_records_${dc_domain}.csv" 2>/dev/null | grep -v "DnsZones\|@" | cut -d "," -f 2 | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_dns_${dc_domain}.txt"
-                grep "A," "${Servers_dir}/dns_records_${dc_domain}.csv" 2>/dev/null | grep -v "DnsZones\|@" | cut -d "," -f 3 >"${Servers_dir}/ip_list_dns_${dc_domain}.txt"
-                grep "@" "${Servers_dir}/dns_records_${dc_domain}.csv" 2>/dev/null | grep "NS," | cut -d "," -f 3 | sed 's/\.$//' >"${Servers_dir}/dc_list_dns_${dc_domain}.txt"
-                grep "@" "${Servers_dir}/dns_records_${dc_domain}.csv" 2>/dev/null | grep "A," | cut -d "," -f 3 >"${Servers_dir}/dc_ip_list_dns_${dc_domain}.txt"
+                if [ -s "records.csv" ]; then
+                    mv records.csv "${Servers_dir}/dns_records_${dc_domain}.csv"
+                    grep "A," "${Servers_dir}/dns_records_${dc_domain}.csv" | grep -v "DnsZones\|@" | cut -d "," -f 2 | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_dns_${dc_domain}.txt"
+                    grep "A," "${Servers_dir}/dns_records_${dc_domain}.csv" | grep -v "DnsZones\|@" | cut -d "," -f 3 >"${Servers_dir}/ip_list_dns_${dc_domain}.txt"
+                    grep "@" "${Servers_dir}/dns_records_${dc_domain}.csv" | grep "NS," | cut -d "," -f 3 | sed 's/\.$//' >"${Servers_dir}/dc_list_dns_${dc_domain}.txt"
+                    grep "@" "${Servers_dir}/dns_records_${dc_domain}.csv" | grep "A," | cut -d "," -f 3 >"${Servers_dir}/dc_ip_list_dns_${dc_domain}.txt"
+                fi
             fi
             parse_servers
         else
@@ -1234,9 +1236,9 @@ bhd_enum() {
                 run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_out}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json >"${Users_dir}/users_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json >"${Servers_dir}/servers_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_var}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1265,9 +1267,9 @@ bhd_enum_dconly() {
                 run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhd_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhd_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json >"${Users_dir}/users_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json >"${Servers_dir}/servers_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_var}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1293,9 +1295,9 @@ bhdce_enum() {
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
                 run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_users.json >"${Users_dir}/users_list_bhdce_${user_var}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_computers.json >"${Servers_dir}/servers_list_bhdce_${user_var}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_var}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1348,8 +1350,12 @@ ldapdomaindump_enum() {
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="${ldapbinding_param} ldaps"; else ldaps_param="ldap"; fi
                 run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip}:${ldap_port} -o ${DomainRecon_dir}/LDAPDomainDump" | tee "${DomainRecon_dir}/LDAPDomainDump/ldd_output_${dc_domain}.txt"
             fi
-            /usr/bin/jq -r ".[].attributes.sAMAccountName[]" "${DomainRecon_dir}/LDAPDomainDump/domain_users.json" 2>/dev/null >"${Users_dir}/users_list_ldd_${dc_domain}.txt"
-            /usr/bin/jq -r ".[].attributes.dNSHostName[]" "${DomainRecon_dir}/LDAPDomainDump/domain_computers.json" 2>/dev/null >"${Servers_dir}/servers_list_ldd_${dc_domain}.txt"
+            if [ -s "${DomainRecon_dir}/LDAPDomainDump/domain_users.json" ]; then
+                /usr/bin/jq -r ".[].attributes.sAMAccountName[]" "${DomainRecon_dir}/LDAPDomainDump/domain_users.json" > "${Users_dir}/users_list_ldd_${dc_domain}.txt"
+            fi
+            if [ -s "${DomainRecon_dir}/LDAPDomainDump/domain_computers.json" ]; then
+                /usr/bin/jq -r ".[].attributes.dNSHostName[]" "${DomainRecon_dir}/LDAPDomainDump/domain_computers.json" > "${Servers_dir}/servers_list_ldd_${dc_domain}.txt"
+            fi
             parse_users
             parse_servers
         fi
@@ -1368,13 +1374,17 @@ enum4linux_enum() {
             run_command "${enum4linux_py} -A ${argument_enum4linux} ${target} -oJ ${DomainRecon_dir}/enum4linux_${dc_domain}" >"${DomainRecon_dir}/enum4linux_${dc_domain}.txt"
             head -n 20 "${DomainRecon_dir}/enum4linux_${dc_domain}.txt" 2>&1
             echo -e "............................(truncated output)"
-            /usr/bin/jq -r ".users[].username" "${DomainRecon_dir}/enum4linux_${dc_domain}.json" 2>/dev/null >"${Users_dir}/users_list_enum4linux_${dc_domain}.txt"
+            if [ -s "${DomainRecon_dir}/enum4linux_${dc_domain}.json" ]; then
+                /usr/bin/jq -r ".users[].username" "${DomainRecon_dir}/enum4linux_${dc_domain}.json" >"${Users_dir}/users_list_enum4linux_${dc_domain}.txt"
+            fi
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${CYAN}[*] Guest with empty password (null session)${NC}"
                 run_command "${enum4linux_py} -A ${target} -u 'Guest' -p '' -oJ ${DomainRecon_dir}/enum4linux_guest_${dc_domain}" >"${DomainRecon_dir}/enum4linux_guest_${dc_domain}.txt"
                 head -n 20 "${DomainRecon_dir}/enum4linux_guest_${dc_domain}.txt" 2>&1
                 echo -e "............................(truncated output)"
-                /usr/bin/jq -r ".users[].username" "${DomainRecon_dir}/enum4linux_guest_${dc_domain}.json" 2>/dev/null >"${Users_dir}/users_list_enum4linux_guest_${dc_domain}.txt"
+                if [ -s "${DomainRecon_dir}/enum4linux_guest_${dc_domain}.json" ]; then
+                    /usr/bin/jq -r ".users[].username" "${DomainRecon_dir}/enum4linux_guest_${dc_domain}.json" >"${Users_dir}/users_list_enum4linux_guest_${dc_domain}.txt"
+                fi
             fi
         fi
         parse_users
@@ -1415,7 +1425,9 @@ ne_ldap_usersenum() {
         run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --users --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u Guest -p '' --users --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
         run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u ${rand_user} -p '' --users --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>&1
-        grep -vE '\[-|\[+|\[\*' "${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" 2>/dev/null | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${Users_dir}/users_list_ne_ldap_nullsess_${dc_domain}.txt" 2>&1
+        if [ -s "${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" ]; then
+            grep -vE '\[-|\[+|\[\*' "${DomainRecon_dir}/ne_users_nullsess_ldap_${dc_domain}.txt" | grep LDAP | tr -s ' ' | cut -d ' ' -f 12 | grep -v "-Username-" >"${Users_dir}/users_list_ne_ldap_nullsess_${dc_domain}.txt" 2>&1
+        fi
     else
         echo -e "${BLUE}[*] Users Enumeration (LDAP authenticated)${NC}"
         run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --users-export ${Users_dir}/users_list_ne_ldap_${dc_domain}.txt --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_users_auth_ldap_${dc_domain}.txt" 2>&1
@@ -1427,8 +1439,10 @@ ne_ldap_usersenum() {
 ne_ldap_enum() {
     echo -e "${BLUE}[*] DC List Enumeration${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --dc-list --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" 2>&1
-    grep -vE '\[-|\[+|\[\*' "${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $12}' >"${Servers_dir}/dc_list_ne_ldap_${dc_domain}.txt" 2>&1
-    grep -vE '\[-|\[+|\[\*' "${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" 2>/dev/null | grep LDAP | awk '{print $14}' >"${Servers_dir}/dc_ip_list_ne_ldap_${dc_domain}.txt" 2>&1
+    if [ -s "${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" ]; then
+        grep -vE '\[-|\[+|\[\*' "${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" | grep LDAP | awk '{print $12}' >"${Servers_dir}/dc_list_ne_ldap_${dc_domain}.txt" 2>&1
+        grep -vE '\[-|\[+|\[\*' "${DomainRecon_dir}/ne_dclist_output_${dc_domain}.txt" | grep LDAP | awk '{print $14}' >"${Servers_dir}/dc_ip_list_ne_ldap_${dc_domain}.txt" 2>&1
+    fi
     parse_servers
     echo -e ""
     echo -e ""
@@ -1439,7 +1453,9 @@ ne_ldap_enum() {
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-desc-users --kdcHost ${dc_FQDN}" >"${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt"
     echo -e "${BLUE}[*] Attributes userPassword or unixUserPassword of users ${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-unixUserPassword -M get-userPassword --kdcHost ${dc_FQDN}" >"${DomainRecon_dir}/ne_get-userpass_output_${dc_domain}.txt"
-    grep -i "pass\|pwd\|passwd\|password\|pswd\|pword" "${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt" 2>/dev/null | tee "${DomainRecon_dir}/ne_get-desc-users_pass_results_${dc_domain}.txt" 2>&1
+    if [ -s "${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt" ]; then
+        grep -i "pass\|pwd\|passwd\|password\|pswd\|pword" "${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt" | tee "${DomainRecon_dir}/ne_get-desc-users_pass_results_${dc_domain}.txt" 2>&1
+    fi
     if [ ! -s "${DomainRecon_dir}/ne_get-desc-users_pass_results_${dc_domain}.txt" ]; then
         echo -e "${PURPLE}[-] No users with passwords in description found${NC}"
     fi
@@ -1493,11 +1509,15 @@ bloodyad_all_enum() {
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object ${domain_DN} --attr minPwdLength" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_minpasslen_${dc_domain}.txt"
             echo -e "${CYAN}[*] Searching for users${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get children --otype useronly" >"${DomainRecon_dir}/bloodyAD/bloodyad_allusers_${dc_domain}.txt"
-            cut -d ',' -f 1 "${DomainRecon_dir}/bloodyAD/bloodyad_allusers_${dc_domain}.txt" | cut -d '=' -f 2 | sort -u >"${Users_dir}/users_list_bla_${dc_domain}.txt" 2>/dev/null
+            if [ -s "${DomainRecon_dir}/bloodyAD/bloodyad_allusers_${dc_domain}.txt" ]; then
+                cut -d ',' -f 1 "${DomainRecon_dir}/bloodyAD/bloodyad_allusers_${dc_domain}.txt" | cut -d '=' -f 2 | sort -u >"${Users_dir}/users_list_bla_${dc_domain}.txt"
+            fi
             parse_users
             echo -e "${CYAN}[*] Searching for computers${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get children --otype computer" >"${DomainRecon_dir}/bloodyAD/bloodyad_allcomp_${dc_domain}.txt"
-            cut -d "," -f 1 "${DomainRecon_dir}/bloodyAD/bloodyad_allcomp_${dc_domain}.txt" | cut -d "=" -f 2 | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_bla_${dc_domain}.txt" 2>/dev/null
+            if [ -s "${DomainRecon_dir}/bloodyAD/bloodyad_allcomp_${dc_domain}.txt" ]; then
+                cut -d "," -f 1 "${DomainRecon_dir}/bloodyAD/bloodyad_allcomp_${dc_domain}.txt" | cut -d "=" -f 2 | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_bla_${dc_domain}.txt"
+            fi
             parse_servers
             echo -e "${CYAN}[*] Searching for containers${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get children --otype container" >"${DomainRecon_dir}/bloodyAD/bloodyad_allcontainers_${dc_domain}.txt"
@@ -1585,11 +1605,17 @@ silenthound_enum() {
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
                 run_command "${python3} ${silenthound} ${argument_silenthd} ${dc_ip} ${dc_domain} -g -n --kerberoast ${ldaps_param} -o ${DomainRecon_dir}/SilentHound/${dc_domain}" >"${DomainRecon_dir}/SilentHound/silenthound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                cut -d " " -f 1 "${DomainRecon_dir}/SilentHound/${dc_domain}-hosts.txt" | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_shd_${dc_domain}.txt" 2>/dev/null
-                cut -d " " -f 2 "${DomainRecon_dir}/SilentHound/${dc_domain}-hosts.txt" >"${Servers_dir}/ip_list_shd_${dc_domain}.txt" 2>/dev/null
-                /bin/cp "${DomainRecon_dir}/SilentHound/${dc_domain}-users.txt" "${Users_dir}/users_list_shd_${dc_domain}.txt" 2>/dev/null
-                head -n 20 "${DomainRecon_dir}/SilentHound/silenthound_output_${dc_domain}.txt" 2>/dev/null
-                echo -e "............................(truncated output)"
+                if [ -s "${DomainRecon_dir}/SilentHound/${dc_domain}-hosts.txt" ]; then
+                    cut -d " " -f 1 "${DomainRecon_dir}/SilentHound/${dc_domain}-hosts.txt" | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_shd_${dc_domain}.txt"
+                    cut -d " " -f 2 "${DomainRecon_dir}/SilentHound/${dc_domain}-hosts.txt" >"${Servers_dir}/ip_list_shd_${dc_domain}.txt"
+                fi
+                if [ -s "${DomainRecon_dir}/SilentHound/${dc_domain}-users.txt" ]; then
+                    /bin/cp "${DomainRecon_dir}/SilentHound/${dc_domain}-users.txt" "${Users_dir}/users_list_shd_${dc_domain}.txt"
+                fi
+                if [ -s "${DomainRecon_dir}/SilentHound/silenthound_output_${dc_domain}.txt" ]; then
+                    head -n 20 "${DomainRecon_dir}/SilentHound/silenthound_output_${dc_domain}.txt"
+                    echo -e "............................(truncated output)"
+                fi
                 echo -e "${GREEN}[+] SilentHound enumeration complete.${NC}"
             fi
             parse_users
@@ -1613,8 +1639,12 @@ ldeep_enum() {
             else
                 if [ "${ldaps_bool}" == true ] || [ "${cert_bool}" == true ]; then ldaps_param="-s ldaps://"; else ldaps_param="-s ldap://"; fi
                 run_command "${ldeep} ldap ${argument_ldeep} ${ldaps_param}${target}:${ldap_port} all ${DomainRecon_dir}/ldeepDump/${dc_domain}" 2>&1 | tee "${DomainRecon_dir}/ldeepDump/ldeep_output_${dc_domain}.txt"
-                /bin/cp "${DomainRecon_dir}/ldeepDump/${dc_domain}_users_all.lst" "${Users_dir}/users_list_ldp_${dc_domain}.txt" 2>/dev/null
-                /bin/cp "${DomainRecon_dir}/ldeepDump/${dc_domain}_computers.lst" "${Servers_dir}/servers_list_ldp_${dc_domain}.txt" 2>/dev/null
+                if [ -s "${DomainRecon_dir}/ldeepDump/${dc_domain}_users_all.lst" ]; then
+                    /bin/cp "${DomainRecon_dir}/ldeepDump/${dc_domain}_users_all.lst" "${Users_dir}/users_list_ldp_${dc_domain}.txt"
+                fi
+                if [ -s "${DomainRecon_dir}/ldeepDump/${dc_domain}_computers.lst" ]; then
+                    /bin/cp "${DomainRecon_dir}/ldeepDump/${dc_domain}_computers.lst" "${Servers_dir}/servers_list_ldp_${dc_domain}.txt"
+                fi
                 parse_users
                 parse_servers
             fi
@@ -1647,7 +1677,7 @@ windapsearch_enum() {
             grep -iha "pass\|pwd" "${DomainRecon_dir}"/windapsearch/windapsearch_*_"${dc_domain}.txt" | grep -av "badPasswordTime\|badPwdCount\|badPasswordTime\|pwdLastSet\|have their passwords replicated\|RODC Password Replication Group\|msExch" >"${DomainRecon_dir}/windapsearch/windapsearch_pwdfields_${dc_domain}.txt"
             if [ -s "${DomainRecon_dir}/windapsearch/windapsearch_pwdfields_${dc_domain}.txt" ]; then
                 echo -e "${GREEN}[+] Printing passwords found in LDAP fields...${NC}"
-                /bin/cat "${DomainRecon_dir}/windapsearch/windapsearch_pwdfields_${dc_domain}.txt" 2>/dev/null
+                /bin/cat "${DomainRecon_dir}/windapsearch/windapsearch_pwdfields_${dc_domain}.txt"
             fi
             echo -e "${GREEN}[+] windapsearch enumeration of users, servers, groups complete.${NC}"
             parse_users
@@ -1695,14 +1725,18 @@ ldapper_enum() {
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
             echo -e "${CYAN}[*] Get all users${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '1' -f json" >"${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json"
-            /usr/bin/jq -r ".[].samaccountname" "${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json" 2>/dev/null >"${Users_dir}/users_list_ldapper_${dc_domain}.txt"
+            if [ -s "${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json" ]; then
+                /usr/bin/jq -r ".[].samaccountname" "${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json" >"${Users_dir}/users_list_ldapper_${dc_domain}.txt"
+            fi
             echo -e "${CYAN}[*] Get all groups (and their members)${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '2' -f json" >"${DomainRecon_dir}/LDAPPER/groups_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Get all printers${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '3' -f json" >"${DomainRecon_dir}/LDAPPER/printers_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Get all computers${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '4' -f json" >"${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json"
-            /usr/bin/jq -r ".[].dnshostname" "${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json" 2>/dev/null >"${Servers_dir}/servers_list_ldapper_${dc_domain}.txt"
+            if [ -s "${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json" ]; then
+                /usr/bin/jq -r ".[].dnshostname" "${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json" >"${Servers_dir}/servers_list_ldapper_${dc_domain}.txt"
+            fi
             echo -e "${CYAN}[*] Get Domain/Enterprise Administrators${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '5' -f json" >"${DomainRecon_dir}/LDAPPER/admins_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Get Domain Trusts${NC}"
@@ -1736,7 +1770,7 @@ adalanche_enum() {
     else
         mkdir -p "${DomainRecon_dir}/Adalanche"
         echo -e "${BLUE}[*] Adalanche Enumeration${NC}"
-        if [ -n "$(ls -A "${DomainRecon_dir}/Adalanche/data" 2>/dev/null)" ]; then
+        if [ -n "$(ls -A "${DomainRecon_dir}/Adalanche/data")" ]; then
             echo -e "${YELLOW}[i] Adalanche results found, skipping... ${NC}"
         else
             if [ "${aeskey_bool}" == true ]; then
@@ -1962,7 +1996,7 @@ certipy_enum() {
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
     else
         echo -e "${BLUE}[*] Certipy Enumeration${NC}"
-        if [ -n "$(ls -A "${ADCS_dir}"/*_Certipy* 2>/dev/null)" ]; then
+        if [ -n "$(ls -A "${ADCS_dir}"/*_Certipy*)" ]; then
             echo -e "${YELLOW}[i] Certipy results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
@@ -2319,8 +2353,8 @@ sccmsecrets_dump() {
             current_dir=$(pwd)
             cd "${SCCM_dir}" || exit
             if [ "${nullsess_bool}" == true ]; then
-                run_command "${python3} ${sccmsecrets} policies -mp ${target_sccm} -cn WS3000"  2>/dev/null | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
-                run_command "${python3} ${sccmsecrets} files -dp ${target_sccm}" 2>/dev/null | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmsecrets} policies -mp ${target_sccm} -cn WS3000" | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmsecrets} files -dp ${target_sccm}" | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
             else
                 echo -e "${BLUE}[*] Please specify computer used for authentication (example: WS3000$, default: current user):${NC}"
                 read -rp ">> " user_sccm </dev/tty
@@ -2337,8 +2371,8 @@ sccmsecrets_dump() {
                         argument_secsccm="-u '${user_sccm}' -p '${pass_sccm}'"
                     fi
                 fi
-                run_command "${python3} ${sccmsecrets} policies -mp ${target_sccm} ${argument_secsccm} -cn WS3001" 2>/dev/null | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
-                run_command "${python3} ${sccmsecrets} files -dp ${target_sccm} ${argument_secsccm}" 2>/dev/null | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmsecrets} policies -mp ${target_sccm} ${argument_secsccm} -cn WS3001" | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmsecrets} files -dp ${target_sccm} ${argument_secsccm}" | tee -a "${SCCM_dir}/sccmsecrets_dump_output_${dc_domain}.txt"
             fi
             cd "${current_dir}" || exit
         fi
@@ -2373,7 +2407,7 @@ kerbrute_enum() {
             grep "VALID" "${BruteForce_dir}/kerbrute_user_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${Users_dir}/users_list_kerbrute_${dc_domain}.txt" 2>&1
             if [ -s "${Users_dir}/users_list_kerbrute_${dc_domain}.txt" ]; then
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
-                /bin/cat "${Users_dir}/users_list_kerbrute_${dc_domain}.txt" 2>/dev/null
+                /bin/cat "${Users_dir}/users_list_kerbrute_${dc_domain}.txt"
                 parse_users
             fi
         fi
@@ -2399,7 +2433,7 @@ userpass_ne_check() {
     grep "\[+\]" "${BruteForce_dir}/ne_userpass_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt"
     if [ -s "${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt" ]; then
         echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
-        /bin/cat "${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt" 2>/dev/null
+        /bin/cat "${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt"
     else
         echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
     fi
@@ -2432,7 +2466,7 @@ userpass_kerbrute_check() {
         grep "VALID" "${BruteForce_dir}/kerbrute_pass_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt"
         if [ -s "${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt" ]; then
             echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
-            /bin/cat "${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt" 2>/dev/null
+            /bin/cat "${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt"
         else
             echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
         fi
@@ -2462,7 +2496,7 @@ ne_passpray() {
     grep "\[+\]" "${BruteForce_dir}/ne_passpray_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt"
     if [ -s "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt" ]; then
         echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
-        /bin/cat "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt" 2>/dev/null
+        /bin/cat "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt"
     else
         echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
     fi
@@ -2494,7 +2528,7 @@ kerbrute_passpray() {
         grep "VALID" "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt"
         if [ -s "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt" ]; then
             echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
-            /bin/cat "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt" 2>/dev/null
+            /bin/cat "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt"
         else
             echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
         fi
@@ -2541,7 +2575,7 @@ ldapnomnom_enum() {
             if [ -s "${Users_dir}/users_list_ldapnomnom_${dc_domain}.txt" ]; then
                 echo -e ""
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
-                sort -uf "${Users_dir}/users_list_ldapnomnom_${dc_domain}.txt" 2>/dev/null
+                sort -uf "${Users_dir}/users_list_ldapnomnom_${dc_domain}.txt"
                 parse_users
             fi
         fi
@@ -3177,10 +3211,14 @@ mssql_enum() {
     else
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
         sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${Servers_dir}"/sql_list_*_"${dc_domain}.txt" 2>/dev/null | sort -uf >"${sql_hostname_list}" 2>&1
-        for i in $(/bin/cat "${sql_hostname_list}"); do
-            grep -i "$(echo "$i" | cut -d "." -f 1)" "${DomainRecon_dir}/dns_records_${dc_domain}.csv" 2>/dev/null | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> "${sql_ip_list}"
-        done
-        sort -u "${sql_ip_list}" -o "${sql_ip_list}" 2>/dev/null
+        if [ -s "${DomainRecon_dir}/dns_records_${dc_domain}.csv" ]; then
+            for i in $(/bin/cat "${sql_hostname_list}"); do
+                grep -i "$(echo "$i" | cut -d "." -f 1)" "${DomainRecon_dir}/dns_records_${dc_domain}.csv" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> "${sql_ip_list}"
+            done
+        fi
+        if [ -s "${sql_ip_list}" ]; then
+            sort -u "${sql_ip_list}" -o "${sql_ip_list}"
+        fi
         if [ -f "${target_sql}" ]; then
             run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M mssql_priv --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
             run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M enum_impersonate --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
@@ -3205,7 +3243,9 @@ mssql_relay_check() {
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
             run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dc_ip} -windows-auth" | tee "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" 2>&1
             sql_mssqlrelay="${MSSQL_dir}/mssql_relay_instances_${user_var}.txt"
-            grep -i "MSSQLSvc" "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" 2>/dev/null| awk -F'[/:)]+' '$3 ~ /^[0-9]+$/ {print $2 " -mssql-port " $3}' | sort -u >> "${sql_mssqlrelay}"
+            if [ -s "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" ]; then
+                grep -i "MSSQLSvc" "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" | awk -F'[/:)]+' '$3 ~ /^[0-9]+$/ {print $2 " -mssql-port " $3}' | sort -u >> "${sql_mssqlrelay}"
+            fi
             if [ -f "${sql_mssqlrelay}" ]; then
                 for i in $(/bin/cat "${sql_mssqlrelay}"); do
                     echo "${mssqlrelay} ${mssqlrelay_verbose} check ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dc_ip} -windows-auth -target $i" > "${MSSQL_dir}/mssql_relay_check_run_${user_var}.sh" 2>&1
@@ -4543,7 +4583,7 @@ get_domain_sid() {
     sid_domain=$(grep -o "Domain SID.*" "${DomainRecon_dir}/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | cut -d " " -f 3)
     if [[ ${sid_domain} == "" ]]; then
         run_command "${netexec} ldap ${target} ${argument_ne} --get-sid | tee ${DomainRecon_dir}/ne_sid_output_${dc_domain}.txt" >/dev/null
-        sid_domain=$(grep -o "Domain SID.*" "${DomainRecon_dir}/ne_sid_output_${dc_domain}.txt" | head -n 1 | cut -d " " -f 3)
+        sid_domain=$(grep -o "Domain SID.*" "${DomainRecon_dir}/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | cut -d " " -f 3)
     fi
     echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
 }
