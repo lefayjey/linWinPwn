@@ -134,6 +134,7 @@ aesKrbKeyGen="$scripts_dir/aesKrbKeyGen.py"
 sccmsecrets="$scripts_dir/SCCMSecrets-master/SCCMSecrets.py"
 soapy=$(which soapy)
 nmap=$(which nmap)
+soaphound=$(which soaphound)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
 if [ ! -f "${python3}" ]; then python3=$(which python3); fi
@@ -146,7 +147,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.1.6 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.1.7 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -639,6 +640,7 @@ authenticate() {
         argument_mssqlpwner="${domain}/'${user}':'${password}'"
         argument_soapy="${domain}/'${user}':'${password}'"
         argument_secsccm="-u '${user}' -p '${password}'"
+        argument_soaphd="-u '${user}' -p '${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -708,6 +710,7 @@ authenticate() {
             argument_mssqlpwner="-hashes ${hash} ${domain}/'${user}'"
             argument_soapy="--hash ${hash:33} ${domain}/'${user}'"
             argument_secsccm="-u '${user}' -H '${hash}'"
+            argument_soaphd="-u '${user}' --hashes ${hash}"
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -908,6 +911,7 @@ authenticate() {
         argument_adcheck="${argument_adcheck} --debug"
         argument_mssqlpwner="-debug ${argument_mssqlpwner}"
         argument_soapy="--debug ${argument_soapy}"
+        argument_soaphd="${argument_soaphd} -v"
     fi
 
     echo -e "${auth_string}"
@@ -1957,6 +1961,44 @@ soapy_enum() {
             run_command "${soapy} --ts --asreproastable ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_asreproastable_output_${dc_domain}.txt"
             run_command "${soapy} --ts --admins ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_admins_output_${dc_domain}.txt"
             run_command "${soapy} --ts --rbcds ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_rbcds_output_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+soaphd_enum() {
+    if [ ! -f "${soaphound}" ]; then
+        echo -e "${RED}[-] Please verify the installation of Soaphound${NC}"
+    else
+        mkdir -p "${DomainRecon_dir}/Soaphound_${user_var}"
+        echo -e "${BLUE}[*] Soaphound Enumeration using all collection methods (Noisy!)${NC}"
+        if [ -n "$(find "${DomainRecon_dir}/Soaphound_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
+            echo -e "${YELLOW}[i] Soaphound results found, skipping... ${NC}"
+        else
+            if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+                echo -e "${PURPLE}[-] Soaphound requires credentials and does not support Kerberos authentication${NC}"
+            else
+                run_command "${soaphound} -d ${dc_domain} ${argument_soaphd} -dc ${dc_FQDN} --output-dir ${DomainRecon_dir}/Soaphound_${user_var}" | tee "${DomainRecon_dir}/Soaphound_${user_var}/soaphound_output_${dc_domain}.txt"
+            fi
+        fi
+    fi
+    echo -e ""
+}
+
+soaphd_enum_dconly() {
+    if [ ! -f "${soaphound}" ]; then
+        echo -e "${RED}[-] Please verify the installation of Soaphound${NC}"
+    else
+        mkdir -p "${DomainRecon_dir}/Soaphound_${user_var}"
+        echo -e "${BLUE}[*] Soaphound Enumeration using DCOnly${NC}"
+        if [ -n "$(find "${DomainRecon_dir}/Soaphound_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
+            echo -e "${YELLOW}[i] Soaphound results found, skipping... ${NC}"
+        else
+            if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+                echo -e "${PURPLE}[-] Soaphound requires credentials and does not support Kerberos authentication${NC}"
+            else
+                run_command "${soaphound} -d ${dc_domain} ${argument_soaphd} -c ADWSOnly -dc ${dc_FQDN} --output-dir ${DomainRecon_dir}/Soaphound_${user_var}" | tee "${DomainRecon_dir}/Soaphound_${user_var}/soaphound_output_dconly_${dc_domain}.txt"
+            fi
         fi
     fi
     echo -e ""
@@ -4630,6 +4672,8 @@ ad_menu() {
     echo -e "28) Run adPEAS enumerations"
     echo -e "29) Run ADCheck enumerations"
     echo -e "30) Run soapy enumerations"
+    echo -e "31) Soaphound Enumeration using all collection methods (Noisy!)"
+    echo -e "32) Soaphound Enumeration using ADWSOnly"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4798,6 +4842,16 @@ ad_menu() {
 
     30)
         soapy_enum
+        ad_menu
+        ;;
+
+    31)
+        soaphd_enum
+        ad_menu
+        ;;
+
+    32)
+        soaphd_enum_dconly
         ad_menu
         ;;
 
@@ -6594,6 +6648,7 @@ config_menu() {
         if [ ! -f "${soapy}" ]; then echo -e "${RED}[-] soapy is not installed${NC}"; else echo -e "${GREEN}[+] soapy is installed${NC}"; fi
         if [ ! -f "${sccmsecrets}" ]; then echo -e "${RED}[-] sccmsecrets is not installed${NC}"; else echo -e "${GREEN}[+] sccmsecrets is installed${NC}"; fi
         if [ ! -x "${sccmsecrets}" ]; then echo -e "${RED}[-] godsccmsecretsap is not executable${NC}"; else echo -e "${GREEN}[+] sccmsecrets is executable${NC}"; fi
+        if [ ! -f "${soaphound}" ]; then echo -e "${RED}[-] Soaphound is not installed${NC}"; else echo -e "${GREEN}[+] Soaphound is installed${NC}"; fi
         config_menu
         ;;
 

@@ -85,7 +85,8 @@ install_tools() {
     pipx install git+https://github.com/ajm4n/adPEAS --force --pip-args="--use-deprecated=legacy-resolver"
     pipx install git+https://github.com/p0dalirius/smbclient-ng --force
     pipx install git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
-    pipx install git+https://github.com/xforcered/SoaPy --force
+    pipx install git+https://github.com/logangoins/SoaPy --force
+    pipx install git+https://github.com/j4s0nmo0n/Soaphound.py --force
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}
