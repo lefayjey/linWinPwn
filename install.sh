@@ -15,7 +15,7 @@ install_dir="$(dirname "$(readlink -f "$0")")"
 # Detect Linux Distribution
 if command -v apt-get >/dev/null; then
     PKG_MANAGER="apt-get"
-    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpsec-ntpdat wget zip unzip systemd-timesyncd pipx swig curl jq openssl rlwrap"
+    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpsec-ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl rlwrap"
 elif command -v pacman >/dev/null; then
     PKG_MANAGER="pacman"
     PACKAGES="python python-pip python-virtualenv nmap smbmap john libsasl openldap krb5 ntp wget zip unzip systemd python-pipx swig curl jq openssl"
