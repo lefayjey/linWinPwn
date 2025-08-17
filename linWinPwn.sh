@@ -133,8 +133,9 @@ mssqlpwner=$(which mssqlpwner)
 aesKrbKeyGen="$scripts_dir/aesKrbKeyGen.py"
 sccmsecrets="$scripts_dir/SCCMSecrets-master/SCCMSecrets.py"
 soapy=$(which soapy)
-nmap=$(which nmap)
 soaphound=$(which soaphound)
+gpoParser=$(which gpoParser)
+nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
 if [ ! -f "${python3}" ]; then python3=$(which python3); fi
@@ -147,7 +148,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.1.7 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.1.8 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -641,6 +642,7 @@ authenticate() {
         argument_soapy="${domain}/'${user}':'${password}'"
         argument_secsccm="-u '${user}' -p '${password}'"
         argument_soaphd="-u '${user}' -p '${password}'"
+        argument_gpopars="-d ${domain} -u '${user}' -p '${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -711,6 +713,7 @@ authenticate() {
             argument_soapy="--hash ${hash:33} ${domain}/'${user}'"
             argument_secsccm="-u '${user}' -H '${hash}'"
             argument_soaphd="-u '${user}' --hashes ${hash}"
+            argument_gpopars="-d ${domain} -u '${user}' -H '${hash}'"
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -768,6 +771,7 @@ authenticate() {
             argument_evilwinrm="-r ${domain} -u '${user}'"
             argument_godap="-d ${domain} -k -t ldap/${target}"
             argument_mssqlpwner=" -k -no-pass ${domain}/'${user}'"
+            argument_gpopars="-d ${domain} -u '${user}' -k"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -1999,6 +2003,20 @@ soaphd_enum_dconly() {
             else
                 run_command "${soaphound} -d ${dc_domain} ${argument_soaphd} -c ADWSOnly -dc ${dc_FQDN} --output-dir ${DomainRecon_dir}/Soaphound_${user_var}" | tee "${DomainRecon_dir}/Soaphound_${user_var}/soaphound_output_dconly_${dc_domain}.txt"
             fi
+        fi
+    fi
+    echo -e ""
+}
+
+gpoparser_enum() {
+    if [ ! -f "${gpoParser}" ]; then
+        echo -e "${RED}[-] Please verify the installation of gpoParser{NC}"
+    else
+        echo -e "${BLUE}[*] GPO parsing using gpoParser${NC}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] gpoParser requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            run_command "${gpoParser} remote ${argument_gpopars} -s ${dc_FQDN} -o ${DomainRecon_dir}/GPOParser_${user_var}.out -c ${DomainRecon_dir}" | tee "${DomainRecon_dir}/gpoparser_output_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -4674,6 +4692,7 @@ ad_menu() {
     echo -e "30) Run soapy enumerations"
     echo -e "31) Soaphound Enumeration using all collection methods (Noisy!)"
     echo -e "32) Soaphound Enumeration using ADWSOnly"
+    echo -e "33) GPOParser Enumeration"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -4852,6 +4871,11 @@ ad_menu() {
 
     32)
         soaphd_enum_dconly
+        ad_menu
+        ;;
+
+    33)
+        gpoparser_enum
         ad_menu
         ;;
 
@@ -6649,6 +6673,7 @@ config_menu() {
         if [ ! -f "${sccmsecrets}" ]; then echo -e "${RED}[-] sccmsecrets is not installed${NC}"; else echo -e "${GREEN}[+] sccmsecrets is installed${NC}"; fi
         if [ ! -x "${sccmsecrets}" ]; then echo -e "${RED}[-] godsccmsecretsap is not executable${NC}"; else echo -e "${GREEN}[+] sccmsecrets is executable${NC}"; fi
         if [ ! -f "${soaphound}" ]; then echo -e "${RED}[-] Soaphound is not installed${NC}"; else echo -e "${GREEN}[+] Soaphound is installed${NC}"; fi
+        if [ ! -f "${gpoParser}" ]; then echo -e "${RED}[-] gpoParser is not installed${NC}"; else echo -e "${GREEN}[+] gpoParser is installed${NC}"; fi
         config_menu
         ;;
 

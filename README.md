@@ -184,9 +184,11 @@ linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p
 | `SoaPy`                 | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `SCCMSecrets`           | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `Soaphound`             | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `gpoParser`             | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep
+
 msldap: bloodyAD
 
 #### LDAP Custom port support
@@ -244,6 +246,7 @@ AD Enum menu
 30) Run soapy enumerations
 31) Soaphound Enumeration using all collection methods (Noisy!)
 32) Soaphound Enumeration using ADWSOnly
+33) GPOParser Enumeration
 ```
 
 ADCS menu
@@ -486,7 +489,7 @@ Automated Mode:
     - [ScorpionesLabs](https://github.com/ScorpionesLabs) - MSSqlPwner
     - [barcrange](https://github.com/barcrange) - CVE-2024-49113-Checker
     - [logangoins](https://github.com/logangoins/) - SoaPy
-    - [synacktiv](https://github.com/synacktiv/) - SCCMSecrets
+    - [synacktiv](https://github.com/synacktiv/) - SCCMSecrets, gpoParser
     - [j4s0nmo0n](https://github.com/j4s0nmo0n/) - Soaphound
 
 - References:

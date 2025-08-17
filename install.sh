@@ -87,6 +87,7 @@ install_tools() {
     pipx install git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
     pipx install git+https://github.com/logangoins/SoaPy --force
     pipx install git+https://github.com/j4s0nmo0n/Soaphound.py --force
+    pipx install git+https://github.com/synacktiv/gpoParser --force
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}
