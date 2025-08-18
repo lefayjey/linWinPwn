@@ -998,7 +998,7 @@ ne_smb_scan() {
     fi
     if [ ! -f "${servers_smb_list}" ]; then
         run_command "${netexec} ${ne_verbose} smb ${servers_scan_list} -k --log ${servers_scan_out}" 2>&1
-        grep -a "SMB" "${servers_scan_out}" 2>/dev/null | grep -oE '\b([a-zA-Z0-9-]+\.){2,}[a-zA-Z]{2,}\b|\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' | sort -u > "${servers_smb_list}"
+        grep -a "SMB" "${servers_scan_out}" 2>/dev/null | grep -aoE '\b([a-zA-Z0-9-]+\.){2,}[a-zA-Z]{2,}\b|\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' | sort -u > "${servers_smb_list}"
         servers_smb_all="${Servers_dir}/servers_smb_${dc_domain}.txt"
         /bin/cat "${servers_smb_list}" >> "${servers_smb_all}"
         sort -u "${servers_smb_all}" -o "${servers_smb_all}" 2>/dev/null
@@ -1034,7 +1034,7 @@ ne_rdp_scan() {
     fi
     if [ ! -f "${servers_rdp_list}" ]; then
         run_command "${netexec} ${ne_verbose} rdp ${servers_scan_list} --log ${servers_scan_out}" 2>&1
-        grep -a "RDP" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_rdp_list}"
+        grep -a "RDP" "${servers_scan_out}" 2>/dev/null | grep -aoP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_rdp_list}"
         servers_rdp_all="${Servers_dir}/servers_rdp_${dc_domain}.txt"
         /bin/cat "${servers_rdp_list}" >> "${servers_rdp_all}"
         sort -u "${servers_rdp_all}" -o "${servers_rdp_all}" 2>/dev/null
@@ -1070,7 +1070,7 @@ ne_winrm_scan() {
     fi
     if [ ! -f "${servers_winrm_list}" ]; then
         run_command "${netexec} ${ne_verbose} winrm ${servers_scan_list} --log ${servers_scan_out}" 2>&1
-        grep -a "WinRM" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_winrm_list}"
+        grep -a "WinRM" "${servers_scan_out}" 2>/dev/null | grep -aoP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_winrm_list}"
         servers_winrm_all="${Servers_dir}/servers_winrm_${dc_domain}.txt"
         /bin/cat "${servers_winrm_list}" >> "${servers_winrm_all}"
         sort -u "${servers_winrm_all}" -o "${servers_winrm_all}" 2>/dev/null
@@ -1106,7 +1106,7 @@ ne_ssh_scan() {
     fi
     if [ ! -f "${servers_ssh_list}" ]; then
         run_command "${netexec} ${ne_verbose} ssh ${servers_scan_list} --log ${servers_scan_out}" 2>&1
-        grep -a "SSH" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_ssh_list}"
+        grep -a "SSH" "${servers_scan_out}" 2>/dev/null | grep -aoP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_ssh_list}"
         servers_ssh_all="${Servers_dir}/servers_ssh_${dc_domain}.txt"
         /bin/cat "${servers_ssh_list}" >> "${servers_ssh_all}"
         sort -u "${servers_ssh_all}" -o "${servers_ssh_all}" 2>/dev/null
@@ -1142,7 +1142,7 @@ ne_ftp_scan() {
     fi
     if [ ! -f "${servers_ftp_list}" ]; then
         run_command "${netexec} ${ne_verbose} ftp ${servers_scan_list} --log ${servers_scan_out}" 2>&1
-        grep -a "FTP" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_ftp_list}"
+        grep -a "FTP" "${servers_scan_out}" 2>/dev/null | grep -aoP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_ftp_list}"
         servers_ftp_all="${Servers_dir}/servers_ftp_${dc_domain}.txt"
         /bin/cat "${servers_ftp_list}" >> "${servers_ftp_all}"
         sort -u "${servers_ftp_all}" -o "${servers_ftp_all}" 2>/dev/null
@@ -1178,7 +1178,7 @@ ne_vnc_scan() {
     fi
     if [ ! -f "${servers_vnc_list}" ]; then
         run_command "${netexec} ${ne_verbose} vnc ${servers_scan_list} --log ${servers_scan_out}" 2>&1
-        grep -a "VNC" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_vnc_list}"
+        grep -a "VNC" "${servers_scan_out}" 2>/dev/null | grep -aoP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_vnc_list}"
         servers_vnc_all="${Servers_dir}/servers_vnc_${dc_domain}.txt"
         /bin/cat "${servers_vnc_list}" >> "${servers_vnc_all}"
         sort -u "${servers_vnc_all}" -o "${servers_vnc_all}" 2>/dev/null
@@ -1215,7 +1215,7 @@ ne_mssql_scan() {
 
     if [ ! -f "${servers_mssql_list}" ]; then
         run_command "${netexec} ${ne_verbose} mssql ${servers_scan_list} --log ${servers_scan_out}" 2>&1
-        grep -a "MSSQL" "${servers_scan_out}" 2>/dev/null | grep -oP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_mssql_list}"
+        grep -a "MSSQL" "${servers_scan_out}" 2>/dev/null | grep -aoP '(\d{1,3}\.){3}\d{1,3}' | sort -u > "${servers_mssql_list}"
         /bin/cat "${servers_mssql_list}" >> "${sql_ip_list}"
     else
         echo -e "${YELLOW}[i] MSSQL scan results found ${NC}"
