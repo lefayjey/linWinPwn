@@ -1567,6 +1567,7 @@ bloodyad_dnsquery() {
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get dnsDump" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
             echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
             sed -n '/[^\n]*\*/,/^$/p' "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
+            grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt" > "${Servers_dir}/ip_list_bdyad_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2956,7 +2957,7 @@ smb_map() {
             grep -iaH READ "${Shares_dir}/smbmapDump_${user_var}/smb_shares_${dc_domain}"_*".txt" 2>&1 | grep -v 'prnproc\$\|IPC\$\|print\$\|SYSVOL\|NETLOGON' | sed "s/\t/ /g; s/   */ /g; s/READ ONLY/READ-ONLY/g; s/READ, WRITE/READ-WRITE/g; s/smb_shares_//; s/.txt://g; s/${dc_domain}_//g" | rev | cut -d "/" -f 1 | rev | awk -F " " '{print "\\\\" $1 "\\" $2}' >"${Shares_dir}/all_network_shares_${dc_domain}.txt"
 
             echo -e "${BLUE}[*] Listing files in accessible shares - Step 2/2${NC}"
-            for i in $(grep -v ':' "${servers_smb_list}"); do
+            for i in $(grep -va ':' "${servers_smb_list}"); do
                 echo -e "${CYAN}[*] Listing files in accessible shares on ${i} ${NC}"
                 current_dir=$(pwd)
                 mkdir -p "${Shares_dir}/smbmapDump_${user_var}/${i}"
