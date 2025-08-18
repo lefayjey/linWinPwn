@@ -64,8 +64,8 @@ install_tools() {
     pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
-    /home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx install git+https://github.com/dirkjanm/Bloodhound.py --force
+    /home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx install "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force
     pipx install git+https://github.com/franc-pentest/ldeep.git --force
     pipx install git+https://github.com/garrettfoster13/pre2k.git --force
@@ -94,6 +94,7 @@ install_tools() {
     python3 -m venv "${scripts_dir}/.venv"
     source "${scripts_dir}/.venv/bin/activate"
     pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules --upgrade
+    pip3 install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     deactivate
     
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
