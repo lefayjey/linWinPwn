@@ -64,10 +64,7 @@ install_tools() {
     pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
     pipx install git+https://github.com/zer1t0/certi.git --force
     pipx install git+https://github.com/ly4k/Certipy.git --force
-    #pipx install git+https://github.com/zimedev/certipy-merged --force #Certipy with more features
-    #/home/$(whoami)/.local/share/pipx/venvs/certipy-ad/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
-    #pipx install git+https://github.com/deadjakk/BloodHound.py --force #LDAP Channel Binding
-    #/home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
+    /home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx install git+https://github.com/dirkjanm/Bloodhound.py --force
     pipx install "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force
     pipx install git+https://github.com/franc-pentest/ldeep.git --force
