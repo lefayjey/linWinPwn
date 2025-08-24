@@ -54,7 +54,7 @@ linWinPwn -t <Domain_Controller_IP> --auto [-o <output_dir>]
 - Authenticated (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)
     - DNS extraction using adidnsdump
     - BloodHound data collection
-    - Enumeration using netexec, enum4linux-ng, ldapdomaindump, bloodyAD, sccmhunter, rdwatool, sccmhunter, GPOwned
+    - Enumeration using netexec, enum4linux-ng, ldapdomaindump, bloodyAD, sccmhunter, rdwatool, sccmhunter, GPOParser
     - Generate wordlist for password cracking
     - netexec find accounts with user=pass
     - Pre2k authentication check on domain computers
@@ -185,9 +185,13 @@ linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p
 | `SCCMSecrets`           | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `Soaphound`             | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `gpoParser`             | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `spearspray`            | ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
+| `GroupPolicyBackdoor`   | ✅           | ✅       | ✅        | ✅             | ❌         | ❌         |
 
 #### LDAP Channel Binding support
-ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep
+ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor
+
+
 
 msldap: bloodyAD
 
@@ -218,35 +222,32 @@ AD Enum menu
 2ce) BloodHoundCE Enumeration using DCOnly
 3) ldapdomaindump LDAP Enumeration
 4) enum4linux-ng LDAP-MS-RPC Enumeration
-5) GPP Enumeration using netexec
-6) MS-RPC Users Enumeration using netexec
-7) Password policy Enumeration using netexec
-8) LDAP Users Enumeration using netexec
-9) LDAP Enumeration using netexec (passnotreq, userdesc, maq, subnets)
-10) Delegation Enumeration using findDelegation and netexec
-11) bloodyAD All Enumeration
-12) bloodyAD write rights Enumeration
-13) bloodyAD query DNS server
-14) bloodyAD enumerate object
-15) SilentHound LDAP Enumeration
-16) ldeep LDAP Enumeration
-17) windapsearch LDAP Enumeration
-18) LDAP Wordlist Harvester
-19) LDAP Enumeration using LDAPPER
-20) Adalanche Enumeration
-21) GPO Enumeration using GPOwned
-22) Enumeration of RDWA servers
-23) Open p0dalirius' LDAP Console
-24) Open p0dalirius' LDAP Monitor
-25) Open garrettfoster13's ACED console
-26) Open LDAPPER custom options
-27) Run godap console
-28) Run adPEAS enumerations
-29) Run ADCheck enumerations
-30) Run soapy enumerations
-31) Soaphound Enumeration using all collection methods (Noisy!)
-32) Soaphound Enumeration using ADWSOnly
-33) GPOParser Enumeration
+5) MS-RPC Users Enumeration using netexec
+6) Password policy Enumeration using netexec
+7) LDAP Users Enumeration using netexec
+8) LDAP Enumeration using netexec (passnotreq, userdesc, maq, subnets)
+9) Delegation Enumeration using findDelegation and netexec
+10) bloodyAD All Enumeration
+11) bloodyAD write rights Enumeration
+12) bloodyAD query DNS server
+13) bloodyAD enumerate object
+14) SilentHound LDAP Enumeration
+15) ldeep LDAP Enumeration
+16) windapsearch LDAP Enumeration
+17) LDAP Wordlist Harvester
+18) LDAP Enumeration using LDAPPER
+19) Adalanche Enumeration
+20) Enumeration of RDWA servers
+21) Open p0dalirius' LDAP Console
+22) Open p0dalirius' LDAP Monitor
+23) Open garrettfoster13's ACED console
+24) Open LDAPPER custom options
+25) Run godap console
+26) Run adPEAS enumerations
+27) Run ADCheck enumerations
+28) Run soapy enumerations
+29) Soaphound Enumeration using all collection methods (Noisy!)
+30) Soaphound Enumeration using ADWSOnly
 ```
 
 ADCS menu
@@ -269,6 +270,14 @@ SCCM menu
 4) SCCM Policies/NAA credentials dump using SCCMSecrets
 ```
 
+GPO Menu
+```
+1) GPP Enumeration using netexec
+2) GPO Enumeration using GPOwned
+3) GPOParser Enumeration
+4) GroupPolicyBackdoor Enumeration
+```
+
 BruteForce menu
 ```
 1) RID Brute Force (Null session) using netexec
@@ -282,6 +291,7 @@ BruteForce menu
 9) Password spraying using netexec - ldap (Noisy!)
 10) Timeroast attack against NTP
 11) MSSQL RID Brute Force (Null session) using netexec
+12) Open SpearSpray console
 ```
 
 Kerberos Attacks menu
@@ -489,8 +499,9 @@ Automated Mode:
     - [ScorpionesLabs](https://github.com/ScorpionesLabs) - MSSqlPwner
     - [barcrange](https://github.com/barcrange) - CVE-2024-49113-Checker
     - [logangoins](https://github.com/logangoins/) - SoaPy
-    - [synacktiv](https://github.com/synacktiv/) - SCCMSecrets, gpoParser
+    - [synacktiv](https://github.com/synacktiv/) - SCCMSecrets, gpoParser, GroupPolicyBackdoor
     - [j4s0nmo0n](https://github.com/j4s0nmo0n/) - Soaphound
+    - [sikumy](https://github.com/sikumy/) - spearspray
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
