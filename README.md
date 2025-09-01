@@ -157,7 +157,6 @@ linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p
 | `Adalanche`             | ❌           | ✅       | ✅        | ✅             | ❌         | ❌         |
 | `GPOwned`               | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `ACED`                  | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
-| `adPEAS`                | ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
 | `breads`                | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `godap`                 | ✅           | ✅       | ✅        | ✅             | ❌         | ❌         |
 | `adcheck`               | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
@@ -225,7 +224,7 @@ AD Enum menu
 5) MS-RPC Users Enumeration using netexec
 6) Password policy Enumeration using netexec
 7) LDAP Users Enumeration using netexec
-8) LDAP Enumeration using netexec (passnotreq, userdesc, maq, subnets)
+8) LDAP Enumeration using netexec (passnotreq, userdesc, maq, subnets, passpol)
 9) Delegation Enumeration using findDelegation and netexec
 10) bloodyAD All Enumeration
 11) bloodyAD write rights Enumeration
@@ -243,11 +242,10 @@ AD Enum menu
 23) Open garrettfoster13's ACED console
 24) Open LDAPPER custom options
 25) Run godap console
-26) Run adPEAS enumerations
-27) Run ADCheck enumerations
-28) Run soapy enumerations
-29) Soaphound Enumeration using all collection methods (Noisy!)
-30) Soaphound Enumeration using ADWSOnly
+26) Run ADCheck enumerations
+27) Run soapy enumerations
+28) Soaphound Enumeration using all collection methods (Noisy!)
+29) Soaphound Enumeration using ADWSOnly
 ```
 
 ADCS menu
@@ -342,8 +340,9 @@ Vuln Checks menu
 10) PushSubscription abuse using PrivExchange
 11) RunFinger scan
 12) Run LDAPNightmare check
-13) Check for unusual sessions
-14) Check for BadSuccessor vuln using netexec
+13) Run sessions enumeration using netexec (reg-sessions)
+14) Check for unusual sessions
+15) Check for BadSuccessor vuln using netexec
 ```
 
 MSSQL Enumeration menu
@@ -492,7 +491,6 @@ Automated Mode:
     - [Hackndo](https://github.com/Hackndo) - pyGPOAbuse
     - [CompassSecurity](https://github.com/CompassSecurity) - mssqlrelay
     - [lgandx](https://github.com/lgandx) - Responder
-    - [ajm4n](https://github.com/ajm4n) - adPEAS
     - [CobblePot59](https://github.com/CobblePot59) - ADcheck
     - [lkarlslund](https://github.com/lkarlslund) - ldapnomnom
     - [Macmod](https://github.com/Macmod) - godap

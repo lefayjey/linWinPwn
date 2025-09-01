@@ -24,6 +24,12 @@ else
     exit 1
 fi
 
+pipx_install_or_upgrade() {
+    local url="$1"
+    local package_name="$2"
+    [[ $(pipx list) =~ $package_name ]] && pipx upgrade "$package_name" || pipx install "$url"
+}
+
 #Add to PATH
 echo -e "${BLUE}Adding "linWinPwn" to PATH ...${NC}"
 echo -e "rlwrap -Nn ${install_dir}/linWinPwn.sh \$@" | sudo tee "/usr/local/sbin/linWinPwn"
@@ -58,34 +64,33 @@ install_tools() {
     pipx ensurepath
     #pipx install git+https://github.com/deadjakk/ldapdomaindump --force #LDAP Channel Binding
     #/home/$(whoami)/.local/share/pipx/venvs/ldapdomaindump/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
-    pipx install git+https://github.com/dirkjanm/ldapdomaindump.git --force
-    pipx install git+https://github.com/Pennyw0rth/NetExec.git --force
-    pipx install git+https://github.com/fortra/impacket.git --force
-    pipx install git+https://github.com/dirkjanm/adidnsdump.git --force
-    pipx install git+https://github.com/zer1t0/certi.git --force
-    pipx install git+https://github.com/ly4k/Certipy.git --force
-    pipx install git+https://github.com/dirkjanm/Bloodhound.py --force
+    pipx_install_or_upgrade git+https://github.com/dirkjanm/ldapdomaindump ldapdomaindump
+    pipx_install_or_upgrade git+https://github.com/Pennyw0rth/netexec netexec
+    pipx_install_or_upgrade git+https://github.com/fortra/impacket impacket
+    pipx_install_or_upgrade git+https://github.com/dirkjanm/adidnsdump adidnsdump
+    pipx_install_or_upgrade git+https://github.com/zer1t0/certi certi
+    pipx_install_or_upgrade git+https://github.com/ly4k/certipy certipy-ad
+    pipx_install_or_upgrade git+https://github.com/dirkjanm/bloodhound.py bloodhound
     /home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
-    pipx install "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" --force
-    pipx install git+https://github.com/franc-pentest/ldeep.git --force
-    pipx install git+https://github.com/garrettfoster13/pre2k.git --force
-    pipx install git+https://github.com/zblurx/certsync.git --force
-    pipx install hekatomb --force
-    pipx install git+https://github.com/blacklanternsecurity/MANSPIDER --force
-    pipx install git+https://github.com/p0dalirius/Coercer --force
-    pipx install git+https://github.com/CravateRouge/bloodyAD --force
-    pipx install git+https://github.com/login-securite/DonPAPI --force
-    pipx install git+https://github.com/p0dalirius/RDWAtool --force
-    pipx install git+https://github.com/almandin/krbjack --force
-    pipx install git+https://github.com/CompassSecurity/mssqlrelay.git --force
-    pipx install git+https://github.com/CobblePot59/ADcheck.git --force
-    pipx install git+https://github.com/ajm4n/adPEAS --force --pip-args="--use-deprecated=legacy-resolver"
-    pipx install git+https://github.com/p0dalirius/smbclient-ng --force
-    pipx install git+https://github.com/ScorpionesLabs/MSSqlPwner.git --force
-    pipx install git+https://github.com/logangoins/SoaPy --force
-    pipx install git+https://github.com/j4s0nmo0n/Soaphound.py --force
-    pipx install git+https://github.com/synacktiv/gpoParser --force
-    pipx install git+https://github.com/sikumy/spearspray --force
+    pipx_install_or_upgrade "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" bloodhound-ce
+    pipx_install_or_upgrade git+https://github.com/franc-pentest/ldeep ldeep
+    pipx_install_or_upgrade git+https://github.com/garrettfoster13/pre2k pre2k
+    pipx_install_or_upgrade git+https://github.com/zblurx/certsync certsync
+    pipx_install_or_upgrade git+https://github.com/ProcessusT/hekatomb hekatomb
+    pipx_install_or_upgrade git+https://github.com/blacklanternsecurity/manspider man-spider
+    pipx_install_or_upgrade git+https://github.com/p0dalirius/coercer coercer
+    pipx_install_or_upgrade git+https://github.com/CravateRouge/bloodyAD bloodyAD
+    pipx_install_or_upgrade git+https://github.com/login-securite/DonPAPI DonPAPI
+    pipx_install_or_upgrade git+https://github.com/p0dalirius/rdwatool rdwatool
+    pipx_install_or_upgrade git+https://github.com/almandin/krbjack krbjack
+    pipx_install_or_upgrade git+https://github.com/CompassSecurity/mssqlrelay mssqlrelay
+    pipx_install_or_upgrade git+https://github.com/CobblePot59/adcheck adcheck
+    pipx_install_or_upgrade git+https://github.com/p0dalirius/smbclient-ng smbclientng
+    pipx_install_or_upgrade git+https://github.com/ScorpionesLabs/mssqlpwner mssqlpwner
+    pipx_install_or_upgrade git+https://github.com/logangoins/soapy soapy
+    pipx_install_or_upgrade git+https://github.com/j4s0nmo0n/soaphound.py soaphound
+    pipx_install_or_upgrade git+https://github.com/synacktiv/gpoParser gpoParser
+    pipx_install_or_upgrade git+https://github.com/sikumy/spearspray spearspray
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}
@@ -95,7 +100,7 @@ install_tools() {
     python3 -m venv "${scripts_dir}/.venv"
     source "${scripts_dir}/.venv/bin/activate"
     pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules smbprotocol[kerberos] pydantic lxml chardet --upgrade
-    pip3 install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
+    pip3 install ldap3-bleeding-edge #LDAP Channel Binding
     deactivate
     
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
