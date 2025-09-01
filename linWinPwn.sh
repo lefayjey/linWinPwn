@@ -339,7 +339,7 @@ ntp_update() {
 
 etc_hosts_update() {
     echo -e ""
-    if ! grep -q "${dns_ip}" "/etc/hosts" >/dev/null 2>&1; then
+    if ! grep -q "${dc_ip}" "/etc/hosts" >/dev/null 2>&1; then
         hosts_bak="${Config_dir}/hosts.$(date +%Y%m%d%H%M%S).backup"
         sudo cp /etc/hosts "${hosts_bak}"
         echo -e "${YELLOW}[i] Backup file of /etc/hosts created: ${hosts_bak}${NC}"
@@ -348,20 +348,20 @@ etc_hosts_update() {
         echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
         echo -e "${GREEN}[+] Hosts file update complete${NC}"
     else
-        echo -e "${PURPLE}[-] DNS IP already present in /etc/hosts... ${NC}"
+        echo -e "${PURPLE}[-] Target IP already present in /etc/hosts... ${NC}"
     fi
 }
 
 etc_resolv_update() {
     echo -e ""
-    if ! grep -q "${dc_ip}" "/etc/resolv.conf" >/dev/null 2>&1; then
+    if ! grep -q "${dns_ip}" "/etc/resolv.conf" >/dev/null 2>&1; then
         resolv_bak="${Config_dir}/resolv.conf.$(date +%Y%m%d%H%M%S).backup"
         sudo cp /etc/resolv.conf "${resolv_bak}"
         echo -e "${YELLOW}[i] Backup file of /etc/resolv.conf created: ${resolv_bak}${NC}"
         sed "1s/^/\# \/etc\/resolv.conf entry added by linWinPwn\nnameserver ${dns_ip}\n/" /etc/resolv.conf | sudo tee /etc/resolv.conf
         echo -e "${GREEN}[+] DNS resolv config update complete${NC}"
     else
-        echo -e "${PURPLE}[-] Target IP already present in /etc/resolv.conf... ${NC}"
+        echo -e "${PURPLE}[-] DNS IP already present in /etc/resolv.conf... ${NC}"
     fi
 }
 
