@@ -481,6 +481,7 @@ prepare() {
     dc_hostname_list="${Servers_dir}/dc_list_${dc_domain}.txt"
     sql_hostname_list="${Servers_dir}/sql_list_${dc_domain}.txt"
     custom_servers_list="${Servers_dir}/custom_servers_list_${dc_domain}.txt"
+    users_list="${Users_dir}/users_list_${dc_domain}.txt"
     if [ "${useip_bool}" == true ]; then target="${dc_ip}"; else target="${dc_FQDN}"; fi
     if [ "${useip_bool}" == true ]; then target_dc="${dc_ip_list}"; else target_dc="${dc_hostname_list}"; fi
     if [ "${useip_bool}" == true ]; then target_servers="${servers_ip_list}"; else target_servers="${servers_hostname_list}"; fi
@@ -946,7 +947,6 @@ parse_servers() {
 }
 
 parse_users() {
-    users_list="${Users_dir}/users_list_${dc_domain}.txt"
     sort -uf <(sort -uf "${Users_dir}"/users_list_*_"${dc_domain}.txt" 2>/dev/null) >"${users_list}"
 
     if [[ ! "${user}" == "" ]] && ! grep -q "${user}" "${users_list}" 2>/dev/null; then echo "${user}" >>"${users_list}"; fi
@@ -4444,8 +4444,9 @@ print_info() {
     echo -e "${YELLOW}[i]${NC} Output folder: ${YELLOW}${output_dir}${NC}"
     echo -e "${YELLOW}[i]${NC} User wordlist file: ${YELLOW}${user_wordlist}${NC}"
     echo -e "${YELLOW}[i]${NC} Password wordlist file: ${YELLOW}${pass_wordlist}${NC}"
-    echo -e "${YELLOW}[i]${NC} Attacker's IP: ${YELLOW}${attacker_IP}${NC}"
-    echo -e "${YELLOW}[i]${NC} Attacker's Interface: ${YELLOW}${attacker_interface}${NC}"
+    echo -e "${YELLOW}[i]${NC} Attacker's IP and Interface: ${YELLOW}${attacker_IP}${NC} (${YELLOW}${attacker_interface}${NC})"
+    echo -e "${YELLOW}[i]${NC} List of servers: ${YELLOW}${servers_hostname_list}${NC}"
+    echo -e "${YELLOW}[i]${NC} List of users: ${YELLOW}${users_list}${NC}"
     echo -e "${YELLOW}[i]${NC} Parameters: LDAPPort=${YELLOW}${ldap_port}${NC}, LDAPS=${YELLOW}${ldaps_bool}${NC}, LDAPSign=${YELLOW}${ldapbindsign_bool}${NC}, ForceKerb=${YELLOW}${forcekerb_bool}${NC}, DNSTCP=${YELLOW}${dnstcp_bool}${NC}, UseIP=${YELLOW}${useip_bool}${NC}"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
 }
