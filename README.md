@@ -369,12 +369,13 @@ Password Dump menu
 12) Dump LSASS using nanodump
 13) Dump dpapi secrets using netexec
 14) Dump secrets using DonPAPI
-15) Dump secrets using hekatomb (only on DC)
-16) Search for juicy information using netexec
-17) Dump Veeam credentials (only from Veeam server)
-18) Dump Msol password (only from Azure AD-Connect server)
-19) Extract Bitlocker Keys
-20) Dump SAM and LSA secrets using winrm with netexec
+15) Dump secrets using DonPAPI (Disable Remote Ops operations)
+16) Dump secrets using hekatomb (only on DC)
+17) Search for juicy information using netexec
+18) Dump Veeam credentials (only from Veeam server)
+19) Dump Msol password (only from Azure AD-Connect server)
+20) Extract Bitlocker Keys
+21) Dump SAM and LSA secrets using winrm with netexec
 ```
 
 Modification menu
