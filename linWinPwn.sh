@@ -151,7 +151,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.2.6 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.2.7 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -780,7 +780,7 @@ authenticate() {
             argument_donpapi="-k --no-pass -d ${domain} -u '${user}'"
             argument_targkerb="-d ${domain} -u '${user}' -k --no-pass"
             argument_p0dalirius="-d ${domain} -u '${user}' -k --no-pass"
-            argument_p0dalirius_smbclient="-d ${domain} -u '${user}' -k"
+            argument_p0dalirius_smbclient="-d ${domain} -u '${user}' -k --no-pass"
             argument_FindUncom="-ad ${domain} -au '${user}' -k --no-pass"
             argument_bloodyad="-d ${domain} -u '${user}' -k"
             argument_adalanche="--authmode kerberoscache --username '${user}'\\@${domain}"
@@ -3317,7 +3317,7 @@ mssql_ridbrute_attack() {
         run_command "${netexec} ${ne_verbose} mssql ${target} -u Guest -p '' --rid-brute --log ${BruteForce_dir}/ne_mssql_brute_${dc_domain}.txt"
         run_command "${netexec} ${ne_verbose} mssql ${target} -u ${rand_user} -p '' --rid-brute --log ${BruteForce_dir}/ne_mssql_brute_${dc_domain}.txt"
         #Parsing user lists
-        grep "SidTypeUser" "${BruteForce_dir}/ne_mssql_rid_brute_${dc_domain}.txt" | cut -d "\\" -f 2 | sort -u | sed "s/ (SidTypeUser)//g" >"${Users_dir}/users_list_mssql_ridbrute_${dc_domain}.txt" 2>&1
+        grep "SidTypeUser" "${BruteForce_dir}/ne_mssql_rid_brute_${dc_domain}.txt" 2>/dev/null | cut -d "\\" -f 2 | sort -u | sed "s/ (SidTypeUser)//g" > "${Users_dir}/users_list_mssql_ridbrute_${dc_domain}.txt" 2>&1
         parse_users
     else
         echo -e "${PURPLE}[-] Null session RID brute force skipped (credentials provided)${NC}"
@@ -3501,6 +3501,31 @@ disable_account() {
     fi
     echo -e ""
 }
+
+restore_account() {
+    if ! stat "${bloodyad}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Please specify account to restore:${NC}"
+            echo -e "${CYAN}[*] Example: svc_sql ${NC}"
+            account_restore=""
+            read -rp ">> " account_restore </dev/tty
+            while [ "${account_enable}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify target account:"
+                read -rp ">> " account_restore </dev/tty
+            done
+            echo -e "${BLUE}[*] Restoring account ${account_restore}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set restore ${account_restore}" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_restore_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
 
 change_owner() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
@@ -6128,17 +6153,18 @@ modif_menu() {
     echo -e "8) Change Owner of target (Requires: WriteOwner permission)"
     echo -e "9) Add GenericAll rights on target (Requires: Owner permission)"
     echo -e "10) Delete object (Requires: GenericWrite or GenericAll on object)"
-    echo -e "11) Targeted Kerberoast Attack (Noisy!)"
-    echo -e "12) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)"
-    echo -e "13) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)"
-    echo -e "14) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
-    echo -e "15) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)"
-    echo -e "16) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
-    echo -e "17) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "18) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)"
-    echo -e "19) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)"
-    echo -e "20) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "21) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)"
+    echo -e "11) Restore deleted object (Requires: GenericWrite or GenericAll on OU of deleted object)"
+    echo -e "12) Targeted Kerberoast Attack (Noisy!)"
+    echo -e "13) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)"
+    echo -e "14) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)"
+    echo -e "15) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
+    echo -e "16) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)"
+    echo -e "17) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
+    echo -e "18) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "19) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)"
+    echo -e "20) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)"
+    echo -e "21) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
+    echo -e "22) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6195,57 +6221,61 @@ modif_menu() {
         modif_menu
         ;;
 
-    11)
-        targetedkerberoast_attack
+    11) restore_account
         modif_menu
         ;;
 
     12)
-        rbcd_attack
+        targetedkerberoast_attack
         modif_menu
         ;;
 
     13)
-        rbcd_spnless_attack
+        rbcd_attack
         modif_menu
         ;;
 
     14)
-        shadowcreds_attack
+        rbcd_spnless_attack
         modif_menu
         ;;
 
     15)
-        shadowcreds_delete
+        shadowcreds_attack
         modif_menu
         ;;
 
     16)
-        pygpo_abuse
+        shadowcreds_delete
         modif_menu
         ;;
 
     17)
-        add_unconstrained
+        pygpo_abuse
         modif_menu
         ;;
 
     18)
-        add_spn
+        add_unconstrained
         modif_menu
         ;;
 
     19)
-        add_upn
+        add_spn
         modif_menu
         ;;
 
     20)
-        add_constrained
+        add_upn
         modif_menu
         ;;
 
     21)
+        add_constrained
+        modif_menu
+        ;;
+
+    22)
         add_spn_constrained
         modif_menu
         ;;
