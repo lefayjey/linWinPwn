@@ -137,6 +137,7 @@ soaphound=$(which soaphound)
 gpoParser=$(which gpoParser)
 spearspray=$(which spearspray)
 GroupPolicyBackdoor="$scripts_dir/GroupPolicyBackdoor-master/gpb.py"
+NetworkHound="$scripts_dir/NetworkHound-main/NetworkHound.py"
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
@@ -150,7 +151,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.2.5 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.2.6 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -664,6 +665,7 @@ authenticate() {
         argument_gpopars="-d ${domain} -u '${user}' -p '${password}'"
         argument_spearspray="-d ${domain} -u '${user}' -p '${password}'"
         argument_gpb="-d ${dc_domain} -u '${user}' -p '${password}'"
+        argument_nhd="-d ${dc_domain} -u '${user}' -p '${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -736,6 +738,7 @@ authenticate() {
             argument_soaphd="-u '${user}' --hashes ${hash}"
             argument_gpopars="-d ${domain} -u '${user}' -H '${hash}'"
             argument_gpb="-d ${dc_domain} -u '${user}' -H '${hash}'"
+            argument_nhd="-d ${dc_domain} -u '${user}' --hashes '${hash}'"
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -791,6 +794,7 @@ authenticate() {
             argument_mssqlpwner=" -k -no-pass ${domain}/'${user}'"
             argument_gpopars="-d ${domain} -u '${user}' -k"
             argument_gpb="-d ${dc_domain} -u '${user}' -k'"
+            argument_nhd="-d ${dc_domain} -u '${user}' -k"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -1016,6 +1020,34 @@ ne_scan() {
     grep -a "${1^^}" "${servers_scan_out}" 2>/dev/null | grep -aoE '\b([a-zA-Z0-9-]+\.){2,}[a-zA-Z]{2,}\b|\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' | sort -u > "${servers_list}"
     sort -u "${servers_list}" -o "${servers_list}" 2>/dev/null
     echo -e ""
+}
+
+nhd_scan() {
+    if ! stat "${NetworkHound}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of NetworkHound{NC}"
+    else
+        mkdir -p "${Scans_dir}/NetworkHound"
+        echo -e "${BLUE}[*] NetworkHound Domain machines basic scan${NC}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] NetworkHound requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+        run_command "${python3} ${NetworkHound} --dc ${dc_FQDN} ${argument_nhd} --dns ${dns_ip} --output ${Scans_dir}/NetworkHound/DomainScan_${dc_domain}.json" | tee "${Scans_dir}/NetworkHound/DomainScan_${dc_domain}.txt"
+        fi
+    fi
+}
+
+nhd_shadowit() {
+    if ! stat "${NetworkHound}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of NetworkHound{NC}"
+    else
+        mkdir -p "${Scans_dir}/NetworkHound"
+        echo -e "${BLUE}[*] NetworkHound Shadow IT full scan${NC}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] NetworkHound requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+        run_command "${python3} ${NetworkHound} --dc ${dc_FQDN} ${argument_nhd} --dns ${dns_ip} --shadow-it --port-scan --valid-http --valid-smb --scan-threads 50 --output ${Scans_dir}/NetworkHound/ShadowIT_${dc_domain}.json" |  tee "${Scans_dir}/NetworkHound/ShadowIT_${dc_domain}.txt"
+        fi
+    fi
 }
 
 ###### ad_enum: AD Enumeration
@@ -6299,6 +6331,8 @@ netscan_menu() {
     echo -e "5) Identify hosts with accessible FTP port using netexec"
     echo -e "6) Identify hosts with accessible VNC port using netexec"
     echo -e "7) Identify hosts with accessible MSSQL port using netexec"
+    echo -e "8) Basic scan of domain machines using NetworkHound"
+    echo -e "9) Full scan of domain and Shadow IT machines using NetworkHound"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6344,6 +6378,16 @@ netscan_menu() {
     7)
         ne_scan "mssql"
         /bin/cat "${servers_list}" >> "${sql_ip_list}"
+        netscan_menu
+        ;;
+
+    8)
+        nhd_scan
+        netscan_menu
+        ;;
+
+    9)
+        nhd_shadowit
         netscan_menu
         ;;
 
@@ -6623,31 +6667,20 @@ config_menu() {
         if ! stat "${pre2k}" >/dev/null 2>&1; then echo -e "${RED}[-] pre2k is not installed${NC}"; else echo -e "${GREEN}[+] pre2k is installed${NC}"; fi
         if ! stat "${certsync}" >/dev/null 2>&1; then echo -e "${RED}[-] certsync is not installed${NC}"; else echo -e "${GREEN}[+] certsync is installed${NC}"; fi
         if ! stat "${windapsearch}" >/dev/null 2>&1; then echo -e "${RED}[-] windapsearch is not installed${NC}"; else echo -e "${GREEN}[+] windapsearch is installed${NC}"; fi
-        if [ ! -x "${windapsearch}" ]; then echo -e "${RED}[-] windapsearch is not executable${NC}"; else echo -e "${GREEN}[+] windapsearch is executable${NC}"; fi
         if ! stat "${enum4linux_py}" >/dev/null 2>&1; then echo -e "${RED}[-] enum4linux-ng is not installed${NC}"; else echo -e "${GREEN}[+] enum4linux-ng is installed${NC}"; fi
-        if [ ! -x "${enum4linux_py}" ]; then echo -e "${RED}[-] enum4linux-ng is not executable${NC}"; else echo -e "${GREEN}[+] enum4linux-ng is executable${NC}"; fi
         if ! stat "${kerbrute}" >/dev/null 2>&1; then echo -e "${RED}[-] kerbrute is not installed${NC}"; else echo -e "${GREEN}[+] kerbrute is installed${NC}"; fi
-        if [ ! -x "${kerbrute}" ]; then echo -e "${RED}[-] kerbrute is not executable${NC}"; else echo -e "${GREEN}[+] kerbrute is executable${NC}"; fi
         if ! stat "${targetedKerberoast}" >/dev/null 2>&1; then echo -e "${RED}[-] targetedKerberoast is not installed${NC}"; else echo -e "${GREEN}[+] targetedKerberoast is installed${NC}"; fi
-        if [ ! -x "${targetedKerberoast}" ]; then echo -e "${RED}[-] targetedKerberoast is not executable${NC}"; else echo -e "${GREEN}[+] targetedKerberoast is executable${NC}"; fi
         if ! stat "${CVE202233679}" >/dev/null 2>&1; then echo -e "${RED}[-] CVE-2022-33679 is not installed${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is installed${NC}"; fi
-        if [ ! -x "${CVE202233679}" ]; then echo -e "${RED}[-] CVE-2022-33679 is not executable${NC}"; else echo -e "${GREEN}[+] CVE-2022-33679 is executable${NC}"; fi
         if ! stat "${silenthound}" >/dev/null 2>&1; then echo -e "${RED}[-] silenthound is not installed${NC}"; else echo -e "${GREEN}[+] silenthound is installed${NC}"; fi
         if ! stat "${silenthound}" >/dev/null 2>&1; then echo -e "${RED}[-] silenthound is not installed${NC}"; else echo -e "${GREEN}[+] silenthound is installed${NC}"; fi
         if ! stat "${donpapi}" >/dev/null 2>&1; then echo -e "${RED}[-] DonPAPI is not installed${NC}"; else echo -e "${GREEN}[+] DonPAPI is installed${NC}"; fi
         if ! stat "${hekatomb}" >/dev/null 2>&1; then echo -e "${RED}[-] HEKATOMB is not installed${NC}"; else echo -e "${GREEN}[+] hekatomb is installed${NC}"; fi
         if ! stat "${FindUncommonShares}" >/dev/null 2>&1; then echo -e "${RED}[-] FindUncommonShares is not installed${NC}"; else echo -e "${GREEN}[+] FindUncommonShares is installed${NC}"; fi
-        if [ ! -x "${FindUncommonShares}" ]; then echo -e "${RED}[-] FindUncommonShares is not executable${NC}"; else echo -e "${GREEN}[+] FindUncommonShares is executable${NC}"; fi
         if ! stat "${FindUnusualSessions}" >/dev/null 2>&1; then echo -e "${RED}[-] FindUnusualSessions is not installed${NC}"; else echo -e "${GREEN}[+] FindUnusualSessions is installed${NC}"; fi
-        if [ ! -x "${FindUnusualSessions}" ]; then echo -e "${RED}[-] FindUnusualSessions is not executable${NC}"; else echo -e "${GREEN}[+] FindUnusualSessions is executable${NC}"; fi
         if ! stat "${ExtractBitlockerKeys}" >/dev/null 2>&1; then echo -e "${RED}[-] ExtractBitlockerKeys is not installed${NC}"; else echo -e "${GREEN}[+] ExtractBitlockerKeys is installed${NC}"; fi
-        if [ ! -x "${ExtractBitlockerKeys}" ]; then echo -e "${RED}[-] ExtractBitlockerKeys is not executable${NC}"; else echo -e "${GREEN}[+] ExtractBitlockerKeys is executable${NC}"; fi
         if ! stat "${ldapconsole}" >/dev/null 2>&1; then echo -e "${RED}[-] ldapconsole is not installed${NC}"; else echo -e "${GREEN}[+] ldapconsole is installed${NC}"; fi
-        if [ ! -x "${ldapconsole}" ]; then echo -e "${RED}[-] ldapconsole is not executable${NC}"; else echo -e "${GREEN}[+] ldapconsole is executable${NC}"; fi
         if ! stat "${pyLDAPmonitor}" >/dev/null 2>&1; then echo -e "${RED}[-] pyLDAPmonitor is not installed${NC}"; else echo -e "${GREEN}[+] pyLDAPmonitor is installed${NC}"; fi
-        if [ ! -x "${pyLDAPmonitor}" ]; then echo -e "${RED}[-] pyLDAPmonitor is not executable${NC}"; else echo -e "${GREEN}[+] pyLDAPmonitor is executable${NC}"; fi
         if ! stat "${LDAPWordlistHarvester}" >/dev/null 2>&1; then echo -e "${RED}[-] LDAPWordlistHarvester is not installed${NC}"; else echo -e "${GREEN}[+] LDAPWordlistHarvester is installed${NC}"; fi
-        if [ ! -x "${LDAPWordlistHarvester}" ]; then echo -e "${RED}[-] LDAPWordlistHarvester is not executable${NC}"; else echo -e "${GREEN}[+] LDAPWordlistHarvester is executable${NC}"; fi
         if ! stat "${rdwatool}" >/dev/null 2>&1; then echo -e "${RED}[-] rdwatool is not installed${NC}"; else echo -e "${GREEN}[+] rdwatool is installed${NC}"; fi
         if ! stat "${manspider}" >/dev/null 2>&1; then echo -e "${RED}[-] manspider is not installed${NC}"; else echo -e "${GREEN}[+] manspider is installed${NC}"; fi
         if ! stat "${coercer}" >/dev/null 2>&1; then echo -e "${RED}[-] coercer is not installed${NC}"; else echo -e "${GREEN}[+] coercer is installed${NC}"; fi
@@ -6658,33 +6691,24 @@ config_menu() {
         if ! stat "${ldapper}" >/dev/null 2>&1; then echo -e "${RED}[-] ldapper is not installed${NC}"; else echo -e "${GREEN}[+] ldapper is installed${NC}"; fi
         if ! stat "${orpheus}" >/dev/null 2>&1; then echo -e "${RED}[-] orpheus is not installed${NC}"; else echo -e "${GREEN}[+] orpheus is installed${NC}"; fi
         if ! stat "${adalanche}" >/dev/null 2>&1; then echo -e "${RED}[-] adalanche is not installed${NC}"; else echo -e "${GREEN}[+] adalanche is installed${NC}"; fi
-        if [ ! -x "${adalanche}" ]; then echo -e "${RED}[-] adalanche is not executable${NC}"; else echo -e "${GREEN}[+] adalanche is executable${NC}"; fi
         if ! stat "${mssqlrelay}" >/dev/null 2>&1; then echo -e "${RED}[-] mssqlrelay is not installed${NC}"; else echo -e "${GREEN}[+] mssqlrelay is installed${NC}"; fi
         if ! stat "${pygpoabuse}" >/dev/null 2>&1; then echo -e "${RED}[-] pygpoabuse is not installed${NC}"; else echo -e "${GREEN}[+] pygpoabuse is installed${NC}"; fi
-        if [ ! -x "${pygpoabuse}" ]; then echo -e "${RED}[-] pygpoabuse is not executable${NC}"; else echo -e "${GREEN}[+] pygpoabuse is executable${NC}"; fi
         if ! stat "${GPOwned}" >/dev/null 2>&1; then echo -e "${RED}[-] GPOwned is not installed${NC}"; else echo -e "${GREEN}[+] GPOwned is installed${NC}"; fi
-        if [ ! -x "${GPOwned}" ]; then echo -e "${RED}[-] GPOwned is not executable${NC}"; else echo -e "${GREEN}[+] GPOwned is executable${NC}"; fi
         if ! stat "${privexchange}" >/dev/null 2>&1; then echo -e "${RED}[-] privexchange is not installed${NC}"; else echo -e "${GREEN}[+] privexchange is installed${NC}"; fi
-        if [ ! -x "${privexchange}" ]; then echo -e "${RED}[-] privexchange is not executable${NC}"; else echo -e "${GREEN}[+] privexchange is executable${NC}"; fi
         if ! stat "${RunFinger}" >/dev/null 2>&1; then echo -e "${RED}[-] RunFinger is not installed${NC}"; else echo -e "${GREEN}[+] RunFinger is installed${NC}"; fi
-        if [ ! -x "${RunFinger}" ]; then echo -e "${RED}[-] RunFinger is not executable${NC}"; else echo -e "${GREEN}[+] RunFinger is executable${NC}"; fi
         if ! stat "${LDAPNightmare}" >/dev/null 2>&1; then echo -e "${RED}[-] LDAPNightmare is not installed${NC}"; else echo -e "${GREEN}[+] LDAPNightmare is installed${NC}"; fi
-        if [ ! -x "${LDAPNightmare}" ]; then echo -e "${RED}[-] LDAPNightmare is not executable${NC}"; else echo -e "${GREEN}[+] LDAPNightmare is executable${NC}"; fi
         if ! stat "${ADCheck}" >/dev/null 2>&1; then echo -e "${RED}[-] ADCheck is not installed${NC}"; else echo -e "${GREEN}[+] ADCheck is installed${NC}"; fi
         if ! stat "${smbclientng}" >/dev/null 2>&1; then echo -e "${RED}[-] smbclientng is not installed${NC}"; else echo -e "${GREEN}[+] smbclientng is installed${NC}"; fi
         if ! stat "${ldapnomnom}" >/dev/null 2>&1; then echo -e "${RED}[-] ldapnomnom is not installed${NC}"; else echo -e "${GREEN}[+] ldapnomnom is installed${NC}"; fi
-        if [ ! -x "${ldapnomnom}" ]; then echo -e "${RED}[-] ldapnomnom is not executable${NC}"; else echo -e "${GREEN}[+] ldapnomnom is executable${NC}"; fi
         if ! stat "${godap}" >/dev/null 2>&1; then echo -e "${RED}[-] godap is not installed${NC}"; else echo -e "${GREEN}[+] godap is installed${NC}"; fi
-        if [ ! -x "${godap}" ]; then echo -e "${RED}[-] godap is not executable${NC}"; else echo -e "${GREEN}[+] godap is executable${NC}"; fi
         if ! stat "${mssqlpwner}" >/dev/null 2>&1; then echo -e "${RED}[-] mssqlpwner is not installed${NC}"; else echo -e "${GREEN}[+] mssqlpwner is installed${NC}"; fi
         if ! stat "${soapy}" >/dev/null 2>&1; then echo -e "${RED}[-] soapy is not installed${NC}"; else echo -e "${GREEN}[+] soapy is installed${NC}"; fi
         if ! stat "${sccmsecrets}" >/dev/null 2>&1; then echo -e "${RED}[-] sccmsecrets is not installed${NC}"; else echo -e "${GREEN}[+] sccmsecrets is installed${NC}"; fi
-        if [ ! -x "${sccmsecrets}" ]; then echo -e "${RED}[-] godsccmsecretsap is not executable${NC}"; else echo -e "${GREEN}[+] sccmsecrets is executable${NC}"; fi
         if ! stat "${soaphound}" >/dev/null 2>&1; then echo -e "${RED}[-] Soaphound is not installed${NC}"; else echo -e "${GREEN}[+] Soaphound is installed${NC}"; fi
         if ! stat "${gpoParser}" >/dev/null 2>&1; then echo -e "${RED}[-] gpoParser is not installed${NC}"; else echo -e "${GREEN}[+] gpoParser is installed${NC}"; fi
         if ! stat "${spearspray}" >/dev/null 2>&1; then echo -e "${RED}[-] Spearspray is not installed${NC}"; else echo -e "${GREEN}[+] Spearspray is installed${NC}"; fi
         if ! stat "${GroupPolicyBackdoor}" >/dev/null 2>&1; then echo -e "${RED}[-] GroupPolicyBackdoor is not installed${NC}"; else echo -e "${GREEN}[+] GroupPolicyBackdoor is installed${NC}"; fi
-        if [ ! -x "${GroupPolicyBackdoor}" ]; then echo -e "${RED}[-] GroupPolicyBackdoor is not executable${NC}"; else echo -e "${GREEN}[+] GroupPolicyBackdoor is executable${NC}"; fi
+        if ! stat "${NetworkHound}" >/dev/null 2>&1; then echo -e "${RED}[-] NetworkHound is not installed${NC}"; else echo -e "${GREEN}[+] NetworkHound is installed${NC}"; fi
         config_menu
         ;;
 

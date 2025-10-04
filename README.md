@@ -186,6 +186,7 @@ linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p
 | `gpoParser`             | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `spearspray`            | ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
 | `GroupPolicyBackdoor`   | ✅           | ✅       | ✅        | ✅             | ❌         | ❌         |
+| `NetworkHound`          | ❌           | ✅       | ✅        | ✅             | ❌         | ❌         |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor
@@ -419,6 +420,8 @@ Network Scan menu
 5) Identify hosts with accessible FTP port using netexec
 6) Identify hosts with accessible VNC port using netexec
 7) Identify hosts with accessible MSSQL port using netexec
+8) Basic scan of domain machines using NetworkHound
+9) Full scan of domain and Shadow IT machines using NetworkHound
 ```
 
 Auth menu
@@ -501,6 +504,7 @@ Automated Mode:
     - [synacktiv](https://github.com/synacktiv/) - SCCMSecrets, gpoParser, GroupPolicyBackdoor
     - [j4s0nmo0n](https://github.com/j4s0nmo0n/) - Soaphound
     - [sikumy](https://github.com/sikumy/) - spearspray
+    - [MorDavid](https://github.com/MorDavid/) - NetworkHound
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
