@@ -151,7 +151,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.2.7 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.2.8 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -438,10 +438,14 @@ prepare() {
             echo -e "${PURPLE}[!] Error connecting to LDAP! Please ensure the LDAP port is correct and accessible (--ldaps, --ldap-port 3268). Using SMB only ... ${NC}"
             dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused")
         fi
+        if [ -z "$dc_info" ]; then
+            echo -e "${PURPLE}[!] Error connecting to SMB! Please ensure the SMB port is correct and accessible. Attempting to use MSSQL ... ${NC}"
+            dc_info=$(${netexec} mssql "${dc_ip}" | grep -v "Connection refused")
+        fi
     fi
 
     if [ -z "$dc_info" ]; then
-        echo -e "${RED}[-] Error connecting to LDAP and SMB ports of target! Please ensure the target is a Domain Controller and is accessible, and try again... ${NC}"
+        echo -e "${RED}[-] Error connecting to LDAP, SMB and MSSQL ports of target! Please ensure the target is a Domain Controller and is accessible, and try again... ${NC}"
         exit 1
     fi
 
@@ -3182,7 +3186,7 @@ ldapnightmare_check() {
         echo -e "${RED}[-] LDAPNightmare (CVE-2024-49113-checker) not found! Please verify the installation of LDAPNightmare${NC}"
     else
         echo -e "${BLUE}[*] Running LDAPNightmare check against domain${NC}"
-        run_command "${python3} ${LDAPNightmare} ${target_dc}" | tee -a "${Vulnerabilities_dir}/LDAPNightmare_${dc_domain}.txt"
+        run_command "${python3} ${LDAPNightmare} ${dc_ip_list}" | tee -a "${Vulnerabilities_dir}/LDAPNightmare_${dc_domain}.txt"
     fi
     echo -e ""
 }
@@ -3322,6 +3326,15 @@ mssql_ridbrute_attack() {
     else
         echo -e "${PURPLE}[-] Null session RID brute force skipped (credentials provided)${NC}"
     fi
+    echo -e ""
+}
+
+mssql_enum_domain_users() {
+    echo -e "${BLUE}[*] MSSQL RID Brute Force (Null session)${NC}"
+    run_command "${netexec} ${ne_verbose} mssql ${target} ${argument_ne} --rid-brute --log ${BruteForce_dir}/ne_mssql_brute_${dc_domain}.txt"
+    #Parsing user lists
+    grep "SidTypeUser" "${BruteForce_dir}/ne_mssql_rid_brute_${dc_domain}.txt" 2>/dev/null | cut -d "\\" -f 2 | sort -u | sed "s/ (SidTypeUser)//g" > "${Users_dir}/users_list_mssql_ridbrute_${dc_domain}.txt" 2>&1
+    parse_users
     echo -e ""
 }
 
@@ -5918,6 +5931,7 @@ mssql_menu() {
         echo -e "2) MSSQL Relay check"
         echo -e "3) Open mssqlclient.py console on target"
         echo -e "4) Open mssqlpwner in interactive mode"
+        echo -e "5) Enumeration Domain objects using RID bruteforce"
     fi
     echo -e "back) Go back"
     echo -e "exit) Exit"
@@ -5947,6 +5961,11 @@ mssql_menu() {
 
     4)
         mssqlpwner_console
+        mssql_menu
+        ;;
+
+    5)
+        mssql_enum_domain_users
         mssql_menu
         ;;
 

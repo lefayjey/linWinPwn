@@ -352,6 +352,7 @@ MSSQL Enumeration menu
 2) MSSQL Relay check
 3) Open mssqlclient.py console on target
 4) Open mssqlpwner in interactive mode
+5) Enumeration Domain objects using RID bruteforce
 ```
 
 Password Dump menu
