@@ -2426,7 +2426,7 @@ kerbrute_enum() {
             grep "VALID" "${BruteForce_dir}/kerbrute_user_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${Users_dir}/users_list_kerbrute_${dc_domain}.txt" 2>&1
             if [ -s "${Users_dir}/users_list_kerbrute_${dc_domain}.txt" ]; then
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
-                /bin/cat "${Users_dir}/users_list_kerbrute_${dc_domain}.txt"
+                /bin/cat "${Users_dir}/users_list_kerbrute_${dc_domain}.txt" | sort -uf
                 parse_users
             fi
         fi
@@ -2452,7 +2452,7 @@ userpass_ne_check() {
     grep "\[+\]" "${BruteForce_dir}/ne_userpass_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt"
     if [ -s "${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt" ]; then
         echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
-        /bin/cat "${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt"
+        /bin/cat "${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt" | sort -uf
     else
         echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
     fi
@@ -2485,7 +2485,7 @@ userpass_kerbrute_check() {
         grep "VALID" "${BruteForce_dir}/kerbrute_pass_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt"
         if [ -s "${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt" ]; then
             echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
-            /bin/cat "${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt"
+            /bin/cat "${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt" | sort -uf
         else
             echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
         fi
@@ -2514,8 +2514,8 @@ ne_passpray() {
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u ${target_userslist} -p ${passpray_password} --no-bruteforce --continue-on-success --log ${BruteForce_dir}/ne_passpray_output_${dc_domain}.txt" 2>&1
     grep "\[+\]" "${BruteForce_dir}/ne_passpray_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt"
     if [ -s "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt" ]; then
-        echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
-        /bin/cat "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt"
+        echo -e "${GREEN}[+] Printing accounts with passwords found...${NC}"
+        /bin/cat "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt" | sort -uf
     else
         echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
     fi
@@ -2546,8 +2546,8 @@ kerbrute_passpray() {
         run_command "${kerbrute} passwordspray ${target_userslist} ${passpray_password} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" | tee "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt"
         grep "VALID" "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt"
         if [ -s "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt" ]; then
-            echo -e "${GREEN}[+] Printing accounts with password ${passpray_password}...${NC}"
-            /bin/cat "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt"
+            echo -e "${GREEN}[+] Printing accounts with passwords found ...${NC}"
+            /bin/cat "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt" | sort -uf
         else
             echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
         fi
@@ -2594,7 +2594,7 @@ ldapnomnom_enum() {
             if [ -s "${Users_dir}/users_list_ldapnomnom_${dc_domain}.txt" ]; then
                 echo -e ""
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
-                sort -uf "${Users_dir}/users_list_ldapnomnom_${dc_domain}.txt"
+                sort -uf "${Users_dir}/users_list_ldapnomnom_${dc_domain}.txt" | sort -uf
                 parse_users
             fi
         fi
