@@ -402,8 +402,8 @@ Modification menu
 17) Abuse GPO to execute command (Requires: GenericWrite on GPO)
 18) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
 19) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)
-20) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite on user)
-21) Modify userPrincipalName to perform Certificate impersonation (UPN Spoofing - ESC10) (Requires: GenericWrite on user)
+20) Add userPrincipalName to perform Kerberos impersonation of another user (Targeting Linux machines) (Requires: GenericWrite on user)
+21) Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: GenericWrite on user)
 22) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
 23) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
 ```

