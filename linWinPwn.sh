@@ -23,7 +23,6 @@ user_wordlist="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
 if ! stat "${user_wordlist}" >/dev/null 2>&1; then user_wordlist="${wordlists_dir}/cirt-default-usernames.txt"; fi
 attacker_interface="eth0"
 attacker_IP=$(ip -f inet addr show ${attacker_interface} | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')
-curr_targets="Domain Controllers"
 targets="DC"
 ldap_port="389"
 nullsess_bool=false
@@ -151,7 +150,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.0 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.1 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -184,7 +183,7 @@ help_linWinPwn() {
     echo -e "--use-ip            Use IP addresses instead of hostnames (if DNS issues)"
     echo -e "--verbose           Enable all verbose and debug outputs"
     echo -e "-I/--interface      Attacker's network interface (default: eth0)"
-    echo -e "-T/--targets        Target systems for Vuln Scan, SMB Scan and Pwd Dump (default: Domain Controllers)"
+    echo -e "-T/--targets        Target systems for Vuln Scan, SMB Scan, Network Scan and Pwd Dump (Interactive mode default = DC, Auto mode default = All)"
     echo -e "     ${CYAN}Choose between:${NC} DC (Domain Controllers), All (All domain servers), File='path_to_file' (File containing list of servers), IP='IP_or_hostname' (IP or hostname)"
     echo -e "-U/--userwordlist   Custom username list used during Null session checks"
     echo -e "-P/--passwordlist   Custom password list used during password cracking"
@@ -248,6 +247,11 @@ while test $# -gt 0; do
         output_dir="$(realpath "${2}")"
         shift
         ;;
+    --auto)
+        interactive_bool=false
+        targets="All"
+        args+=("$1")
+        ;; #auto mode, disable interactive
     -I | --interface)
         attacker_IP="$(ip -f inet addr show "${2}" | sed -En 's/.*inet ([0-9.]+).*/\1/p')"
         attacker_interface="${2}"
@@ -265,10 +269,6 @@ while test $# -gt 0; do
         pass_wordlist="${2}"
         shift
         ;;
-    --auto)
-        interactive_bool=false
-        args+=("$1")
-        ;; #auto mode, disable interactive
     --auto-config)
         autoconfig_bool=true
         args+=("$1")
@@ -555,13 +555,13 @@ prepare() {
 
     echo -e ""
 
-    if [[ $targets == "DC" ]]; then
+    if [[ "${targets,,}" == "dc" ]]; then
         curr_targets="Domain Controllers"
         curr_targets_list="${target_dc}"
-    elif [[ $targets == "All" ]]; then
+    elif [[ "${targets,,}" == "all" ]]; then
         curr_targets="All domain servers"
         curr_targets_list="${target_servers}"
-    elif [[ $targets == "File="* ]]; then
+    elif [[ ${targets,,} == "file="* ]]; then
         curr_targets="File containing list of servers: "
         custom_servers=$(echo "$targets" | cut -d "=" -f 2)
         /bin/cp "${custom_servers}" "${custom_servers_list}" 2>/dev/null
@@ -572,7 +572,7 @@ prepare() {
             custom_servers=""
         fi
         curr_targets_list="${custom_servers_list}"
-    elif [[ $targets == "IP="* ]]; then
+    elif [[ ${targets,,} == "ip="* ]]; then
         curr_targets="IP or hostname: "
         custom_ip=$(echo "$targets" | cut -d "=" -f 2)
         echo -n "$custom_ip" >"${custom_servers_list}" 2>/dev/null
@@ -584,7 +584,8 @@ prepare() {
         fi
         curr_targets_list="${custom_servers_list}"
     else
-        echo -e "${PURPLE}[-] Error invalid targets parameter. Choosing default setting: Domain Controllers ${NC}"
+        echo -e "${RED}[-] Error invalid targets parameter.${NC} Choosing default setting: ${YELLOW}Domain Controllers${NC}"
+        echo -e ""
         curr_targets="Domain Controllers"
         curr_targets_list="${target_dc}"
     fi
@@ -1050,6 +1051,7 @@ nhd_scan() {
         run_command "${python3} ${NetworkHound} --dc ${dc_FQDN} ${argument_nhd} --dns ${dns_ip} --output ${Scans_dir}/NetworkHound/DomainScan_${dc_domain}.json" | tee "${Scans_dir}/NetworkHound/DomainScan_${dc_domain}.txt"
         fi
     fi
+    echo -e ""
 }
 
 nhd_shadowit() {
@@ -1064,6 +1066,7 @@ nhd_shadowit() {
         run_command "${python3} ${NetworkHound} --dc ${dc_FQDN} ${argument_nhd} --dns ${dns_ip} --shadow-it --port-scan --valid-http --valid-smb --scan-threads 50 --output ${Scans_dir}/NetworkHound/ShadowIT_${dc_domain}.json" |  tee "${Scans_dir}/NetworkHound/ShadowIT_${dc_domain}.txt"
         fi
     fi
+    echo -e ""
 }
 
 ###### ad_enum: AD Enumeration
@@ -4506,7 +4509,7 @@ ad_enum() {
         ne_smb_usersenum
         windapsearch_enum
     else
-        bhd_enum
+        bhdce_enum
         ldapdomaindump_enum
         enum4linux_enum
         ne_ldap_usersenum
@@ -4516,8 +4519,6 @@ ad_enum() {
         bloodyad_all_enum
         bloodyad_write_enum
         windapsearch_enum
-        ldapwordharv_enum
-        rdwatool_enum
     fi
 }
 
@@ -4559,9 +4560,11 @@ bruteforce() {
         kerbrute_enum
         userpass_kerbrute_check
         ne_pre2k
+        ne_timeroast
     else
         userpass_kerbrute_check
         ne_pre2k
+        ne_timeroast
     fi
 }
 
@@ -4585,7 +4588,6 @@ kerberos() {
 
 scan_shares() {
     mkdir -p "${Shares_dir}"
-    smb_map
     ne_shares
     ne_spider
     finduncshar_scan
@@ -4593,13 +4595,10 @@ scan_shares() {
 
 vuln_checks() {
     mkdir -p "${Vulnerabilities_dir}"
-    zerologon_check
-    ms17-010_check
     print_check
     webdav_check
     coerceplus_check
     smb_checks
-    rpcdump_check
     ldapnightmare_check
     badsuccessor_check
 }
@@ -4622,10 +4621,19 @@ pwd_dump() {
         laps_dump
         gmsa_dump
         secrets_dump
-        nanodump_dump
-        dpapi_dump
+        donpapi_noreg_dump
         juicycreds_dump
     fi
+}
+
+netscan_run() {
+    mkdir -p "${Scans_dir}"
+    ne_scan "smb"
+    ne_scan "winrm"
+    ne_scan "ssh"
+    ne_scan "mssql"
+    /bin/cat "${servers_list}" >> "${sql_ip_list}"
+    nhd_scan
 }
 
 print_info() {
@@ -4767,9 +4775,9 @@ ad_menu() {
     echo -e "${CYAN}[AD Enum menu]${NC} Please choose from the following options:"
     echo -e "--------------------------------------------------------"
     if [ "${nullsess_bool}" == true ]; then
-        echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #3-4-5-6-14"
+        echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #3-4-5-6-16"
     else
-        echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #1-3-4-5-6-7-8-9-10-14-15-16-17-20"
+        echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #1ce-3-4-5-6-7-8-9-10-16"
     fi
     echo -e "1) BloodHound Enumeration using all collection methods (Noisy!)"
     echo -e "2) BloodHound Enumeration using DCOnly"
@@ -5194,9 +5202,9 @@ bruteforce_menu() {
     echo -e "${CYAN}[BruteForce menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------------"
     if [ "${nullsess_bool}" == true ]; then
-        echo -e "A) BRUTEFORCE ATTACKS #1-2-3-5"
+        echo -e "A) BRUTEFORCE ATTACKS #1-2-3-5-10"
     else
-        echo -e "A) BRUTEFORCE ATTACKS #3-5"
+        echo -e "A) BRUTEFORCE ATTACKS #3-5-10"
     fi
     echo -e "1) RID Brute Force (Null session) using netexec"
     echo -e "2) User Enumeration using kerbrute (Null session)"
@@ -5804,7 +5812,7 @@ shares_menu() {
     echo -e "${CYAN}[SMB Shares menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
-    echo -e "A) SMB SHARES SCANS #1-2-3-4"
+    echo -e "A) SMB SHARES SCANS #2-3-4"
     echo -e "m) Modify target(s)"
     echo -e "1) SMB shares Scan using smbmap"
     echo -e "2) SMB shares Enumeration using netexec"
@@ -5893,7 +5901,7 @@ vulns_menu() {
     echo -e "${CYAN}[Vuln Checks menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
-    echo -e "A) VULNERABILITY CHECKS #1-2-3-4-5-6-7-8-9-10-11-12-15"
+    echo -e "A) VULNERABILITY CHECKS #3-4-5-8-13-16"
     echo -e "m) Modify target(s)"
     echo -e "1) zerologon check using netexec (only on DC)"
     echo -e "2) MS17-010 check using netexec"
@@ -6099,7 +6107,7 @@ pwd_menu() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] Password Dump requires credentials${NC}"
     else
-        echo -e "A) PASSWORD DUMPS #1-2-4-12-13-16"
+        echo -e "A) PASSWORD DUMPS #1-2-4-15-17"
         echo -e "m) Modify target(s)"
         echo -e "1) LAPS Dump using netexec"
         echo -e "2) gMSA Dump using netexec"
@@ -6483,6 +6491,7 @@ netscan_menu() {
     echo -e "${CYAN}[Network Scan menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
+    echo -e "A) NETWORK SCANS #1-3-4-7-8"
     echo -e "m) Modify target(s)"
     echo -e "1) Identify hosts with accessible SMB port using netexec"
     echo -e "2) Identify hosts with accessible RDP port using netexec"
@@ -6502,6 +6511,11 @@ netscan_menu() {
 
     m)
         modify_target
+        netscan_menu
+        ;;
+
+    A)
+        netscan_run
         netscan_menu
         ;;
 
@@ -7083,10 +7097,14 @@ main() {
         echo -e "${GREEN}---------------------------${NC}"
         echo -e ""
         adcs_enum
-        echo -e "${GREEN}[+] Start: SSCM Enumeration${NC}"
+        echo -e "${GREEN}[+] Start: SCCM Enumeration${NC}"
         echo -e "${GREEN}---------------------------${NC}"
         echo -e ""
         sccm_enum
+        echo -e "${GREEN}[+] Start: GPO Enumeration${NC}"
+        echo -e "${GREEN}---------------------------${NC}"
+        echo -e ""
+        gpo_enum
         echo -e "${GREEN}[+] Start: User and password Brute force Attacks${NC}"
         echo -e "${GREEN}------------------------------------------------${NC}"
         echo -e ""
@@ -7095,6 +7113,10 @@ main() {
         echo -e "${GREEN}----------------------------------${NC}"
         echo -e ""
         kerberos
+        echo -e "${GREEN}[+] Start: Network Scans${NC}"
+        echo -e "${GREEN}------------------------${NC}"
+        echo -e ""
+        netscan_run
         echo -e "${GREEN}[+] Start: Network Shares Scan${NC}"
         echo -e "${GREEN}------------------------------${NC}"
         echo -e ""

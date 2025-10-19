@@ -212,6 +212,10 @@ Main menu
 8) MSSQL Enumeration Menu
 9) Password Dump Menu
 10) AD Objects or Attributes Modification Menu
+11) Password Dump Menu
+12) AD Objects or Attributes Modification Menu
+13) Command Execution Menu
+14) Network Scan Menu
 ```
 
 AD Enum menu
@@ -407,6 +411,7 @@ Modification menu
 22) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
 23) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
 ```
+
 Command Execution menu
 ```
 1) Open CMD console using smbexec on target
