@@ -334,16 +334,17 @@ Vuln Checks menu
 3) Print Spooler and Printnightmare checks using netexec
 4) WebDAV check using netexec
 5) coerce check using netexec
-6) SMB signing check using netexec
-7) ntlmv1, smbghost and remove-mic checks using netexec
-8) RPC Dump and check for interesting protocols
-9) Coercer RPC scan
-10) PushSubscription abuse using PrivExchange
-11) RunFinger scan
-12) Run LDAPNightmare check
-13) Run sessions enumeration using netexec (reg-sessions)
-14) Check for unusual sessions
-15) Check for BadSuccessor vuln using netexec
+6) Run coerce attack using netexec
+7) SMB signing check using netexec
+8) ntlmv1, smbghost and remove-mic checks using netexec
+9) RPC Dump and check for interesting protocols
+10) Coercer RPC scan
+11) PushSubscription abuse using PrivExchange
+12) RunFinger scan
+13) Run LDAPNightmare check
+14) Run sessions enumeration using netexec (reg-sessions)
+15) Check for unusual sessions
+16) Check for BadSuccessor vuln using netexec
 ```
 
 MSSQL Enumeration menu
@@ -382,28 +383,29 @@ Password Dump menu
 
 Modification menu
 ```
-1) Change user or computer password (Requires: ForceChangePassword on user or computer)
-2) Add user to group (Requires: GenericWrite or GenericAll on group)
-3) Remove user from group (Requires: GenericWrite or GenericAll on group)
+1) Change user or computer password (Requires: ForceChangePassword)
+2) Add user to group (Requires: AddMember on group)
+3) Remove user from group (Requires: AddMember on group)
 4) Add new computer (Requires: MAQ > 0)
-5) Add new DNS entry
-6) Enable account
-7) Disable account
+5) Add new DNS entry (Requires: Modification of DNS)
+6) Enable account (Requires: GenericWrite)
+7) Disable account (Requires: GenericWrite)
 8) Change Owner of target (Requires: WriteOwner permission)
-9) Add GenericAll rights on target (Requires: Owner permission)
-10) Delete object (Requires: GenericWrite or GenericAll on object)
-11) Restore deleted object (Requires: GenericWrite or GenericAll on OU of deleted object)
-12) Targeted Kerberoast Attack (Noisy!)
-13) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)
-14) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)
+9) Add GenericAll rights on target (Requires: Owner of object)
+10) Delete user or computer (Requires: GenericWrite)
+11) Restore deleted user or computer (Requires: GenericWrite on OU of deleted object)
+12) Targeted Kerberoast Attack (Noisy!) (Requires: WriteSPN)
+13) Perform RBCD attack (Requires: AllowedToAct on computer)
+14) Perform RBCD attack on SPN-less user (Requires: AllowedToAct on computer & MAQ=0)
 15) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)
 16) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)
-17) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)
+17) Abuse GPO to execute command (Requires: GenericWrite on GPO)
 18) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
 19) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)
-20) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)
-21) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
-22) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
+20) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite on user)
+21) Modify userPrincipalName to perform Certificate impersonation (UPN Spoofing - ESC10) (Requires: GenericWrite on user)
+22) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
+23) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
 ```
 Command Execution menu
 ```

