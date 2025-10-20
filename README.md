@@ -435,12 +435,12 @@ Network Scan menu
 
 Auth menu
 ```
-1) Generate and use NTLM hash of current user (requires: password) - Pass the hash
-2) Crack NTLM hash of current user and use password (requires: NTLM hash)
-3) Generate and use TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash
-4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)
-5) Request and use certificate (requires: authentication)
-6) Generate AES Key using aesKrbKeyGen (requires: password)
+1) Generate NTLM hash of current user - Pass the hash
+2) Crack NTLM hash of current user
+3) Generate AES Key using aesKrbKeyGen
+4) Generate TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash
+5) Request certificate (requires: authentication)
+6) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)
 ```
 
 Config menu

