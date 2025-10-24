@@ -1038,6 +1038,7 @@ dns_enum() {
     echo -e ""
 }
 
+# ------------------------------ Tools ------------------------------
 ###### net_scan: Network Scan
 ne_scan() {
     echo -e "${BLUE}[*] Scanning for ${1^^} ports...${NC}"
@@ -4540,6 +4541,7 @@ evilwinrm_console() {
     echo -e ""
 }
 
+# ------------------------------ Auto ------------------------------
 ad_enum() {
     mkdir -p "${DomainRecon_dir}"
     if [ "${nullsess_bool}" == true ]; then
@@ -4675,6 +4677,7 @@ netscan_run() {
     nhd_scan
 }
 
+# ------------------------------ Menu ------------------------------
 print_info() {
     if [ "${offline_bool}" == "true" ]; then
         echo -e "${RED}WARNING:${NC} Running in Offline mode, no interaction with target, using fake authentication data\n";
