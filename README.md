@@ -268,10 +268,10 @@ Configuration Snippet
 | `spearspray`            | ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
 | `GroupPolicyBackdoor`   | ✅           | ✅       | ✅        | ✅             | ❌         | ❌         |
 | `NetworkHound`          | ❌           | ✅       | ✅        | ✅             | ❌         | ❌         |
+| `ShareHound`            | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor
-
 
 msldap: bloodyAD
 
@@ -407,8 +407,10 @@ SMB Shares menu
 4) SMB shares Scan using FindUncommonShares
 5) List all servers and run SMB shares Scan using FindUncommonShares
 6) SMB shares Scan using manspider
-7) Open smbclient.py console on target
-8) Open p0dalirius's smbclientng console on target
+7) SMB shares Scan using ShareHound
+8) SMB shares Scan using ShareHound (on all subnets)"
+9) Open smbclient.py console on target
+10) Open p0dalirius's smbclientng console on target
 ```
 
 Vuln Checks menu

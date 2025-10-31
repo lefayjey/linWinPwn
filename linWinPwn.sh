@@ -139,6 +139,7 @@ gpoParser=$(which gpoParser)
 spearspray=$(which spearspray)
 GroupPolicyBackdoor="$scripts_dir/GroupPolicyBackdoor-master/gpb.py"
 NetworkHound="$scripts_dir/NetworkHound-main/NetworkHound.py"
+sharehound=$(which sharehound)
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
@@ -152,7 +153,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.3 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.4 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -652,8 +653,7 @@ authenticate() {
             argument_ldeep="-d ${dc_domain} -a"
             argument_pre2k="-d ${domain}"
             argument_p0dalirius="-d ${domain} -u Guest -p ''"
-            argument_p0dalirius_smbclient="-d ${domain} -u Guest -p ''"
-            argument_FindUncom="-ad ${domain} -au Guest -ap ''"
+            argument_p0dalirius_a="-ad ${domain} -au Guest -ap ''"
             argument_adalanche="--authmode anonymous --username Guest\\@${domain} -p '!'"
             argument_godap=""
             argument_gpb="-d ${dc_domain}"
@@ -688,8 +688,7 @@ authenticate() {
         argument_windap="-d ${domain} -u '${user}' -p '${password}'"
         argument_targkerb="-d ${domain} -u '${user}' -p '${password}'"
         argument_p0dalirius="-d ${domain} -u '${user}' -p '${password}'"
-        argument_p0dalirius_smbclient="-d ${domain} -u '${user}' -p '${password}'"
-        argument_FindUncom="-ad ${domain} -au '${user}' -ap '${password}'"
+        argument_p0dalirius_a="-ad ${domain} -au '${user}' -ap '${password}'"
         argument_manspider="-d ${domain} -u '${user}' -p '${password}'"
         argument_coercer="-d ${domain} -u '${user}' -p '${password}'"
         argument_bloodyad="-d ${domain} -u '${user}' -p '${password}'"
@@ -765,8 +764,7 @@ authenticate() {
             argument_windap="-d ${domain} -u '${user}' --hash ${hash}"
             argument_targkerb="-d ${domain} -u '${user}' -H ${hash}"
             argument_p0dalirius="-d ${domain} -u '${user}' -H ${hash:33})"
-            argument_p0dalirius_smbclient="-d ${domain} -u '${user}' -H ${hash:33})"
-            argument_FindUncom="-ad ${domain} -au '${user}' -ah ${hash}"
+            argument_p0dalirius_a="-ad ${domain} -au '${user}' -ah ${hash}"
             argument_manspider="-d ${domain} -u '${user}' -H ${hash:33}"
             argument_coercer="-d ${domain} -u '${user}' --hashes ${hash}"
             argument_aced=" -hashes ${hash} ${domain}/'${user}'"
@@ -830,8 +828,7 @@ authenticate() {
             argument_donpapi="-k --no-pass -d ${domain} -u '${user}'"
             argument_targkerb="-d ${domain} -u '${user}' -k --no-pass"
             argument_p0dalirius="-d ${domain} -u '${user}' -k --no-pass"
-            argument_p0dalirius_smbclient="-d ${domain} -u '${user}' -k --no-pass"
-            argument_FindUncom="-ad ${domain} -au '${user}' -k --no-pass"
+            argument_p0dalirius_a="-ad ${domain} -au '${user}' -k --no-pass"
             argument_bloodyad="-d ${domain} -u '${user}' -k"
             argument_adalanche="--authmode kerberoscache --username '${user}'\\@${domain}"
             argument_aced="-k -no-pass ${domain}/'${user}'"
@@ -864,8 +861,7 @@ authenticate() {
         argument_donpapi="-k --aesKey ${aeskey} -d ${domain} -u '${user}'"
         argument_targkerb="-d ${domain} -u '${user}' --aes-key ${aeskey} -k"
         argument_p0dalirius="-d ${domain} -u '${user}' --aes-key ${aeskey} -k"
-        argument_p0dalirius_smbclient="-d ${domain} -u '${user}' --aes-key ${aeskey} -k"
-        argument_FindUncom="-ad ${domain} -au '${user}' --aes-key ${aeskey} -k"
+        argument_p0dalirius_a="-ad ${domain} -au '${user}' --aes-key ${aeskey} -k"
         argument_aced="-aes ${aeskey} ${domain}/'${user}'"
         argument_sccm="-d ${domain} -u '${user}' -aes ${aeskey}"
         argument_mssqlrelay="-u '${user}'\\@${domain} -aes ${aeskey} -k"
@@ -2979,7 +2975,7 @@ finduncshar_scan() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${curr_targets_list} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_${user_var}.xlsx --kdcHost ${dc_FQDN} --no-ldap" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_output_${user_var}.txt"
+            run_command "${python3} ${FindUncommonShares} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${curr_targets_list} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_${user_var}.xlsx --kdcHost ${dc_FQDN} --no-ldap" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_output_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -2995,7 +2991,7 @@ finduncshar_fullscan() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${FindUncommonShares} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_full_${user_var}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_full_output_${user_var}.txt"
+            run_command "${python3} ${FindUncommonShares} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_full_${user_var}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_full_output_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -3022,6 +3018,56 @@ manspider_scan() {
         #run_command "${manspider} ${Shares_dir}/manspiderDump_${user_var} -q -t 100 -c passw key login -l ${Shares_dir}/manspiderDump_${user_var}" 2>&1 | tee -a "${Shares_dir}/manspider_output_${user_var}.txt"
         echo -e ""
     fi
+}
+
+sharehound_scan() {
+    if ! stat "${sharehound}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of ShareHound${NC}"
+    else
+        echo -e "${BLUE}[*] Running network share scan using ShareHound${NC}"
+        if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${PURPLE}[-] ShareHound does not support Kerberos authentication${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
+            current_dir=$(pwd)
+            mkdir -p "${Shares_dir}/sharehound_${user_var}/"
+            cd "${Shares_dir}/sharehound_${user_var}/" || exit
+            if [ "${nullsess_bool}" == true ]; then
+                run_command "${sharehound} -au ${rand_user} -ap '' ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip} -ns ${dns_ip} --logfile ${Shares_dir}/sharehound_${user_var}/sharehound_null.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_nullsess_output.txt"
+                if [ -s "opengraph.json" ]; then mv opengraph.json "opengraph_null_${user_var}.json"; fi
+            fi
+            run_command "${sharehound} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip} -ns ${dns_ip} --logfile ${Shares_dir}/sharehound_${user_var}/sharehound.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_output.txt"
+            if [ -s "opengraph.json" ]; then mv opengraph.json "opengraph_${user_var}.json"; fi
+            cd "${current_dir}" || exit
+        fi
+    fi
+    echo -e ""
+}
+
+sharehound_scan_allsubnets() {
+    if ! stat "${sharehound}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of ShareHound${NC}"
+    else
+        echo -e "${BLUE}[*] Running network share scan using ShareHound${NC}"
+        if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${PURPLE}[-] ShareHound does not support Kerberos authentication${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
+            if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
+            current_dir=$(pwd)
+            mkdir -p "${Shares_dir}/sharehound_${user_var}/"
+            cd "${Shares_dir}/sharehound_${user_var}/" || exit
+            if [ "${nullsess_bool}" == true ]; then
+                run_command "${sharehound} -au ${rand_user} -ap '' ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip} -ns ${dns_ip} --subnets --logfile ${Shares_dir}/sharehound_${user_var}/sharehound_null_subnets_.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_nullsess_subnets_output.txt"
+                if [ -s "opengraph.json" ]; then mv opengraph.json "opengraph_null_subnets_${user_var}.json"; fi
+            fi
+            run_command "${sharehound} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip} -ns ${dns_ip} --subnets --logfile ${Shares_dir}/sharehound_${user_var}/sharehound_subnets.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_subnets_output.txt"
+            if [ -s "opengraph.json" ]; then mv opengraph.json "opengraph_subnets_${user_var}.json"; fi
+            cd "${current_dir}" || exit
+        fi
+    fi
+    echo -e ""
 }
 
 smbclient_console() {
@@ -3059,7 +3105,7 @@ smbclientng_console() {
         done
         if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then kdc_param="--kdcHost ${dc_FQDN}"; else kdc_param=""; fi
-        run_command "${smbclientng} ${argument_p0dalirius_smbclient} ${verbose_p0dalirius} --host ${smbclient_target} ${kdc_param}" 2>&1 | tee -a "${Shares_dir}/smbclientng_output_${user_var}.txt"
+        run_command "${smbclientng} ${argument_p0dalirius} ${verbose_p0dalirius} --host ${smbclient_target} ${kdc_param}" 2>&1 | tee -a "${Shares_dir}/smbclientng_output_${user_var}.txt"
     fi
     echo -e ""
 }
@@ -3270,7 +3316,7 @@ findunusess_check() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${FindUnusualSessions} ${argument_FindUncom} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${curr_targets_list} --export-xlsx ${Vulnerabilities_dir}/findususess_${dc_domain}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Vulnerabilities_dir}/findususess_output_${dc_domain}.txt"
+            run_command "${python3} ${FindUnusualSessions} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${curr_targets_list} --export-xlsx ${Vulnerabilities_dir}/findususess_${dc_domain}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Vulnerabilities_dir}/findususess_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -5868,8 +5914,10 @@ shares_menu() {
     echo -e "4) SMB shares Scan using FindUncommonShares"
     echo -e "5) List all servers and run SMB shares Scan using FindUncommonShares"
     echo -e "6) SMB shares Scan using manspider"
-    echo -e "7) Open smbclient.py console on target"
-    echo -e "8) Open p0dalirius's smbclientng console on target"
+    echo -e "7) SMB shares Scan using ShareHound"
+    echo -e "8) SMB shares Scan using ShareHound (on all subnets)"
+    echo -e "9) Open smbclient.py console on target"
+    echo -e "10) Open p0dalirius's smbclientng console on target"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5917,11 +5965,21 @@ shares_menu() {
         ;;
 
     7)
-        smbclient_console
+        sharehound_scan
         shares_menu
         ;;
 
     8)
+        sharehound_scan_allsubnets
+        shares_menu
+        ;;
+
+    9)
+        smbclient_console
+        shares_menu
+        ;;
+
+    10)
         smbclientng_console
         shares_menu
         ;;
@@ -6947,6 +7005,7 @@ config_menu() {
         if ! stat "${spearspray}" >/dev/null 2>&1; then echo -e "${RED}[-] Spearspray is not installed${NC}"; else echo -e "${GREEN}[+] Spearspray is installed${NC}"; fi
         if ! stat "${GroupPolicyBackdoor}" >/dev/null 2>&1; then echo -e "${RED}[-] GroupPolicyBackdoor is not installed${NC}"; else echo -e "${GREEN}[+] GroupPolicyBackdoor is installed${NC}"; fi
         if ! stat "${NetworkHound}" >/dev/null 2>&1; then echo -e "${RED}[-] NetworkHound is not installed${NC}"; else echo -e "${GREEN}[+] NetworkHound is installed${NC}"; fi
+        if ! stat "${sharehound}" >/dev/null 2>&1; then echo -e "${RED}[-] ShareHound is not installed${NC}"; else echo -e "${GREEN}[+] ShareHound is installed${NC}"; fi
         config_menu
         ;;
 

@@ -62,9 +62,9 @@ install_tools() {
     echo -e ""
     echo -e "${BLUE}Installing python tools using pip and pipx...${NC}"
     pipx ensurepath
-    #pipx install git+https://github.com/deadjakk/ldapdomaindump --force #LDAP Channel Binding
-    #/home/$(whoami)/.local/share/pipx/venvs/ldapdomaindump/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
-    pipx_install_or_upgrade git+https://github.com/dirkjanm/ldapdomaindump ldapdomaindump
+    pipx install git+https://github.com/deadjakk/ldapdomaindump --force #LDAP Channel Binding
+    /home/$(whoami)/.local/share/pipx/venvs/ldapdomaindump/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
+    #pipx_install_or_upgrade git+https://github.com/dirkjanm/ldapdomaindump ldapdomaindump
     pipx_install_or_upgrade git+https://github.com/Pennyw0rth/netexec netexec
     pipx_install_or_upgrade git+https://github.com/fortra/impacket impacket
     pipx_install_or_upgrade git+https://github.com/dirkjanm/adidnsdump adidnsdump
@@ -91,6 +91,7 @@ install_tools() {
     pipx_install_or_upgrade git+https://github.com/j4s0nmo0n/soaphound.py soaphound
     pipx_install_or_upgrade git+https://github.com/synacktiv/gpoParser gpoParser
     pipx_install_or_upgrade git+https://github.com/sikumy/spearspray spearspray
+    pipx_install_or_upgrade git+https://github.com/p0dalirius/ShareHound sharehound
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}
