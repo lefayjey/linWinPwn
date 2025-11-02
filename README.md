@@ -269,6 +269,7 @@ Configuration Snippet
 | `GroupPolicyBackdoor`   | ✅           | ✅       | ✅        | ✅             | ❌         | ❌         |
 | `NetworkHound`          | ❌           | ✅       | ✅        | ✅             | ❌         | ❌         |
 | `ShareHound`            | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `DACLSearch`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor
@@ -331,6 +332,7 @@ AD Enum menu
 27) Run soapy enumerations
 28) Soaphound Enumeration using all collection methods (Noisy!)
 29) Soaphound Enumeration using ADWSOnly
+30) Run DACLSearch dump and cli
 ```
 
 ADCS menu
@@ -576,7 +578,7 @@ Automated Mode:
     - [franc-pentest](https://github.com/franc-pentest) - ldeep
     - [garrettfoster13](https://github.com/garrettfoster13/) - pre2k, aced, sccmhunter
     - [zblurx](https://github.com/zblurx/) - certsync
-    - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares, ExtractBitlockerKeys, LDAPWordlistHarvester, ldapconsole, pyLDAPmonitor, RDWAtool, smbclient-ng, FindUnusualSessions
+    - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares, ExtractBitlockerKeys, LDAPWordlistHarvester, ldapconsole, pyLDAPmonitor, RDWAtool, smbclient-ng, FindUnusualSessions, ShareHound
     - [blacklanternsecurity](https://github.com/blacklanternsecurity/) - MANSPIDER
     - [CravateRouge](https://github.com/CravateRouge) - bloodyAD
     - [shellster](https://github.com/shellster) - LDAPPER
@@ -596,6 +598,7 @@ Automated Mode:
     - [j4s0nmo0n](https://github.com/j4s0nmo0n/) - Soaphound
     - [sikumy](https://github.com/sikumy/) - spearspray
     - [MorDavid](https://github.com/MorDavid/) - NetworkHound
+    - [cogiceo](https://github.com/cogiceo/) - DACLSearch
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/

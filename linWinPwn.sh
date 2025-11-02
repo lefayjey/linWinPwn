@@ -140,6 +140,7 @@ spearspray=$(which spearspray)
 GroupPolicyBackdoor="$scripts_dir/GroupPolicyBackdoor-master/gpb.py"
 NetworkHound="$scripts_dir/NetworkHound-main/NetworkHound.py"
 sharehound=$(which sharehound)
+daclsearch=$(which daclsearch)
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
@@ -153,7 +154,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.4 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.5 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -709,8 +710,9 @@ authenticate() {
         argument_soaphd="-u '${user}' -p '${password}'"
         argument_gpopars="-d ${domain} -u '${user}' -p '${password}'"
         argument_spearspray="-d ${domain} -u '${user}' -p '${password}'"
-        argument_gpb="-d ${dc_domain} -u '${user}' -p '${password}'"
-        argument_nhd="-d ${dc_domain} -u '${user}' -p '${password}'"
+        argument_gpb="-d ${domain} -u '${user}' -p '${password}'"
+        argument_nhd="-d ${domain} -u '${user}' -p '${password}'"
+        argument_daclsearch="-l ${domain} -u '${user}' -p '${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -785,8 +787,9 @@ authenticate() {
             argument_secsccm="-u '${user}' -H '${hash}'"
             argument_soaphd="-u '${user}' --hashes ${hash}"
             argument_gpopars="-d ${domain} -u '${user}' -H '${hash}'"
-            argument_gpb="-d ${dc_domain} -u '${user}' -H '${hash}'"
-            argument_nhd="-d ${dc_domain} -u '${user}' --hashes '${hash}'"
+            argument_gpb="-d ${domain} -u '${user}' -H '${hash}'"
+            argument_nhd="-d ${domain} -u '${user}' --hashes '${hash}'"
+            argument_daclsearch="-l ${domain} -u '${user}' -H '${hash}'"
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -842,6 +845,7 @@ authenticate() {
             argument_gpopars="-d ${domain} -u '${user}' -k"
             argument_gpb="-d ${dc_domain} -u '${user}' -k"
             argument_nhd="-d ${dc_domain} -u '${user}' -k"
+            argument_daclsearch="-l ${domain} -u '${user}' -k"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -867,6 +871,7 @@ authenticate() {
         argument_mssqlrelay="-u '${user}'\\@${domain} -aes ${aeskey} -k"
         argument_GPOwned="-d ${domain} -u '${user}' -aesKey ${aeskey} -k"
         argument_mssqlpwner="${domain}/'${user}' -aesKey ${aeskey} -k"
+        argument_daclsearch="-l ${domain} -u '${user}' --aeskey ${aeskey} -k"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -1883,6 +1888,22 @@ soaphd_enum_dconly() {
             echo -e "${PURPLE}[-] Soaphound requires credentials and does not support Kerberos authentication${NC}"
         else
             run_command "${soaphound} -d ${dc_domain} ${argument_soaphd} -c ADWSOnly -dc ${dc_FQDN} --output-dir ${DomainRecon_dir}/Soaphound_${user_var}" | tee "${DomainRecon_dir}/Soaphound_${user_var}/soaphound_output_dconly_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+daclsearch_run () {
+    if ! stat "${daclsearch}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of daclsearch${NC}"
+    else
+        echo -e "${BLUE}[*] daclsearch Enumeration${NC}"
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] daclsearch requires credentials ${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
+            run_command "${daclsearch} dump ${argument_daclsearch} -d ${dc_domain} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} -j ${DomainRecon_dir}/daclsearch_${dc_domain}.json ${DomainRecon_dir}/daclsearch_${dc_domain}.db" 2>&1 | tee "${DomainRecon_dir}/daclsearch_output_${dc_domain}.txt"
+            run_command "${daclsearch} cli ${DomainRecon_dir}/daclsearch_${dc_domain}.db" 2>&1 | tee -a "${DomainRecon_dir}/daclsearch_cli_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4903,6 +4924,7 @@ ad_menu() {
     echo -e "27) Run soapy enumerations"
     echo -e "28) Soaphound Enumeration using all collection methods (Noisy!)"
     echo -e "29) Soaphound Enumeration using ADWSOnly"
+    echo -e "30) Run DACLSearch dump and cli"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5066,6 +5088,11 @@ ad_menu() {
 
     29)
         soaphd_enum_dconly
+        ad_menu
+        ;;
+
+    30)
+        daclsearch_run
         ad_menu
         ;;
 
@@ -5237,7 +5264,7 @@ gpo_menu() {
     mkdir -p "${GPO_dir}"
     echo -e ""
     echo -e "${CYAN}[GPO menu]${NC} Please choose from the following options:"
-    echo -e "-----------------------------------------------------"
+    echo -e "----------------------------------------------------"
     echo -e "A) GPO ENUMERATIONS #1,3"
     echo -e "1) GPP Enumeration using netexec"
     echo -e "2) GPO Enumeration using GPOwned"
@@ -5294,7 +5321,7 @@ bruteforce_menu() {
     mkdir -p "${BruteForce_dir}"
     echo -e ""
     echo -e "${CYAN}[BruteForce menu]${NC} Please choose from the following options:"
-    echo -e "----------------------------------------------------------"
+    echo -e "------------------------------------------------------------"
     if [ "${nullsess_bool}" == true ]; then
         echo -e "A) BRUTEFORCE ATTACKS #1-2-3-5-10"
     else
@@ -6595,7 +6622,7 @@ netscan_menu() {
     mkdir -p "${Scans_dir}"
     echo -e ""
     echo -e "${CYAN}[Network Scan menu]${NC} Please choose from the following options:"
-    echo -e "------------------------------------------------------------------"
+    echo -e "-------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
     echo -e "A) NETWORK SCANS #1-3-4-7-8"
     echo -e "m) Modify target(s)"
@@ -6687,54 +6714,17 @@ netscan_menu() {
     esac
 }
 
-init_menu() {
-    echo -e ""
-    echo -e "${YELLOW}[Init menu]${NC} Please choose from the following options:"
-    echo -e "----------------------------------------------------"
-    echo -e "ENTER) Launch linWinPwn in interactive mode"
-    echo -e "A) Authentication Menu"
-    echo -e "C) Configuration Menu"
-    echo -e "exit) Exit"
-
-    read -rp "> " option_selected </dev/tty
-
-    case ${option_selected} in
-    C)
-        config_menu
-        ;;
-
-    A)
-        auth_menu
-        ;;
-
-    "")
-        echo -e ""
-        authenticate
-        main_menu
-        ;;
-
-    exit)
-        exit 1
-        ;;
-
-    *)
-        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
-        init_menu
-        ;;
-    esac
-}
-
 auth_menu() {
     echo -e ""
     echo -e "${YELLOW}[Auth menu]${NC} Please choose from the following options:"
-    echo -e "----------------------------------------------------"
+    echo -e "-----------------------------------------------------"
     echo -e "1) Generate NTLM hash of current user - Pass the hash"
     echo -e "2) Crack NTLM hash of current user"
     echo -e "3) Generate AES Key using aesKrbKeyGen"
     echo -e "4) Generate TGT for current user (requires: password, NTLM hash or AES key) - Pass the key/Overpass the hash"
     echo -e "5) Request certificate (requires: authentication)"
     echo -e "6) Extract NTLM hash from Certificate using PKINIT (requires: pfx certificate)"
-    echo -e "back) Go back to Init Menu"
+    echo -e "back) Go back to Main Menu"
     echo -e "exit) Exit"
 
     read -rp "> " option_selected </dev/tty
@@ -6799,7 +6789,7 @@ auth_menu() {
                 echo -e "${RED}Invalid password.${NC} Please specify password to convert:"
                 read -rp ">> " aes_pass_gen </dev/tty
             done
-            aes_gen=$("${python3}" "${aesKrbKeyGen}" -domain "${domain}" -u "'${user}'" -pass "${aes_pass_gen}")
+            aes_gen=$("${python3}" "${aesKrbKeyGen}" -domain "${domain}" -u "${user}" -pass "${aes_pass_gen}")
             aes_key=$(echo -e "${aes_gen}" | grep "AES256" | cut -d " " -f 4)
             if [[ ! "${aes_key}" == "" ]]; then
                 echo -e "${GREEN}[+] AES Keys generated:${NC}\n${aes_gen}"
@@ -6899,7 +6889,7 @@ auth_menu() {
         ;;
 
     back)
-        init_menu
+        main_menu
         ;;
 
     exit)
@@ -6917,7 +6907,7 @@ config_menu() {
     mkdir -p "${Config_dir}"
     echo -e ""
     echo -e "${YELLOW}[Config menu]${NC} Please choose from the following options:"
-    echo -e "------------------------------------------------------"
+    echo -e "-------------------------------------------------------"
     echo -e "1) Check installation of tools and dependencies"
     echo -e "2) Synchronize time with Domain Controller (requires root)"
     echo -e "3) Add Domain Controller's IP and Domain to /etc/hosts (requires root)"
@@ -6929,7 +6919,7 @@ config_menu() {
     echo -e "9) Change attacker's IP"
     echo -e "10) Switch between LDAP (port 389) and LDAPS (port 636)"
     echo -e "11) Show session information"
-    echo -e "back) Go back to Init Menu"
+    echo -e "back) Go back to Main Menu"
     echo -e "exit) Exit"
 
     read -rp "> " option_selected </dev/tty
@@ -7006,6 +6996,7 @@ config_menu() {
         if ! stat "${GroupPolicyBackdoor}" >/dev/null 2>&1; then echo -e "${RED}[-] GroupPolicyBackdoor is not installed${NC}"; else echo -e "${GREEN}[+] GroupPolicyBackdoor is installed${NC}"; fi
         if ! stat "${NetworkHound}" >/dev/null 2>&1; then echo -e "${RED}[-] NetworkHound is not installed${NC}"; else echo -e "${GREEN}[+] NetworkHound is installed${NC}"; fi
         if ! stat "${sharehound}" >/dev/null 2>&1; then echo -e "${RED}[-] ShareHound is not installed${NC}"; else echo -e "${GREEN}[+] ShareHound is installed${NC}"; fi
+        if ! stat "${daclsearch}" >/dev/null 2>&1; then echo -e "${RED}[-] DACLSearch is not installed${NC}"; else echo -e "${GREEN}[+] DACLSearch is installed${NC}"; fi
         config_menu
         ;;
 
@@ -7085,7 +7076,7 @@ config_menu() {
         ;;
 
     back)
-        init_menu
+        main_menu
         ;;
 
     exit)
@@ -7105,6 +7096,8 @@ main_menu() {
     echo -e ""
     echo -e "${PURPLE}[Main menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------"
+    echo -e "A) Authentication Menu"
+    echo -e "C) Configuration Menu"
     echo -e "1) Run DNS Enumeration using adidnsdump"
     echo -e "2) Active Directory Enumeration Menu"
     echo -e "3) ADCS Enumeration Menu"
@@ -7119,12 +7112,18 @@ main_menu() {
     echo -e "12) AD Objects or Attributes Modification Menu"
     echo -e "13) Command Execution Menu"
     echo -e "14) Network Scan Menu"
-    echo -e "back) Go back to Init Menu"
     echo -e "exit) Exit"
 
     read -rp "> " option_selected </dev/tty
 
     case ${option_selected} in
+    C)
+        config_menu
+        ;;
+
+    A)
+        auth_menu
+        ;;
 
     1)
         /bin/rm "${DomainRecon_dir}/dns_records_${dc_domain}.csv" 2>/dev/null
@@ -7184,10 +7183,6 @@ main_menu() {
         netscan_menu
         ;;
 
-    back)
-        init_menu
-        ;;
-
     exit)
         exit 1
         ;;
@@ -7205,7 +7200,8 @@ main() {
     prepare
     print_info
     if [ "${interactive_bool}" == true ]; then
-        init_menu
+        authenticate
+        main_menu
     else
         authenticate
         parse_users
