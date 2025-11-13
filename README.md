@@ -399,6 +399,7 @@ Kerberos Attacks menu
 16) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)
 17) Request impersonated ticket using Constrained Delegation rights (requires: authenticated session of account allowed for delegation, for example 'gmsa')
 18) Request impersonated ticket using Resource-Based Constrained Delegation rights (requires: authenticated session of SPN account allowed for RBCD)
+19) Request TGS impersonated ticket using dMSA to exploit BadSuccessor (requires: authenticated session of account with BadSuccessor privileges)
 ```
 
 SMB Shares menu
@@ -432,7 +433,7 @@ Vuln Checks menu
 13) Run LDAPNightmare check
 14) Run sessions enumeration using netexec (reg-sessions)
 15) Check for unusual sessions
-16) Check for BadSuccessor vuln using netexec
+16) Check for BadSuccessor vuln using netexec and impacket
 ```
 
 MSSQL Enumeration menu
@@ -494,6 +495,8 @@ Modification menu
 21) Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: GenericWrite on user)
 22) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege rights)
 23) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)
+24) Add dMSA to exploit BadSuccessor on Server 2025 (Requires: GenericWrite on OU)
+25) Remove dMSA to clean after exploiting BadSuccessor (Requires: GenericWrite on OU)
 ```
 
 Command Execution menu
