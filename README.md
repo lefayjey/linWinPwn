@@ -476,6 +476,7 @@ Modification menu
 2) Add user to group (Requires: AddMember on group)
 3) Remove user from group (Requires: AddMember on group)
 4) Add new computer (Requires: MAQ > 0)
+4ou) Add new computer to a custom OU location (Requires: MAQ > 0 and GenericWrite on OU)
 5) Add new DNS entry (Requires: Modification of DNS)
 6) Enable account (Requires: GenericWrite)
 7) Disable account (Requires: GenericWrite)
