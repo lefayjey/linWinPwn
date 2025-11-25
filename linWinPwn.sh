@@ -34,6 +34,8 @@ cert_bool=false
 autoconfig_bool=false
 ldaps_bool=false
 ldapbindsign_bool=false
+ldap_signing_enforced=false
+ldap_channel_binding_enforced=false
 forcekerb_bool=false
 verbose_bool=false
 dnstcp_bool=false
@@ -494,6 +496,16 @@ prepare() {
         # Extract NETBIOS name and domain from dc_info
         dc_NETBIOS=$(echo "$dc_info" | sed -E 's/.*\((name:)([^)]+)\).*/\2/' | head -n 1)
 
+        # Detect LDAP signing enforcement from netexec output
+        if [[ $dc_info == *"signing:True"* ]] || [[ $dc_info == *"signing:Enforced"* ]]; then
+            ldap_signing_enforced=true
+        fi
+
+        # Detect LDAP channel binding enforcement from netexec output
+        if [[ $dc_info == *"channel binding:Always"* ]] || [[ $dc_info == *"channel binding:True"* ]]; then
+            ldap_channel_binding_enforced=true
+        fi
+
         # If dc_domain is missing, use the provided dc domain
         if [ -z "$dc_domain" ]; then
             dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
@@ -556,9 +568,11 @@ prepare() {
     mkdir -p "${Users_dir}"
     mkdir -p "${Scans_dir}"
 
-    if ! stat "${Scans_dir}/${dc_ip}_mainports.txt" >/dev/null 2>&1 && [ "${offline_bool}" == "false" ]; then
-        ${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open > "${Scans_dir}/${dc_ip}"_mainports.txt;
-        dc_open_ports=$(/bin/cat "${Scans_dir}/${dc_ip}"_mainports.txt)
+    if [ "${offline_bool}" == "false" ]; then
+        if ! stat "${Scans_dir}/${dc_ip}_mainports.txt" >/dev/null 2>&1; then
+            ${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open > "${Scans_dir}/${dc_ip}"_mainports.txt;
+        fi
+        dc_open_ports=$(/bin/cat "${Scans_dir}/${dc_ip}"_mainports.txt 2>/dev/null)
     fi
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
@@ -1020,8 +1034,19 @@ dns_enum() {
         if ! stat "${dns_records}" >/dev/null 2>&1 || [ "${noexec_bool}" == "true" ]; then
             if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
                 echo -e "${PURPLE}[-] adidnsdump does not support Kerberos authentication${NC}"
+            elif [ "${ldap_channel_binding_enforced}" == true ]; then
+                echo -e "${PURPLE}[-] adidnsdump does not support LDAP channel binding (required by DC)${NC}"
+                echo -e "${YELLOW}[i] Alternative: Use 'netexec ldap ${dc_ip} ${argument_ne} -M adidnsdump' or dnstool.py${NC}"
             else
-                if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
+                # Auto-enable SSL if LDAP signing is enforced (adidnsdump doesn't support LDAP signing without SSL)
+                if [ "${ldaps_bool}" == true ] || [ "${ldap_signing_enforced}" == true ]; then
+                    ldaps_param="--ssl"
+                    if [ "${ldap_signing_enforced}" == true ] && [ "${ldaps_bool}" == false ]; then
+                        echo -e "${YELLOW}[i] LDAP signing enforced - automatically using SSL for adidnsdump${NC}"
+                    fi
+                else
+                    ldaps_param=""
+                fi
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
                 run_command "${adidnsdump} ${argument_adidns} ${ldaps_param} ${dnstcp_param} ${dns_ip}" | tee "${Servers_dir}/adidnsdump_output_${dc_domain}.txt"
                 if [ -s "records.csv" ]; then
@@ -4865,7 +4890,10 @@ print_info() {
     echo -e "${YELLOW}[i]${NC} Attacker's IP and Interface: ${YELLOW}${attacker_IP}${NC} (${YELLOW}${attacker_interface}${NC})"
     echo -e "${YELLOW}[i]${NC} List of servers: ${YELLOW}${servers_hostname_list}${NC}"
     echo -e "${YELLOW}[i]${NC} List of users: ${YELLOW}${users_list}${NC}"
+    if [ "${ldap_signing_enforced}" == true ]; then ldap_signing_status="${RED}Enforced${NC}"; else ldap_signing_status="${GREEN}Not Enforced${NC}"; fi
+    if [ "${ldap_channel_binding_enforced}" == true ]; then ldap_cb_status="${RED}Enforced${NC}"; else ldap_cb_status="${GREEN}Not Enforced${NC}"; fi
     echo -e "${YELLOW}[i]${NC} Parameters: LDAPPort=${YELLOW}${ldap_port}${NC}, LDAPS=${YELLOW}${ldaps_bool}${NC}, LDAPSign=${YELLOW}${ldapbindsign_bool}${NC}, ForceKerb=${YELLOW}${forcekerb_bool}${NC}, DNSTCP=${YELLOW}${dnstcp_bool}${NC}, UseIP=${YELLOW}${useip_bool}${NC}"
+    echo -e "${YELLOW}[i]${NC} LDAP Security: Signing=${ldap_signing_status}, ChannelBinding=${ldap_cb_status}"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
 }
 
