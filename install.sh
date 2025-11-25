@@ -67,12 +67,12 @@ install_tools() {
     #pipx_install_or_upgrade git+https://github.com/dirkjanm/ldapdomaindump ldapdomaindump
     pipx_install_or_upgrade git+https://github.com/Pennyw0rth/netexec netexec
     pipx_install_or_upgrade git+https://github.com/fortra/impacket impacket
-    pipx_install_or_upgrade git+https://github.com/dirkjanm/adidnsdump adidnsdump
     pipx_install_or_upgrade git+https://github.com/zer1t0/certi certi
     pipx_install_or_upgrade git+https://github.com/ly4k/certipy certipy-ad
     pipx_install_or_upgrade git+https://github.com/dirkjanm/bloodhound.py bloodhound
     /home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx_install_or_upgrade "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" bloodhound-ce
+    /home/$(whoami)/.local/share/pipx/venvs/bloodhound-ce/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx_install_or_upgrade git+https://github.com/franc-pentest/ldeep ldeep
     pipx_install_or_upgrade git+https://github.com/garrettfoster13/pre2k pre2k
     pipx_install_or_upgrade git+https://github.com/zblurx/certsync certsync

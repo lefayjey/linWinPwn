@@ -2,7 +2,7 @@
 
 ## Description
 
-linWinPwn is a bash script that wraps a number of Active Directory tools for enumeration (LDAP, RPC, ADCS, MSSQL, Kerberos, SCCM), vulnerability checks (noPac, ZeroLogon, MS17-010, MS14-068), object modifications (password change, add user to group, RBCD, Shadow Credentials) and password dumping (secretsdump, lsassy, nanodump, DonPAPI). The script streamlines the use of a large number of tools: impacket, bloodhound, netexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, adidnsdump, certipy, silenthound, bloodyAD, DonPAPI and many others.
+linWinPwn is a bash script that wraps a number of Active Directory tools for enumeration (LDAP, RPC, ADCS, MSSQL, Kerberos, SCCM), vulnerability checks (noPac, ZeroLogon, MS17-010, MS14-068), object modifications (password change, add user to group, RBCD, Shadow Credentials) and password dumping (secretsdump, lsassy, nanodump, DonPAPI). The script streamlines the use of a large number of tools: impacket, bloodhound, netexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, certipy, silenthound, bloodyAD, DonPAPI and many others.
 
 ## Setup
 
@@ -52,7 +52,7 @@ linWinPwn -t <Domain_Controller_IP> --auto [-o <output_dir>]
 ```
 
 - Authenticated (using password, NTLM hash, Kerberos ticket, AES key or pfx Certificate)
-    - DNS extraction using adidnsdump
+    - DNS extraction using netexec
     - BloodHound data collection
     - Enumeration using netexec, enum4linux-ng, ldapdomaindump, bloodyAD, sccmhunter, rdwatool, sccmhunter, GPOParser
     - Generate wordlist for password cracking
@@ -222,7 +222,6 @@ Configuration Snippet
 |-------------------------|--------------|----------|------------|----------------|-------------|-------------|
 | `netexec`               | ✅           | ✅       | ✅        | ✅             | ✅         | ✅         |
 | `Impacket`              | ✅           | ✅       | ✅        | ✅             | ✅         | ❌         |
-| `adidnsdump`            | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `bloodhound-python`     | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `ldapdomaindump`        | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `enum4linux-ng`         | ✅           | ✅       | ✅        | ✅             | ❌         | ❌         |
@@ -283,7 +282,7 @@ netexec, ldapdomaindump, ldeep, windapsearch, godap, pre2k, ldapnomnom
 
 Main menu
 ```
-1) Run DNS Enumeration using adidnsdump
+1) Run DNS Enumeration using netexec
 2) Active Directory Enumeration Menu
 3) ADCS Enumeration Menu
 4) Brute Force Attacks Menu
@@ -570,7 +569,7 @@ Automated Mode:
     - [fortra](https://github.com/fortra) - impacket
     - [NeffIsBack, Marshall-Hallenbeck, zblurx, mpgn, byt3bl33d3r and all contributors](https://github.com/Pennyw0rth/NetExec) - crackmapexec/netexec
     - [Fox-IT](https://github.com/fox-it) - bloodhound-python
-    - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, adidnsdump, privexchange
+    - [dirkjanm](https://github.com/dirkjanm/) - ldapdomaindump, privexchange
     - [zer1t0](https://github.com/zer1t0) - certi.py
     - [ly4k](https://github.com/ly4k) - Certipy
     - [ShawnDEvans](https://github.com/ShawnDEvans) - smbmap

