@@ -982,6 +982,12 @@ authenticate() {
         fi
     fi
 
+    if [ "${dnstcp_bool}" == true ]; then
+        argument_ne="${argument_ne} --dns-server ${dns_ip} --dns-tcp"
+    else
+        argument_ne="${argument_ne} --dns-server ${dns_ip}"
+    fi
+
     if [ "${verbose_bool}" == true ]; then
         ne_verbose="--verbose"
         argument_imp="-debug ${argument_imp}"
@@ -1040,21 +1046,17 @@ dns_enum() {
     echo -e "${BLUE}[*] DNS dump using netexec get-network${NC}"
     dns_records="${Servers_dir}/dns_records_${dc_domain}.txt"
     if ! stat "${dns_records}" >/dev/null 2>&1 || [ "${noexec_bool}" == "true" ]; then
-        run_command "${netexec} ldap ${target} ${argument_ne} -M get-network -o ALL=true" 2>&1 | tee "${Servers_dir}/get_network_output_${dc_domain}.txt"
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-network -o ALL=true" 2>&1 | tee "${Servers_dir}/net_get_network_output_${dc_domain}.txt"
         # Find and copy the output file from netexec logs
         nxc_dns_log=$(ls -t /home/*/.nxc/logs/${dc_domain}_network_*.log 2>/dev/null | head -1)
         if [ -z "$nxc_dns_log" ]; then
             nxc_dns_log=$(ls -t /root/.nxc/logs/${dc_domain}_network_*.log 2>/dev/null | head -1)
         fi
         if [ -n "$nxc_dns_log" ] && [ -s "$nxc_dns_log" ]; then
-            cp "$nxc_dns_log" "${dns_records}"
-            # Extract hostnames (first column) - filter out IPv6 and non-domain entries
-            awk -F'\t' '{print $1}' "${dns_records}" | grep -i "\.${dc_domain}$" | grep -v "^_\|DnsZones" | sort -uf > "${Servers_dir}/servers_list_dns_${dc_domain}.txt"
-            # Extract IPs (second column) - filter IPv4 only
-            awk -F'\t' '{print $2}' "${dns_records}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | sort -uf > "${Servers_dir}/servers_ip_list_dns_${dc_domain}.txt"
-            # Extract DC entries
-            grep -i "^${dc_NETBIOS}\." "${dns_records}" | awk -F'\t' '{print $1}' | sort -uf > "${Servers_dir}/dc_list_dns_${dc_domain}.txt"
-            grep -i "^${dc_NETBIOS}\." "${dns_records}" | awk -F'\t' '{print $2}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | sort -uf > "${Servers_dir}/dc_ip_list_dns_${dc_domain}.txt"
+            cp "$nxc_dns_log" "${dns_records}" 2>/dev/null
+            awk -F "\t " '{print $2}' "${dns_records}" | sed -n 's/\([0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\).*/\1/p' | sort -uf > "${Servers_dir}/servers_ip_list_dns_${dc_domain}.txt"
+            awk -F "\t " '{print $2}' "${dns_records}" | sed '/\([0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\)/d' | sed 's/.$//' | sort -uf > "${Servers_dir}/servers_list_dns_${dc_domain}.txt"
+            grep -i "msdcs" "${dns_records}" | awk -F'\t ' '{print $2}' | sed 's/.$//' |  sort -uf > "${Servers_dir}/servers_list_dns_${dc_domain}.txt"
         fi
         parse_servers
     else
