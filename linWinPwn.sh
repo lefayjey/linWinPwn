@@ -144,6 +144,7 @@ GroupPolicyBackdoor="$scripts_dir/GroupPolicyBackdoor-master/gpb.py"
 NetworkHound="$scripts_dir/NetworkHound-main/NetworkHound.py"
 sharehound=$(which sharehound)
 daclsearch=$(which daclsearch)
+ScriptScout="$scripts_dir/scriptscout.py"
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
@@ -157,7 +158,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.8 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.3.9 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -742,6 +743,7 @@ authenticate() {
         argument_gpb="-d ${domain} -u '${user}' -p '${password}'"
         argument_nhd="-d ${domain} -u '${user}' -p '${password}'"
         argument_daclsearch="-l ${domain} -u '${user}' -p '${password}'"
+        argument_scriptscout="-d ${domain} -u '${user}' -p '${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -3141,6 +3143,24 @@ smbclientng_console() {
         if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
         if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then kdc_param="--kdcHost ${dc_FQDN}"; else kdc_param=""; fi
         run_command "${smbclientng} ${argument_p0dalirius} ${verbose_p0dalirius} --host ${smbclient_target} ${kdc_param}" 2>&1 | tee -a "${Shares_dir}/smbclientng_output_${user_var}.txt"
+    fi
+    echo -e ""
+}
+
+scriptscout_scan(){
+    if ! stat "${ScriptScout}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of ScriptScout${NC}"
+    else
+        echo -e "${BLUE}[*] Search for LogonScript misconfigurations ScriptScout ${NC}"
+        if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+            echo -e "${PURPLE}[-] ScriptScout requires password authentication${NC}"
+        else
+            current_dir=$(pwd)
+            mkdir -p "${Shares_dir}/ScriptScout_${user_var}/"
+            cd "${Shares_dir}/ScriptScout_${user_var}" || exit
+            run_command "${python3} ${ScriptScout} ${argument_scriptscout} -ip-dc ${dc_ip} -la Y" | tee -a "${Shares_dir}/scriptscout_output_${user_var}.txt"
+            cd "${current_dir}" || exit
+        fi
     fi
     echo -e ""
 }
@@ -6116,6 +6136,7 @@ shares_menu() {
     echo -e "8) SMB shares Scan using ShareHound (on all subnets)"
     echo -e "9) Open smbclient.py console on target"
     echo -e "10) Open p0dalirius's smbclientng console on target"
+    echo -e "11) Search for LogonScript misconfigurations using ScriptScout"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6179,6 +6200,11 @@ shares_menu() {
 
     10)
         smbclientng_console
+        shares_menu
+        ;;
+
+    11)
+        scriptscout_scan
         shares_menu
         ;;
 
@@ -7184,6 +7210,7 @@ config_menu() {
         if ! stat "${NetworkHound}" >/dev/null 2>&1; then echo -e "${RED}[-] NetworkHound is not installed${NC}"; else echo -e "${GREEN}[+] NetworkHound is installed${NC}"; fi
         if ! stat "${sharehound}" >/dev/null 2>&1; then echo -e "${RED}[-] ShareHound is not installed${NC}"; else echo -e "${GREEN}[+] ShareHound is installed${NC}"; fi
         if ! stat "${daclsearch}" >/dev/null 2>&1; then echo -e "${RED}[-] DACLSearch is not installed${NC}"; else echo -e "${GREEN}[+] DACLSearch is installed${NC}"; fi
+        if ! stat "${ScriptScout}" >/dev/null 2>&1; then echo -e "${RED}[-] ScriptScout is not installed${NC}"; else echo -e "${GREEN}[+] ScriptScout is installed${NC}"; fi
         config_menu
         ;;
 

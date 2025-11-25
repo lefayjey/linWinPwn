@@ -269,6 +269,7 @@ Configuration Snippet
 | `NetworkHound`          | ❌           | ✅       | ✅        | ✅             | ❌         | ❌         |
 | `ShareHound`            | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `DACLSearch`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `ScriptScout`             ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor
@@ -413,6 +414,7 @@ SMB Shares menu
 8) SMB shares Scan using ShareHound (on all subnets)"
 9) Open smbclient.py console on target
 10) Open p0dalirius's smbclientng console on target
+11) Search for LogonScript misconfigurations using ScriptScout
 ```
 
 Vuln Checks menu
@@ -602,6 +604,7 @@ Automated Mode:
     - [sikumy](https://github.com/sikumy/) - spearspray
     - [MorDavid](https://github.com/MorDavid/) - NetworkHound
     - [cogiceo](https://github.com/cogiceo/) - DACLSearch
+    - [MarcoZufferli] (https://github.com/MarcoZufferli) - ScriptScout
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/

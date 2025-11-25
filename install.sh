@@ -100,7 +100,7 @@ install_tools() {
     sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
     python3 -m venv "${scripts_dir}/.venv"
     source "${scripts_dir}/.venv/bin/activate"
-    pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules smbprotocol[kerberos] pydantic lxml chardet bloodhound-opengraph --upgrade
+    pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules smbprotocol[kerberos] pydantic lxml chardet bloodhound-opengraph termcolor --upgrade
     pip3 install ldap3-bleeding-edge #LDAP Channel Binding
     deactivate
     
@@ -137,6 +137,7 @@ install_tools() {
     wget -q "https://github.com/synacktiv/SCCMSecrets/archive/refs/heads/master.zip" -O "$scripts_dir/SCCMSecrets.zip"
     wget -q "https://github.com/synacktiv/GroupPolicyBackdoor/archive/refs/heads/master.zip" -O "$scripts_dir/GroupPolicyBackdoor.zip"
     wget -q "https://github.com/MorDavid/NetworkHound/archive/refs/heads/main.zip" -O "$scripts_dir/NetworkHound.zip"
+    wget -q "https://raw.githubusercontent.com/MarcoZufferli/ScriptScout/refs/heads/main/scriptscout.py" -O "$scripts_dir/scriptscout.py"
 
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
@@ -178,6 +179,7 @@ install_tools() {
     chmod +x "$scripts_dir/SCCMSecrets-master/SCCMSecrets.py"
     chmod +x "$scripts_dir/GroupPolicyBackdoor-master/gpb.py"
     chmod +x "$scripts_dir/NetworkHound-main/NetworkHound.py"
+    chmod +x "$scripts_dir/scriptscout.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }
