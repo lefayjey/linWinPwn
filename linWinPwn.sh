@@ -513,6 +513,11 @@ prepare() {
             fi
         fi
 
+        # Auto-enable LDAP signing/channel binding for tools that support it
+        if [ "${ldap_signing_enforced}" == true ] || [ "${ldap_channel_binding_enforced}" == true ]; then
+            ldapbindsign_bool=true
+        fi
+
         # If dc_domain is missing, use the provided dc domain
         if [ -z "$dc_domain" ]; then
             dc_domain=$(echo "$dc_info" | sed -E 's/.*\((domain:)([^)]+)\).*/\2/' | head -n 1)
