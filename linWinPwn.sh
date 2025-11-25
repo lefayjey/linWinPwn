@@ -502,8 +502,15 @@ prepare() {
         fi
 
         # Detect LDAP channel binding enforcement from netexec output
+        # Note: Channel binding can only be accurately detected via LDAPS (port 636)
         if [[ $dc_info == *"channel binding:Always"* ]] || [[ $dc_info == *"channel binding:True"* ]]; then
             ldap_channel_binding_enforced=true
+        elif [[ $dc_info == *"channel binding:Unknown"* ]]; then
+            # Query LDAPS to get accurate channel binding status
+            dc_info_ldaps=$(${netexec} ldap --port 636 "${dc_ip}" 2>/dev/null | grep -v "\[-\]\|Connection refused")
+            if [[ $dc_info_ldaps == *"channel binding:Always"* ]] || [[ $dc_info_ldaps == *"channel binding:True"* ]]; then
+                ldap_channel_binding_enforced=true
+            fi
         fi
 
         # If dc_domain is missing, use the provided dc domain
