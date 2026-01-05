@@ -269,7 +269,7 @@ Configuration Snippet
 | `NetworkHound`          | ❌           | ✅       | ✅        | ✅             | ❌         | ❌         |
 | `ShareHound`            | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `DACLSearch`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
-| `ScriptScout`             ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
+| `ScriptScout`           | ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor

@@ -478,17 +478,17 @@ prepare() {
         echo -e "${RED}[-] Please ensure netexec is installed and try again... ${NC}"
         exit 1
     elif [ "${offline_bool}" == "false" ]; then
-        dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused")
+        dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused\|Initializing")
         if [[ $dc_info == *"First time use detected"* ]]; then
-            dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused")
+            dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused\|Initializing")
         fi
         if [ -z "$dc_info" ]; then
             echo -e "${PURPLE}[!] Error connecting to LDAP! Please ensure the LDAP port is correct and accessible (--ldaps, --ldap-port 3268). Using SMB only ... ${NC}"
-            dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused")
+            dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused\|Initializing")
         fi
         if [ -z "$dc_info" ]; then
             echo -e "${PURPLE}[!] Error connecting to SMB! Please ensure the SMB port is correct and accessible. Attempting to use MSSQL ... ${NC}"
-            dc_info=$(${netexec} mssql "${dc_ip}" | grep -v "Connection refused")
+            dc_info=$(${netexec} mssql "${dc_ip}" | grep -v "Connection refused\|Initializing")
         fi
         if [ -z "$dc_info" ]; then
             echo -e "${PURPLE}[!] Error connecting to MSSQL! Please ensure the MSSQL port is correct and accessible.${NC}"
@@ -1107,7 +1107,7 @@ ne_scan() {
 
 nhd_scan() {
     if ! stat "${NetworkHound}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of NetworkHound{NC}"
+        echo -e "${RED}[-] Please verify the installation of NetworkHound${NC}"
     else
         mkdir -p "${Scans_dir}/NetworkHound"
         echo -e "${BLUE}[*] NetworkHound Domain machines basic scan${NC}"
@@ -1122,7 +1122,7 @@ nhd_scan() {
 
 nhd_shadowit() {
     if ! stat "${NetworkHound}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of NetworkHound{NC}"
+        echo -e "${RED}[-] Please verify the installation of NetworkHound${NC}"
     else
         mkdir -p "${Scans_dir}/NetworkHound"
         echo -e "${BLUE}[*] NetworkHound Shadow IT full scan${NC}"
@@ -1432,7 +1432,7 @@ fqdn_to_ldap_dn() {
 
 bloodyad_all_enum() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${DomainRecon_dir}/bloodyAD"
         echo -e "${BLUE}[*] bloodyad All Enumeration${NC}"
@@ -1472,7 +1472,7 @@ bloodyad_all_enum() {
 
 bloodyad_write_enum() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${DomainRecon_dir}/bloodyAD"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -1488,7 +1488,7 @@ bloodyad_write_enum() {
 
 bloodyad_dnsquery() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${DomainRecon_dir}/bloodyAD"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -1507,7 +1507,7 @@ bloodyad_dnsquery() {
 
 bloodyad_enum_object() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${DomainRecon_dir}/bloodyAD"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -2416,7 +2416,7 @@ GPOwned_enum() {
     else
         echo -e "${BLUE}[*] GPO Enumeration using GPOwned${NC}"
         if [ "${nullsess_bool}" == true ]; then
-            echo -e "${PURPLE}[-] GPOwned requires credentials{NC}"
+            echo -e "${PURPLE}[-] GPOwned requires credentials${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-use-ldaps"; else ldaps_param=""; fi
             run_command "${python3} ${GPOwned} ${argument_GPOwned} ${ldaps_param} -dc-ip ${dc_ip} -listgpo -gpcuser" | tee "${GPO_dir}/GPOwned_output_${dc_domain}.txt"
@@ -2428,7 +2428,7 @@ GPOwned_enum() {
 
 gpoparser_enum() {
     if ! stat "${gpoParser}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of gpoParser{NC}"
+        echo -e "${RED}[-] Please verify the installation of gpoParser${NC}"
     else
         echo -e "${BLUE}[*] GPO parsing using gpoParser${NC}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -2442,7 +2442,7 @@ gpoparser_enum() {
 
 gpb_enum() {
     if ! stat "${GroupPolicyBackdoor}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of GroupPolicyBackdoor{NC}"
+        echo -e "${RED}[-] Please verify the installation of GroupPolicyBackdoor${NC}"
     else
         echo -e "${BLUE}[*] GPO vuln enumeration using GroupPolicyBackdoor${NC}"
         if [ "${aeskey_bool}" == true ] ; then
@@ -3382,7 +3382,7 @@ badsuccessor_check() {
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M badsuccessor --log ${Vulnerabilities_dir}/ne_badsuccessor_output_${dc_domain}.txt" 2>&1
     echo -e ""
     if ! stat "${impacket_badsuccessor}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of impacket{NC}"
+        echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     else
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] badsuccessor.py requires credentials${NC}"
@@ -3517,7 +3517,7 @@ mssql_enum_domain_users() {
 ###### Modification of AD Objects or Attributes
 change_pass() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3545,7 +3545,7 @@ change_pass() {
 
 add_group_member() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3573,7 +3573,7 @@ add_group_member() {
 
 remove_group_member() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3601,7 +3601,7 @@ remove_group_member() {
 
 add_computer() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3623,7 +3623,7 @@ add_computer() {
 
 add_computer_ou() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3652,7 +3652,7 @@ add_computer_ou() {
 
 dnsentry_add() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3674,7 +3674,7 @@ dnsentry_add() {
 
 enable_account() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3698,7 +3698,7 @@ enable_account() {
 
 disable_account() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3722,7 +3722,7 @@ disable_account() {
 
 restore_account() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3747,7 +3747,7 @@ restore_account() {
 
 change_owner() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3771,7 +3771,7 @@ change_owner() {
 
 add_genericall() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3795,7 +3795,7 @@ add_genericall() {
 
 delete_object() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3844,7 +3844,7 @@ targetedkerberoast_attack() {
 
 rbcd_attack() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3882,7 +3882,7 @@ rbcd_attack() {
 
 rbcd_spnless_attack() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3958,7 +3958,7 @@ rbcd_spnless_attack() {
 
 shadowcreds_attack() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -3982,7 +3982,7 @@ shadowcreds_attack() {
 
 shadowcreds_delete() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -4052,7 +4052,7 @@ pygpo_abuse() {
 
 add_unconstrained() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -4076,7 +4076,7 @@ add_unconstrained() {
 
 add_spn() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -4106,7 +4106,7 @@ add_spn() {
 
 add_upn() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -4230,7 +4230,7 @@ add_upn_esc10() {
 
 add_constrained() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -4254,7 +4254,7 @@ add_constrained() {
 
 add_spn_constrained() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of bloodyad{NC}"
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
@@ -4282,7 +4282,7 @@ add_spn_constrained() {
 
 badsuccessor_adddmsa() {
     if ! stat "${impacket_badsuccessor}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of impacket{NC}"
+        echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     else
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] badsuccessor.py requires credentials${NC}"
@@ -4316,7 +4316,7 @@ badsuccessor_adddmsa() {
 
 badsuccessor_deletedmsa() {
     if ! stat "${impacket_badsuccessor}" >/dev/null 2>&1; then
-        echo -e "${RED}[-] Please verify the installation of impacket{NC}"
+        echo -e "${RED}[-] Please verify the installation of impacket${NC}"
     else
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] badsuccessor.py requires credentials${NC}"
