@@ -270,9 +270,10 @@ Configuration Snippet
 | `ShareHound`            | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
 | `DACLSearch`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `ScriptScout`           | ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
+| `relayking`             | ✅           | ✅       | ✅        | ✅             | ✅         | ❌         |
 
 #### LDAP Channel Binding support
-ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor
+ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor, relayking
 
 msldap: bloodyAD
 
@@ -435,6 +436,7 @@ Vuln Checks menu
 14) Run sessions enumeration using netexec (reg-sessions)
 15) Check for unusual sessions
 16) Check for BadSuccessor vuln using netexec and impacket
+17) RelayKing coerce scan
 ```
 
 MSSQL Enumeration menu
@@ -604,7 +606,8 @@ Automated Mode:
     - [sikumy](https://github.com/sikumy/) - spearspray
     - [MorDavid](https://github.com/MorDavid/) - NetworkHound
     - [cogiceo](https://github.com/cogiceo/) - DACLSearch
-    - [MarcoZufferli] (https://github.com/MarcoZufferli) - ScriptScout
+    - [MarcoZufferli](https://github.com/MarcoZufferli) - ScriptScout
+    - [depthsecurity](https://github.com/depthsecurity) - relayking
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/

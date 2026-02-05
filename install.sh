@@ -138,6 +138,7 @@ install_tools() {
     wget -q "https://github.com/synacktiv/GroupPolicyBackdoor/archive/refs/heads/master.zip" -O "$scripts_dir/GroupPolicyBackdoor.zip"
     wget -q "https://github.com/MorDavid/NetworkHound/archive/refs/heads/main.zip" -O "$scripts_dir/NetworkHound.zip"
     wget -q "https://raw.githubusercontent.com/MarcoZufferli/ScriptScout/refs/heads/main/scriptscout.py" -O "$scripts_dir/scriptscout.py"
+    wget -q "https://github.com/depthsecurity/RelayKing-Depth/archive/refs/heads/master.zip" -O "$scripts_dir/RelayKing-Depth.zip"
 
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
@@ -146,6 +147,7 @@ install_tools() {
     unzip -o "$scripts_dir/SCCMSecrets.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/GroupPolicyBackdoor.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/NetworkHound.zip" -d "$scripts_dir"
+    unzip -o "$scripts_dir/RelayKing-Depth.zip" -d "$scripts_dir"
     tar -C $scripts_dir -xf "$scripts_dir/godap-v2.8.0-linux-amd64.tar.gz" godap
 
     chmod +x "$scripts_dir/aced-main/aced.py"
@@ -180,6 +182,7 @@ install_tools() {
     chmod +x "$scripts_dir/GroupPolicyBackdoor-master/gpb.py"
     chmod +x "$scripts_dir/NetworkHound-main/NetworkHound.py"
     chmod +x "$scripts_dir/scriptscout.py"
+    chmod +x "$scripts_dir/RelayKing-Depth-master/relayking.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }

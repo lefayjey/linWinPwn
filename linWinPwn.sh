@@ -145,6 +145,7 @@ NetworkHound="$scripts_dir/NetworkHound-main/NetworkHound.py"
 sharehound=$(which sharehound)
 daclsearch=$(which daclsearch)
 ScriptScout="$scripts_dir/scriptscout.py"
+relayking="$scripts_dir/RelayKing-Depth-master/relayking.py"
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
@@ -158,7 +159,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.3.9 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.4.0 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -688,6 +689,7 @@ authenticate() {
             argument_adalanche="--authmode anonymous --username Guest\\@${domain} -p '!'"
             argument_godap=""
             argument_gpb="-d ${dc_domain}"
+            argument_rking="--null-auth"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
         fi
 
@@ -744,6 +746,7 @@ authenticate() {
         argument_nhd="-d ${domain} -u '${user}' -p '${password}'"
         argument_daclsearch="-l ${domain} -u '${user}' -p '${password}'"
         argument_scriptscout="-d ${domain} -u '${user}' -p '${password}'"
+        argument_rking="-d ${domain} -u '${user}' -p '${password}'"
         hash_bool=false
         kerb_bool=false
         unset KRB5CCNAME
@@ -821,6 +824,8 @@ authenticate() {
             argument_gpb="-d ${domain} -u '${user}' -H '${hash}'"
             argument_nhd="-d ${domain} -u '${user}' --hashes '${hash}'"
             argument_daclsearch="-l ${domain} -u '${user}' -H '${hash}'"
+            argument_rking="-d ${domain} -u '${user}' --hashes '${hash}'"
+
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -877,6 +882,7 @@ authenticate() {
             argument_gpb="-d ${dc_domain} -u '${user}' -k"
             argument_nhd="-d ${dc_domain} -u '${user}' -k"
             argument_daclsearch="-l ${domain} -u '${user}' -k"
+            argument_rking="-d ${domain} -u '${user}' -k -no-pass"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -903,6 +909,7 @@ authenticate() {
         argument_GPOwned="-d ${domain} -u '${user}' -aesKey ${aeskey} -k"
         argument_mssqlpwner="${domain}/'${user}' -aesKey ${aeskey} -k"
         argument_daclsearch="-l ${domain} -u '${user}' --aeskey ${aeskey} -k"
+        argument_rking="-d ${domain} -u '${user}' --aesKey ${aeskey} -k"
         pass_bool=false
         hash_bool=false
         kerb_bool=false
@@ -1021,6 +1028,7 @@ authenticate() {
         argument_soaphd="${argument_soaphd} -v"
         argument_spearspray="${argument_spearspray} --debug"
         argument_gpb="${argument_gpb} -v"
+        argument_rking="${argument_rking} -v"
     fi
 
     echo -e "${auth_string}"
@@ -3390,6 +3398,23 @@ badsuccessor_check() {
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-method LDAPS"; else ldaps_param="-method LDAP"; fi
             echo -e "${CYAN}[*] Searching for identities with BadSuccessor privileges${NC}"
             run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${ldaps_param} -action search" 2>&1 | tee -a "${Vulnerabilities_dir}/badsuccessor_search_${user_var}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+relayking_check() {
+    if ! stat "${relayking}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] relayking not found! Please verify the installation of relayking${NC}"
+    else
+        echo -e "${BLUE}[*] Running scan using relayking ${NC}"
+        mkdir -p "${Vulnerabilities_dir}/relayking"
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param="--ldap"; fi
+        if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
+        if [ "${nullsess_bool}" == true ]; then
+            run_command "${relayking} ${argument_rking} --protocols smb,ldap,http -t ${curr_targets_list} --dc-ip ${dc_ip} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_nullauth_${dc_domain}" | tee -a "${Vulnerabilities_dir}/relayking/relayking_nullauth_output_${dc_domain}.txt"
+        else
+            run_command "${relayking} ${argument_rking} --audit --protocols smb,ldap,ldaps,mssql,http,https -t ${curr_targets_list} --dc-ip ${dc_ip} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} --threads 10 -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_nullauth_${dc_domain} --proto-portscan --gen-relay-list ${Vulnerabilities_dir}/relayking/relaytargets_output_${dc_domain}.txt" | tee -a "${Vulnerabilities_dir}/relayking/relayking_audit_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -6249,6 +6274,7 @@ vulns_menu() {
     echo -e "14) Run sessions enumeration using netexec (reg-sessions)"
     echo -e "15) Check for unusual sessions"
     echo -e "16) Check for BadSuccessor vuln using netexec and impacket"
+    echo -e "17) RelayKing Coerce scan"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6342,6 +6368,11 @@ vulns_menu() {
 
     16)
         badsuccessor_check
+        vulns_menu
+        ;;
+
+    17)
+        relayking_check
         vulns_menu
         ;;
 
@@ -7211,6 +7242,7 @@ config_menu() {
         if ! stat "${sharehound}" >/dev/null 2>&1; then echo -e "${RED}[-] ShareHound is not installed${NC}"; else echo -e "${GREEN}[+] ShareHound is installed${NC}"; fi
         if ! stat "${daclsearch}" >/dev/null 2>&1; then echo -e "${RED}[-] DACLSearch is not installed${NC}"; else echo -e "${GREEN}[+] DACLSearch is installed${NC}"; fi
         if ! stat "${ScriptScout}" >/dev/null 2>&1; then echo -e "${RED}[-] ScriptScout is not installed${NC}"; else echo -e "${GREEN}[+] ScriptScout is installed${NC}"; fi
+        if ! stat "${relayking}" >/dev/null 2>&1; then echo -e "${RED}[-] RelayKing is not installed${NC}"; else echo -e "${GREEN}[+] RelayKing is installed${NC}"; fi
         config_menu
         ;;
 
