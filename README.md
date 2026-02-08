@@ -287,17 +287,20 @@ Main menu
 1) Run DNS Enumeration using netexec
 2) Active Directory Enumeration Menu
 3) ADCS Enumeration Menu
-4) Brute Force Attacks Menu
-5) Kerberos Attacks Menu
-6) SMB shares Enumeration Menu
-7) Vulnerability Checks Menu
-8) MSSQL Enumeration Menu
-9) Password Dump Menu
-10) AD Objects or Attributes Modification Menu
+4) SCCM Enumeration Menu
+5) GPO Enumeration Menu
+6) Brute Force Attacks Menu
+7) Kerberos Attacks Menu
+8) SMB shares Enumeration Menu
+9) Vulnerability Checks Menu
+10) MSSQL Enumeration Menu
 11) Password Dump Menu
 12) AD Objects or Attributes Modification Menu
 13) Command Execution Menu
 14) Network Scan Menu
+A) Authentication Menu
+C) Configuration Menu
+exit) Exit
 ```
 
 AD Enum menu
@@ -620,6 +623,24 @@ Automated Mode:
     -  https://github.com/S1ckB0y1337/Active-Directory-Exploitation-Cheat-Sheet
     -  https://hideandsec.sh/
 
-## Legal Disclamer
+## For Developers
+
+### Tool Integrator
+
+linWinPwn includes a `tool_integrator.py` script in the `dev/` directory to facilitate the integration of new tools. It automatically:
+- Adds tool variable definitions to `linWinPwn.sh`
+- Patches the `authenticate()` function with appropriate flags
+- Generates a wrapper function with authentication checks
+- Adds the tool to the interactive menu
+- Updates `install.sh` for automatic installation
+
+Usage:
+```bash
+cd dev
+python3 tool_integrator.py <tool_config.json>
+```
+See `tool_template.json` for a configuration example.
+
+## Legal Disclaimer
 
 Usage of linWinPwn for attacking targets without prior mutual consent is illegal. It's the end user's responsibility to obey all applicable local, state and federal laws. Developers assume no liability and are not responsible for any misuse or damage caused by this program. Only use for educational purposes.

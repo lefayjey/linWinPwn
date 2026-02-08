@@ -1,0 +1,28 @@
+{
+    "tool_name": "Example Tool Name",
+    "variable_name": "tool_variable",
+    "binary_name": "tool_binary_or_script.py",
+    "type": "binary",
+    "_comment_type": "Options: 'binary' (searches in system PATH using 'which') or 'script' (assumes it lives in '$scripts_dir/'). Defaults to 'binary' if omitted.",
+    "install_cmd": "pipx install tool_name --force",
+    "github_url": "https://github.com/user/tool_repo",
+    "_comment_install": "Installation command added to 'install.sh'. For pipx tools, the script converts- 'pipx install ...' to 'pipx_install_or_upgrade ...' automatically. Use double quotes for URLs: 'wget \"https://...\" -O ...'",
+    "auth_mapping": {
+        "user_pass": "-u '{user}' -p '{password}' -d {domain}",
+        "null": "--no-auth",
+        "hash": "-H '{hash}' -u '{user}'",
+        "kerb": "-k -u '{user}'",
+        "aes": "-aes {key}",
+        "cert": "-c {cert}"
+    },
+    "_comment_auth_mapping": "Maps internal linWinPwn variables to tool flags. Placeholders like {user}, {password}, {domain}, {hash}, {key}, {cert} are replaced with shell variables like ${user}, ${password}, etc. If a method is MISSING from this mapping, the generated wrapper will BLOCK that authentication method with a warning.",
+    "wrapper_function": {
+        "name": "tool_scan_func"
+    },
+    "_comment_wrapper_function": "'name' is the name of the bash function that will be created in linWinPwn.sh.",
+    "menu_info": {
+        "parent_menu": "shares_menu",
+        "option_text": "Run Tool Scan"
+    },
+    "_comment_menu_info": "'parent_menu' identifies the menu function in linWinPwn.sh to add the tool to. Valid options: 'ad_menu', 'adcs_menu', 'sccm_menu', 'gpo_menu', 'bruteforce_menu', 'kerberos_menu', 'shares_menu', 'vulns_menu', 'mssql_menu', 'pwd_menu', 'modif_menu', 'cmdexec_menu', 'netscan_menu'."
+}
