@@ -627,7 +627,7 @@ Automated Mode:
 
 ### Tool Integrator
 
-linWinPwn includes a `tool_integrator.py` script in the `dev/` directory to facilitate the integration of new tools. It automatically:
+linWinPwn includes a `lwp_tool_integrator.py` script to facilitate the integration of new tools. It automatically:
 - Adds tool variable definitions to `linWinPwn.sh`
 - Patches the `authenticate()` function with appropriate flags
 - Generates a wrapper function with authentication checks
@@ -636,10 +636,9 @@ linWinPwn includes a `tool_integrator.py` script in the `dev/` directory to faci
 
 Usage:
 ```bash
-cd dev
-python3 tool_integrator.py <tool_config.json>
+python3 lwp_tool_integrator.py <tool_config.json>
 ```
-See `tool_template.json` for a configuration example.
+See `lwp_tool_template.json` for a configuration example.
 
 ## Legal Disclaimer
 
