@@ -136,7 +136,7 @@ linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p
 ```
 
 ### Optional MCP Server (Web UI / API)
-This project includes `linWinPwn_mcp_server.py`, a Python-based server that provides an interactive web UI (via any MCP-compatible client) and an API to browse and execute linWinPwn commands.
+This project includes `lwp_mcp_server.py`, a Python-based server that provides an interactive web UI (via any MCP-compatible client) and an API to browse and execute linWinPwn commands.
 
 #### Installation
 The server requires Python3 and the official MCP SDK.
@@ -155,7 +155,7 @@ You must have linWinPwn.sh available. The server will look for it in the same di
 
 ```bash
 #Run the server
-/opt/lwp-scripts/mcp-env/bin/python3 linWinPwn_mcp_server.py
+/opt/lwp-scripts/mcp-env/bin/python3 lwp_mcp_server.py
 ```
 
 The server can be configured with environment variables:
@@ -172,7 +172,7 @@ export LWP_PATH="/opt/linWinPwn/linWinPwn.sh"
 export LWP_OUTPUT="/tmp"
 export MCP_HOST="0.0.0.0"
 export MCP_PORT="8000"
-/opt/lwp-scripts/mcp-env/bin/python3 linWinPwn_mcp_server.py
+/opt/lwp-scripts/mcp-env/bin/python3 lwp_mcp_server.py
 ```
 
 #### Usage
@@ -633,6 +633,7 @@ linWinPwn includes a `lwp_tool_integrator.py` script to facilitate the integrati
 - Generates a wrapper function with authentication checks
 - Adds the tool to the interactive menu
 - Updates `install.sh` for automatic installation
+- Addes reference to the tool in `README.md`
 
 Usage:
 ```bash
