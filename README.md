@@ -318,25 +318,26 @@ AD Enum menu
 9) Delegation Enumeration using findDelegation and netexec
 10) bloodyAD All Enumeration
 11) bloodyAD write rights Enumeration
-12) bloodyAD query DNS server
-13) bloodyAD enumerate object
-14) SilentHound LDAP Enumeration
-15) ldeep LDAP Enumeration
-16) windapsearch LDAP Enumeration
-17) LDAP Wordlist Harvester
-18) LDAP Enumeration using LDAPPER
-19) Adalanche Enumeration
-20) Enumeration of RDWA servers
-21) Open p0dalirius' LDAP Console
-22) Open p0dalirius' LDAP Monitor
-23) Open garrettfoster13's ACED console
-24) Open LDAPPER custom options
-25) Run godap console
-26) Run ADCheck enumerations
-27) Run soapy enumerations
-28) Soaphound Enumeration using all collection methods (Noisy!)
-29) Soaphound Enumeration using ADWSOnly
-30) Run DACLSearch dump and cli
+12) bloodyAD write rights Enumeration (details)
+13) bloodyAD query DNS server
+14) bloodyAD enumerate object
+15) SilentHound LDAP Enumeration
+16) ldeep LDAP Enumeration
+17) windapsearch LDAP Enumeration
+18) LDAP Wordlist Harvester
+19) LDAP Enumeration using LDAPPER
+20) Adalanche Enumeration
+21) Enumeration of RDWA servers
+22) Open p0dalirius' LDAP Console
+23) Open p0dalirius' LDAP Monitor
+24) Open garrettfoster13's ACED console
+25) Open LDAPPER custom options
+26) Run godap console
+27) Run ADCheck enumerations
+28) Run soapy enumerations
+29) Soaphound Enumeration using all collection methods (Noisy!)
+30) Soaphound Enumeration using ADWSOnly
+31) Run DACLSearch dump and cli
 ```
 
 ADCS menu

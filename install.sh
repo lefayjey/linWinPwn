@@ -100,7 +100,7 @@ install_tools() {
     sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
     python3 -m venv "${scripts_dir}/.venv"
     source "${scripts_dir}/.venv/bin/activate"
-    pip3 install PyYAML alive-progress xlsxwriter sectools typer colorama impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules smbprotocol[kerberos] pydantic lxml chardet bloodhound-opengraph termcolor --upgrade
+    pip3 install PyYAML alive-progress xlsxwriter sectools typer[all] impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules smbprotocol[kerberos] pydantic lxml bloodhound-opengraph termcolor --upgrade
     pip3 install ldap3-bleeding-edge #LDAP Channel Binding
     deactivate
     
