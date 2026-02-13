@@ -5194,7 +5194,7 @@ modify_target_sql() {
 
     if [ "${option_selected}" != "back" ] && [ -n "${option_selected}" ]; then
         echo -e ""
-        echo -e "${GREEN}[+] Targets set to:${NC} ${YELLOW}${curr_targets}${custom_servers}${custom_ip}${NC} (${YELLOW}$(wc -l < "${curr_targets_list}" 2>/dev/null || echo "0")${NC} server(s))"
+        echo -e "${GREEN}[+] Targets set to:${NC} ${YELLOW}${curr_targets_sql}${custom_servers_sql}${custom_ip_sql}${NC} (${YELLOW}$(wc -l < "${curr_targets_list_sql}" 2>/dev/null || echo "0")${NC} server(s))"
     fi
 }
 
