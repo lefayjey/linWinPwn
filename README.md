@@ -14,10 +14,16 @@ chmod +x install.sh
 ./install.sh
 ```
 
-Alternatively, build a Docker image and run the Docker container
+Alternatively, use the pre-built Docker image from Docker Hub
 ```bash
-docker build -t "linwinpwn:latest" .
-docker run --rm -it linwinpwn:latest
+docker pull lefayjey/linwinpwn:latest
+docker run --rm -it -v /opt/lwp-wordlists:/opt/lwp-wordlists lefayjey/linwinpwn:latest
+```
+
+Or build from source
+```bash
+docker build -t linwinpwn .
+docker run --rm -it -v /opt/lwp-wordlists:/opt/lwp-wordlists linwinpwn
 ```
 
 ## Usage
@@ -628,13 +634,12 @@ Automated Mode:
 
 ### Tool Integrator
 
-linWinPwn includes a `lwp_tool_integrator.py` script to facilitate the integration of new tools. It automatically:
-- Adds tool variable definitions to `linWinPwn.sh`
-- Patches the `authenticate()` function with appropriate flags
-- Generates a wrapper function with authentication checks
+`lwp_tool_integrator.py` automates the integration of new tools. It patches `linWinPwn.sh`, `install.sh`, and `README.md` in one step:
+- Adds tool variable definition and wrapper function
+- Patches `authenticate()` with appropriate flags
 - Adds the tool to the interactive menu
 - Updates `install.sh` for automatic installation
-- Addes reference to the tool in `README.md`
+- Adds reference and auth table row to `README.md`
 
 Usage:
 ```bash
