@@ -12,6 +12,7 @@ RUN chmod +x /opt/linWinPwn/install.sh /opt/linWinPwn/linWinPwn.sh \
     && rm -rf /root/.cache /tmp/* /var/tmp/*
 
 RUN mkdir -p /opt/lwp-output
+RUN mkdir -p /opt/lwp-wordlists
 
 ENV PATH="/root/.local/bin:${PATH}"
-ENTRYPOINT ["/opt/linWinPwn/linWinPwn.sh", "-o", "/opt/lwp-output"]
+ENTRYPOINT ["rlwrap", "-Nn", "/opt/linWinPwn/linWinPwn.sh", "-o", "/opt/lwp-output"]

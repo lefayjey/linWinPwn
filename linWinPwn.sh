@@ -97,7 +97,6 @@ bloodhound=$(which bloodhound-python)
 bloodhoundce=$(which bloodhound-ce-python)
 ldapdomaindump=$(which ldapdomaindump)
 smbmap=$(which smbmap)
-adidnsdump=$(which adidnsdump)
 certi_py=$(which certi.py)
 certipy=$(which certipy)
 ldeep=$(which ldeep)
@@ -7397,7 +7396,6 @@ config_menu() {
         if ! stat "${john}" >/dev/null 2>&1; then echo -e "${RED}[-] john is not installed${NC}"; else echo -e "${GREEN}[+] john is installed${NC}"; fi
         if ! stat "${smbmap}" >/dev/null 2>&1; then echo -e "${RED}[-] smbmap is not installed${NC}"; else echo -e "${GREEN}[+] smbmap is installed${NC}"; fi
         if ! stat "${nmap}" >/dev/null 2>&1; then echo -e "${RED}[-] nmap is not installed${NC}"; else echo -e "${GREEN}[+] nmap is installed${NC}"; fi
-        if ! stat "${adidnsdump}" >/dev/null 2>&1; then echo -e "${RED}[-] adidnsdump is not installed${NC}"; else echo -e "${GREEN}[+] adidnsdump is installed${NC}"; fi
         if ! stat "${certi_py}" >/dev/null 2>&1; then echo -e "${RED}[-] certi_py is not installed${NC}"; else echo -e "${GREEN}[+] certi_py is installed${NC}"; fi
         if ! stat "${certipy}" >/dev/null 2>&1; then echo -e "${RED}[-] certipy is not installed${NC}"; else echo -e "${GREEN}[+] certipy is installed${NC}"; fi
         if ! stat "${ldeep}" >/dev/null 2>&1; then echo -e "${RED}[-] ldeep is not installed${NC}"; else echo -e "${GREEN}[+] ldeep is installed${NC}"; fi

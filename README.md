@@ -19,14 +19,14 @@ Alternatively, use the pre-built Docker image from Docker Hub
 docker pull lefayjey/linwinpwn:latest
 
 # Run linWinPwn (output is saved to current directory)
-docker run --rm -it --net=host -v $(pwd):/opt/lwp-output lefayjey/linwinpwn:latest -t <DC_IP>
-docker run --rm -it --net=host -v $(pwd):/opt/lwp-output lefayjey/linwinpwn:latest -t <DC_IP> -d <domain> -u <user> -p <password> --auto
+docker run --rm --init -it --net=host -v $(pwd):/opt/lwp-output lefayjey/linwinpwn:latest -t <DC_IP>
+docker run --rm --init -it --net=host -v $(pwd):/opt/lwp-output lefayjey/linwinpwn:latest -t <DC_IP> -d <domain> -u <user> -p <password> --auto
 ```
 
 Or build from source
 ```bash
 docker build -t linwinpwn .
-docker run --rm -it --net=host -v $(pwd):/opt/lwp-output linwinpwn -t <DC_IP>
+docker run --rm --init -it --net=host -v $(pwd):/opt/lwp-output linwinpwn -t <DC_IP>
 ```
 
 ## Usage
