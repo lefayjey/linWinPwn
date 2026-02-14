@@ -14,5 +14,4 @@ RUN chmod +x /opt/linWinPwn/install.sh /opt/linWinPwn/linWinPwn.sh \
 RUN mkdir -p /opt/lwp-output
 
 ENV PATH="/root/.local/bin:${PATH}"
-WORKDIR /opt/linWinPwn
-ENTRYPOINT ["linWinPwn", "-o", "/opt/lwp-output"]
+ENTRYPOINT ["/opt/linWinPwn/linWinPwn.sh", "-o", "/opt/lwp-output"]
