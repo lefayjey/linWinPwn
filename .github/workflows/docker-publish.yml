@@ -3,6 +3,10 @@ name: Publish Docker Image
 on:
   push:
     branches: [main]
+    paths:
+      - 'linWinPwn.sh'
+      - 'install.sh'
+      - 'Dockerfile'
     tags: ['v*']
   workflow_dispatch:
 
