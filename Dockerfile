@@ -15,4 +15,4 @@ RUN mkdir -p /opt/lwp-output
 
 ENV PATH="/root/.local/bin:${PATH}"
 WORKDIR /opt/linWinPwn
-ENTRYPOINT ["linWinPwn.sh", "-o", "/opt/lwp-output"]
+ENTRYPOINT ["linWinPwn", "-o", "/opt/lwp-output"]
