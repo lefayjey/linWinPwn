@@ -18,9 +18,12 @@ Alternatively, use the pre-built Docker image from Docker Hub
 ```bash
 docker pull lefayjey/linwinpwn:latest
 
-# Run linWinPwn (output is saved to current directory)
-docker run --rm --init -it --net=host -v $(pwd):/opt/lwp-output lefayjey/linwinpwn:latest -t <DC_IP>
-docker run --rm --init -it --net=host -v $(pwd):/opt/lwp-output lefayjey/linwinpwn:latest -t <DC_IP> -d <domain> -u <user> -p <password> --auto
+# Add linWinPwn_docker to PATH
+echo -e "docker run --rm --init -it --net=host -v \$(pwd):/opt/lwp-output lefayjey/linwinpwn:latest \$@" | sudo tee "/usr/local/sbin/linWinPwn_docker"
+sudo chmod 755 /usr/local/sbin/linWinPwn_docker
+# Run linWinPwn_docker (output to host's current directory)
+linWinPwn_docker -t <DC_IP>
+linWinPwn_docker -t <DC_IP> -d <domain> -u <user> -p <password> --auto
 ```
 
 Or build from source

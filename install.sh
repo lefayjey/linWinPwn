@@ -36,10 +36,7 @@ echo -e "rlwrap -Nn ${install_dir}/linWinPwn.sh \$@" | sudo tee "/usr/local/sbin
 sudo chmod 755 /usr/local/sbin/linWinPwn
 echo -e "${BLUE}Adding "linWinPwn_proxychains" to PATH ...${NC}"
 echo -e "rlwrap -Nn proxychains -q ${install_dir}/linWinPwn.sh --dns-tcp \$@" | sudo tee "/usr/local/sbin/linWinPwn_proxychains"
-echo -e "${BLUE}Adding "linWinPwn_docker" to PATH ...${NC}"
-echo -e "docker run --rm --init -it --net=host -v $(pwd):/opt/lwp-output lefayjey/linwinpwn:latest \$@" | sudo tee "/usr/local/sbin/linWinPwn_docker"
 sudo chmod 755 /usr/local/sbin/linWinPwn_proxychains
-sudo chmod 755 /usr/local/sbin/linWinPwn_docker
 sudo chmod +x ${install_dir}/linWinPwn.sh
 
 install_tools() {
