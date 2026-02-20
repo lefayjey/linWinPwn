@@ -35,40 +35,75 @@ def read_file(path):
 def write_file(path, content):
     with open(path, 'w', encoding='utf-8') as f: f.write(content)
 
-def add_variable(content, tool_name, install_cmd, binary_name, tool_type):
+def add_tool_variable(content, tool_name, install_cmd, binary_name, tool_type):
     print(f"{C_BLUE}[*] Adding variable definition for {tool_name}...{C_NC}")
-    if f"{tool_name}=" in content: return content
-    var_line = f"{tool_name}=$(which {binary_name})" if tool_type == "binary" else f"{tool_name}=\"$scripts_dir/{binary_name}\""
+    if f"{tool_name}=" in content:
+        return content
+
+    if tool_type == "binary":
+        var_line = f"{tool_name}=$(which {binary_name})"
+    else:
+        var_line = f"{tool_name}=\"$scripts_dir/{binary_name}\""
+
+    # Clean up any extra blank lines before print_banner
     content = re.sub(r"\s+\n(print_banner\(\) \{)", r"\n\1", content)
     return content.replace("print_banner() {", f"{var_line}\n\nprint_banner() {{")
 
-def patch_authenticate(content, tool_name, auth_mapping):
-    print(f"{C_BLUE}[*] Patching authenticate() for {tool_name}...{C_NC}")
-    def fas(s): return s.format(user="${user}", password="${password}", domain="${domain}", hash="${hash}", key="${aeskey}", cert="${pfxcert}", krb5cc="${krb5cc}")
-    def ibp(ap, rep, ct, check_str):
-        m = re.search(r"^([ \t]*)" + ap, ct, flags=re.MULTILINE)
-        if not m: return ct
-        if check_str in ct[max(0, m.start() - 500):m.start()]: return ct
-        return ct[:m.start()] + m.group(1) + rep + ct[m.start():]
 
+def normalize_auth_placeholder(value):
+    # Strip '$' before '{' so both "{user}" and "${user}" are accepted
+    normalized = re.sub(r'\$\{', '{', value)
+
+    shell_vars = {
+        "user": "${user}",
+        "password": "${password}",
+        "domain": "${domain}",
+        "hash": "${hash}",
+        "key": "${aeskey}",
+        "cert": "${pfxcert}",
+        "krb5cc": "${krb5cc}",
+    }
+    return normalized.format(**shell_vars)
+
+
+def insert_line_before_anchor(anchor_pattern, new_line, content, duplicate_check):
+    match = re.search(r"^([ \t]*)" + anchor_pattern, content, flags=re.MULTILINE)
+    if not match:
+        return content
+    # Avoid duplicates — look in the 500 chars preceding the anchor
+    preceding = content[max(0, match.start() - 500):match.start()]
+    if duplicate_check in preceding:
+        return content
+    indent = match.group(1)
+    return content[:match.start()] + indent + new_line + content[match.start():]
+
+
+def patch_auth_arguments(content, tool_name, auth_mapping):
+    print(f"{C_BLUE}[*] Patching authenticate() for {tool_name}...{C_NC}")
+
+    # Regex anchors that locate each authentication method inside authenticate()
     anchors = {
-        "null": r'auth_string=.*?null session.*?\n',
+        "null":      r'auth_string=.*?null session.*?\n',
         "user_pass": r'auth_string=.*?password of.*?\n',
-        "hash": r'else\n\s*echo -e "\$\{RED\}\[i\]\$\{NC\} Incorrect format of NTLM hash\.\.\."',
-        "kerb": r'auth_string=.*?Kerberos Ticket of.*?\n',
-        "aes": r'auth_string=.*?AES Kerberos key of.*?\n',
-        "cert": r'auth_string=.*?Certificate of.*?\n'
+        "hash":      r'else\n\s*echo -e "\$\{RED\}\[i\]\$\{NC\} Incorrect format of NTLM hash\.\.\."',
+        "kerb":      r'auth_string=.*?Kerberos Ticket of.*?\n',
+        "aes":       r'auth_string=.*?AES Kerberos key of.*?\n',
+        "cert":      r'auth_string=.*?Certificate of.*?\n',
     }
 
-    for key in ["null", "user_pass", "hash", "kerb", "aes", "cert"]:
-        if key in auth_mapping and auth_mapping[key]:
-            val = fas(auth_mapping[key])
-            prefix = "    " if key == "hash" else ""
-            content = ibp(anchors[key], f"{prefix}argument_{tool_name}=\"{val}\"\n", content, f"argument_{tool_name}=")
+    for auth_method in ["null", "user_pass", "hash", "kerb", "aes", "cert"]:
+        if auth_method in auth_mapping and auth_mapping[auth_method]:
+            value = normalize_auth_placeholder(auth_mapping[auth_method])
+            # The hash block needs extra indentation (nested inside an if/else)
+            extra_indent = "    " if auth_method == "hash" else ""
+            new_line = f"{extra_indent}argument_{tool_name}=\"{value}\"\n"
+            content = insert_line_before_anchor(
+                anchors[auth_method], new_line, content, f"argument_{tool_name}="
+            )
 
     return content
 
-def add_wrapper_function(content, func_name, var_name, parent_menu, auth_mapping):
+def add_tool_wrapper(content, func_name, var_name, parent_menu, auth_mapping):
     print(f"{C_BLUE}[*] Adding wrapper {func_name}...{C_NC}")
     if f"{func_name}()" in content: return content
 
@@ -81,152 +116,164 @@ def add_wrapper_function(content, func_name, var_name, parent_menu, auth_mapping
         "cert": ("${cert_bool}", "Certificate")
     }
     
-    uv, un = [], []
-    for k, (v, n) in auth_info.items():
-        if k not in auth_mapping or not auth_mapping[k]:
-            uv.append(f"[ \"{v}\" == true ]"); un.append(n)
+    unsupported_checks, unsupported_names = [], []
+    for method, (bool_var, display_name) in auth_info.items():
+        if method not in auth_mapping or not auth_mapping[method]:
+            unsupported_checks.append(f"[ \"{bool_var}\" == true ]")
+            unsupported_names.append(display_name)
 
-    if uv:
-        ab = f"    echo -e \"${{BLUE}}[*] Running {func_name}...${{NC}}\"\n    if {' || '.join(uv)}; then\n        echo -e \"${{PURPLE}}[-] {func_name} does not support {' or '.join(un)} authentication${{NC}}\"\n    else\n        run_command \"${{{var_name}}} ${{argument_{var_name}}}\"\n    fi"
+    if unsupported_checks:
+        action_block = f"    echo -e \"${{BLUE}}[*] Running {func_name}...${{NC}}\"\n    if {' || '.join(unsupported_checks)}; then\n        echo -e \"${{PURPLE}}[-] {func_name} does not support {' or '.join(unsupported_names)} authentication${{NC}}\"\n    else\n        run_command \"${{{var_name}}} ${{argument_{var_name}}}\"\n    fi"
     else:
-        ab = f"    echo -e \"${{BLUE}}[*] Running {func_name}...${{NC}}\"\n    run_command \"${{{var_name}}} ${{argument_{var_name}}}\""
+        action_block = f"    echo -e \"${{BLUE}}[*] Running {func_name}...${{NC}}\"\n    run_command \"${{{var_name}}} ${{argument_{var_name}}}\""
 
-    wc = f"{func_name}() {{\n    if ! stat \"${{{var_name}}}\" >/dev/null 2>&1; then\n        echo -e \"${{RED}}[-] Please verify the installation of {var_name}${{NC}}\"\n        return\n    fi\n\n{ab}\n    \n    echo -e \"\"\n}}\n"
+    wrapper_code = f"{func_name}() {{\n    if ! stat \"${{{var_name}}}\" >/dev/null 2>&1; then\n        echo -e \"${{RED}}[-] Please verify the installation of {var_name}${{NC}}\"\n        return\n    fi\n\n{action_block}\n    \n    echo -e \"\"\n}}\n"
 
-    anc = MENU_ANCHORS.get(parent_menu)
-    if anc and anc in content:
-        si = content.find(anc)
-        ns = re.search(r"\n###### |\n# -+ Menu", content[si + len(anc):])
-        idx = si + len(anc) + (ns.start() if ns else 0)
-        return content[:idx].rstrip() + "\n\n" + wc + (content[idx:] if ns else "\n")
+    anchor = MENU_ANCHORS.get(parent_menu)
+    if anchor and anchor in content:
+        anchor_idx = content.find(anchor)
+        next_section = re.search(r"\n###### |\n# -+ Menu", content[anchor_idx + len(anchor):])
+        insert_idx = anchor_idx + len(anchor) + (next_section.start() if next_section else 0)
+        return content[:insert_idx].rstrip() + "\n\n" + wrapper_code + (content[insert_idx:] if next_section else "\n")
     
     for pat in [r"(#\s*-+\s*Menu\s*-+\s*\n)", r"(main_menu\(\)\s*\{)"]:
-        m = re.search(pat, content)
-        if m: return content[:m.start()] + wc + "\n" + content[m.start():]
+        match = re.search(pat, content)
+        if match: return content[:match.start()] + wrapper_code + "\n" + content[match.start():]
     return content
 
-def patch_menu(content, parent_menu, var_name, option_text, func_name):
+def patch_menu_entry(content, parent_menu, var_name, option_text, func_name):
     print(f"{C_BLUE}[*] Patching {parent_menu}...{C_NC}")
-    dp = rf"({parent_menu}\(\)\s*\{{.*?)(^[ \t]*)(echo -e \"back\) Go back\")"
-    m = re.search(dp, content, flags=re.DOTALL | re.MULTILINE)
+    menu_pattern = rf"({parent_menu}\(\)\s*\{{.*?)(^[ \t]*)(echo -e \"back\) Go back\")"
+    menu_match = re.search(menu_pattern, content, flags=re.DOTALL | re.MULTILINE)
     
-    if m:
-        lms = list(re.finditer(r"check_tool_status \"\$\{.*?\}\" \".*?\" \"(.*?)\"", m.group(1)))
-        nn = str(int(lms[-1].group(1)) + 1) if lms and lms[-1].group(1).isdigit() else (lms[-1].group(1) + "+" if lms else "1")
-        content = content[:m.start(2)] + f"    check_tool_status \"${{{var_name}}}\" \"{option_text}\" \"{nn}\"\n" + content[m.start(2):]
+    if menu_match:
+        existing_options = list(re.finditer(r"check_tool_status \"\$\{.*?\}\" \".*?\" \"(.*?)\"", menu_match.group(1)))
+        next_num = str(int(existing_options[-1].group(1)) + 1) if existing_options and existing_options[-1].group(1).isdigit() else (existing_options[-1].group(1) + "+" if existing_options else "1")
+        content = content[:menu_match.start(2)] + f"    check_tool_status \"${{{var_name}}}\" \"{option_text}\" \"{next_num}\"\n" + content[menu_match.start(2):]
     else: return content
 
-    cm = re.search(rf"({parent_menu}\(\)\s*\{{.*?)(^[ \t]*back\))", content, flags=re.DOTALL | re.MULTILINE)
-    if cm: content = content[:cm.start(2)] + f"    {nn})\n        {func_name}\n        {parent_menu}\n        ;;\n\n" + content[cm.start(2):]
+    case_match = re.search(rf"({parent_menu}\(\)\s*\{{.*?)(^[ \t]*back\))", content, flags=re.DOTALL | re.MULTILINE)
+    if case_match: content = content[:case_match.start(2)] + f"    {next_num})\n        {func_name}\n        {parent_menu}\n        ;;\n\n" + content[case_match.start(2):]
     return content
 
-def patch_install_script(var_name, cmd, bin_name, tool_type):
+def patch_installer(var_name, cmd, bin_name, tool_type):
     print(f"{C_BLUE}[*] Patching install.sh for {var_name}...{C_NC}")
     if not os.path.exists(INSTALL_PATH): return
     content = read_file(INSTALL_PATH)
     if var_name in content: return
 
     if "pipx install" in cmd:
-        m = re.search(r"pipx install\s+(.*?)(?:\s+--force)?$", cmd)
-        if m: cmd = f"pipx_install_or_upgrade {m.group(1).strip()} {bin_name.split('.')[0]}"
+        match = re.search(r"pipx install\s+(.*?)(?:\s+--force)?$", cmd)
+        if match: cmd = f"pipx_install_or_upgrade {match.group(1).strip()} {bin_name.split('.')[0]}"
     
-    def ins(p, l): nonlocal content; ms = list(re.finditer(p, content)); content = content[:ms[-1].end()] + "    " + l + "\n" + content[ms[-1].end():] if ms else content
+    def insert_after_last(pattern, line):
+        nonlocal content
+        matches = list(re.finditer(pattern, content))
+        if matches:
+            content = content[:matches[-1].end()] + "    " + line + "\n" + content[matches[-1].end():]
 
-    if "pipx" in cmd: ins(r"(pipx_install_or_upgrade .*?\n)", cmd)
-    elif "wget" in cmd: ins(r"(wget -q .*?\n)", cmd)
+    if "pipx" in cmd: insert_after_last(r"(pipx_install_or_upgrade .*?\n)", cmd)
+    elif "wget" in cmd: insert_after_last(r"(wget -q .*?\n)", cmd)
             
     if "wget" in cmd:
-        m = re.search(r"-O\s+[\"']?(\$scripts_dir/[^\s\"']+)[\"']?", cmd)
-        if m:
-            dest = m.group(1)
+        match = re.search(r"-O\s+[\"']?(\$scripts_dir/[^\s\"']+)[\"']?", cmd)
+        if match:
+            dest = match.group(1)
             ext = ".zip" if ".zip" in cmd else (".tar.gz" if ".tar.gz" in cmd else ".tgz" if ".tgz" in cmd else None)
             if ext:
-                l = f"unzip -o {dest} -d \"$scripts_dir\"" if ext == ".zip" else f"tar -C $scripts_dir -xf {dest}"
-                p = r"(unzip -o .*?\n)" if ext == ".zip" else r"(tar -C .*?\n)"
-                ms = list(re.finditer(p, content))
-                if ms: content = content[:ms[-1].end()] + "    " + l + "\n" + content[ms[-1].end():]
+                extract_line = f"unzip -o {dest} -d \"$scripts_dir\"" if ext == ".zip" else f"tar -C $scripts_dir -xf {dest}"
+                extract_pattern = r"(unzip -o .*?\n)" if ext == ".zip" else r"(tar -C .*?\n)"
+                matches = list(re.finditer(extract_pattern, content))
+                if matches: content = content[:matches[-1].end()] + "    " + extract_line + "\n" + content[matches[-1].end():]
                 else: 
-                    ms = list(re.finditer(r"(chmod \+x .*?\n)", content))
-                    if ms: content = content[:ms[0].start()] + "    " + l + "\n\n" + content[ms[0].start():]
+                    matches = list(re.finditer(r"(chmod \+x .*?\n)", content))
+                    if matches: content = content[:matches[0].start()] + "    " + extract_line + "\n\n" + content[matches[0].start():]
             
     if tool_type == "script":
-        ms = list(re.finditer(r"(chmod \+x .*?\n)", content))
-        if ms: content = content[:ms[-1].end()] + f"    chmod +x \"$scripts_dir/{bin_name}\"\n" + content[ms[-1].end():]
+        matches = list(re.finditer(r"(chmod \+x .*?\n)", content))
+        if matches: content = content[:matches[-1].end()] + f"    chmod +x \"$scripts_dir/{bin_name}\"\n" + content[matches[-1].end():]
 
     write_file(INSTALL_PATH, content)
 
-def patch_readme(tool_name, url, parent, opt, mapping):
+def patch_readme_docs(tool_name, url, parent_menu, option_text, auth_mapping):
     print(f"{C_BLUE}[*] Patching README.md for {tool_name}...{C_NC}")
     if not os.path.exists(README_PATH): return
     content = read_file(README_PATH)
     
-    m_map = {"ad_menu": "AD Enum menu", "adcs_menu": "ADCS menu", "sccm_menu": "SCCM menu", "gpo_menu": "GPO Menu", "bruteforce_menu": "BruteForce menu", "kerberos_menu": "Kerberos Attacks menu", "shares_menu": "SMB Shares menu", "vulns_menu": "Vuln Checks menu", "mssql_menu": "MSSQL Enumeration menu", "pwd_menu": "Password Dump menu", "modif_menu": "Modification menu", "cmdexec_menu": "Command Execution menu", "netscan_menu": "Network Scan menu"}
-    rm = m_map.get(parent)
-    if rm:
-        m = re.search(rf"({rm}\n```\n)(.*?)(\n```)", content, flags=re.DOTALL)
-        if m and opt not in m.group(2):
-            ls = m.group(2).strip().split('\n')
-            lm = re.match(r"(\d+|[a-zA-Z]+)\)", ls[-1]) if ls else None
-            nxt = str(int(lm.group(1)) + 1) if lm and lm.group(1).isdigit() else (lm.group(1) + "+" if lm else "1")
-            content = content.replace(m.group(0), m.group(1) + m.group(2).strip() + "\n" + f"{nxt}) {opt}" + m.group(3))
+    menu_labels = {"ad_menu": "AD Enum menu", "adcs_menu": "ADCS menu", "sccm_menu": "SCCM menu", "gpo_menu": "GPO Menu", "bruteforce_menu": "BruteForce menu", "kerberos_menu": "Kerberos Attacks menu", "shares_menu": "SMB Shares menu", "vulns_menu": "Vuln Checks menu", "mssql_menu": "MSSQL Enumeration menu", "pwd_menu": "Password Dump menu", "modif_menu": "Modification menu", "cmdexec_menu": "Command Execution menu", "netscan_menu": "Network Scan menu"}
+    readme_menu = menu_labels.get(parent_menu)
+    if readme_menu:
+        match = re.search(rf"({readme_menu}\n```\n)(.*?)(\n```)", content, flags=re.DOTALL)
+        if match and option_text not in match.group(2):
+            lines = match.group(2).strip().split('\n')
+            last_match = re.match(r"(\d+|[a-zA-Z]+)\)", lines[-1]) if lines else None
+            next_num = str(int(last_match.group(1)) + 1) if last_match and last_match.group(1).isdigit() else (last_match.group(1) + "+" if last_match else "1")
+            content = content.replace(match.group(0), match.group(1) + match.group(2).strip() + "\n" + f"{next_num}) {option_text}" + match.group(3))
 
     if url:
-        m = re.search(r"github\.com/([^/]+)", url)
-        if m:
-            auth = m.group(1)
-            mat = re.search(r"(- Tools:.*?)(\n- References:|\n## )", content, flags=re.DOTALL)
-            if mat and f" {tool_name}" not in mat.group(1):
-                ls = mat.group(1).splitlines(); found = False
-                for i, l in enumerate(ls):
-                    if re.match(rf"^(\s*-\s*\[{re.escape(auth)}\]\(.*?\) - )(.*?)$", l):
-                        ls[i] = re.sub(rf"^(\s*-\s*\[{re.escape(auth)}\]\(.*?\) - )(.*?)$", r"\1\2, " + tool_name, l); found = True
-                content = content.replace(mat.group(1), "\n".join(ls) + "\n") if found else content.replace(mat.group(1), mat.group(1).rstrip() + f"\n    - [{auth}](https://github.com/{auth}) - {tool_name}\n")
+        author_match = re.search(r"github\.com/([^/]+)", url)
+        if author_match:
+            author = author_match.group(1)
+            tools_match = re.search(r"(- Tools:.*?)(\n- References:|\n## )", content, flags=re.DOTALL)
+            if tools_match and f" {tool_name}" not in tools_match.group(1):
+                lines = tools_match.group(1).splitlines(); found = False
+                for i, line in enumerate(lines):
+                    if re.match(rf"^(\s*-\s*\[{re.escape(author)}\]\(.*?\) - )(.*?)$", line):
+                        lines[i] = re.sub(rf"^(\s*-\s*\[{re.escape(author)}\]\(.*?\) - )(.*?)$", r"\1\2, " + tool_name, line); found = True
+                content = content.replace(tools_match.group(1), "\n".join(lines) + "\n") if found else content.replace(tools_match.group(1), tools_match.group(1).rstrip() + f"\n    - [{author}](https://github.com/{author}) - {tool_name}\n")
 
-    m = re.search(r"(### Current supported authentications\n\n\|.*?\|\n\|.*?\|\n)(.*?)(\n\n|#|$)", content, flags=re.DOTALL)
-    if m and f"`{tool_name}`" not in m.group(2):
-        def gc(k): return "✅" if k in mapping and mapping[k] else "❌"
-        pd = lambda t, w: (" " + t).ljust(w)
-        cs = [pd(f"`{tool_name}`", 25), pd(gc('null'), 14), pd(gc('user_pass'), 10), pd(gc('hash'), 12), pd(gc('kerb'), 16), pd(gc('aes'), 13), pd(gc('cert'), 13)]
-        content = content[:m.start()] + m.group(1) + m.group(2).strip() + "\n" + "|" + "|".join(cs) + "|" + m.group(3) + content[m.end():]
+    auth_table_match = re.search(r"(### Current supported authentications\n\n\|.*?\|\n\|.*?\|\n)(.*?)(\n\n|#|$)", content, flags=re.DOTALL)
+    if auth_table_match and f"`{tool_name}`" not in auth_table_match.group(2):
+        def auth_icon(key): return "✅" if key in auth_mapping and auth_mapping[key] else "❌"
+        pad_cell = lambda text, width: (" " + text).ljust(width)
+        cells = [pad_cell(f"`{tool_name}`", 25), pad_cell(auth_icon('null'), 14), pad_cell(auth_icon('user_pass'), 10), pad_cell(auth_icon('hash'), 12), pad_cell(auth_icon('kerb'), 16), pad_cell(auth_icon('aes'), 13), pad_cell(auth_icon('cert'), 13)]
+        content = content[:auth_table_match.start()] + auth_table_match.group(1) + auth_table_match.group(2).strip() + "\n" + "|" + "|".join(cells) + "|" + auth_table_match.group(3) + content[auth_table_match.end():]
 
     write_file(README_PATH, content)
 
-def patch_dependency_check(content, var_name, tool_name):
+def patch_dep_check(content, var_name, tool_name):
     print(f"{C_BLUE}[*] Patching dependency check for {tool_name}...{C_NC}")
-    
-    cm_start = content.find("config_menu() {")
-    if cm_start == -1: return content
-    
-    pattern = r"(case \$\{option_selected\} in\s+1\))(.*?)(config_menu\s+;;)"
-    match = re.search(pattern, content[cm_start:], flags=re.DOTALL)
-    
-    if not match: return content
-    
-    abs_start = cm_start + match.start()
-    abs_end = cm_start + match.end()
-    
-    header, body, footer = match.groups()
-    if f"stat \"${{{var_name}}}\"" in body: return content
 
-    check_line = f"        if ! stat \"${{{var_name}}}\" >/dev/null 2>&1; then echo -e \"${{RED}}[-] {tool_name} is not installed${{NC}}\"; else echo -e \"${{GREEN}}[+] {tool_name} is installed${{NC}}\"; fi"
-    new_blk = header + body.rstrip() + "\n" + check_line + "\n    " + footer
-    return content[:abs_start] + new_blk + content[abs_end:]
+    config_start = content.find("config_menu() {")
+    if config_start == -1:
+        return content
+
+    pattern = r"(case \$\{option_selected\} in\s+1\))(.*?)(config_menu\s+;;)"
+    match = re.search(pattern, content[config_start:], flags=re.DOTALL)
+    if not match:
+        return content
+
+    abs_start = config_start + match.start()
+    abs_end = config_start + match.end()
+
+    header, body, footer = match.groups()
+    if f"stat \"${{{var_name}}}\"" in body:
+        return content
+
+    check_line = (
+        f"        if ! stat \"${{{var_name}}}\" >/dev/null 2>&1; then "
+        f"echo -e \"${{RED}}[-] {tool_name} is not installed${{NC}}\"; "
+        f"else echo -e \"${{GREEN}}[+] {tool_name} is installed${{NC}}\"; fi"
+    )
+    new_block = header + body.rstrip() + "\n" + check_line + "\n        " + footer
+    return content[:abs_start] + new_block + content[abs_end:]
 
 def main():
     if len(sys.argv) < 2: sys.exit(1)
-    cfg = load_config(sys.argv[1]); pm = cfg['menu_info']['parent_menu']
-    if pm not in MENU_ANCHORS: print(f"{C_RED}[!] Error: Parent menu '{pm}' not found!{C_NC}"); sys.exit(1)
+    config = load_config(sys.argv[1])
+    parent_menu = config['menu_info']['parent_menu']
+    if parent_menu not in MENU_ANCHORS: print(f"{C_RED}[!] Error: Parent menu '{parent_menu}' not found!{C_NC}"); sys.exit(1)
 
-    ct = read_file(LINWINPWN_PATH)
-    ct = add_variable(ct, cfg['variable_name'], cfg.get('install_cmd'), cfg['binary_name'], cfg.get('type', 'binary'))
-    if cfg.get('auth_mapping'): ct = patch_authenticate(ct, cfg['variable_name'], cfg['auth_mapping'])
-    ct = add_wrapper_function(ct, cfg['wrapper_function']['name'], cfg['variable_name'], pm, cfg.get('auth_mapping', {}))
-    ct = patch_menu(ct, pm, cfg['variable_name'], cfg['menu_info']['option_text'], cfg['wrapper_function']['name'])
-    ct = patch_dependency_check(ct, cfg['variable_name'], cfg['tool_name'])
-    write_file(LINWINPWN_PATH, ct)
+    content = read_file(LINWINPWN_PATH)
+    content = add_tool_variable(content, config['variable_name'], config.get('install_cmd'), config['binary_name'], config.get('type', 'binary'))
+    if config.get('auth_mapping'): content = patch_auth_arguments(content, config['variable_name'], config['auth_mapping'])
+    content = add_tool_wrapper(content, config['wrapper_function']['name'], config['variable_name'], parent_menu, config.get('auth_mapping', {}))
+    content = patch_menu_entry(content, parent_menu, config['variable_name'], config['menu_info']['option_text'], config['wrapper_function']['name'])
+    content = patch_dep_check(content, config['variable_name'], config['tool_name'])
+    write_file(LINWINPWN_PATH, content)
     
-    if 'install_cmd' in cfg: patch_install_script(cfg['variable_name'], cfg['install_cmd'], cfg['binary_name'], cfg.get('type', 'binary'))
-    patch_readme(cfg['tool_name'], cfg.get('github_url'), pm, cfg['menu_info']['option_text'], cfg.get('auth_mapping', {}))
+    if 'install_cmd' in config: patch_installer(config['variable_name'], config['install_cmd'], config['binary_name'], config.get('type', 'binary'))
+    patch_readme_docs(config['tool_name'], config.get('github_url'), parent_menu, config['menu_info']['option_text'], config.get('auth_mapping', {}))
     print(f"{C_GREEN}[+] Integration complete!{C_NC}")
 
 if __name__ == "__main__": main()

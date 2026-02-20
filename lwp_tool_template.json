@@ -8,14 +8,14 @@
     "github_url": "https://github.com/user/tool_repo",
     "_comment_install": "Installation command added to 'install.sh'. For pipx tools, the script converts- 'pipx install ...' to 'pipx_install_or_upgrade ...' automatically. Use double quotes for URLs: 'wget \"https://...\" -O ...'",
     "auth_mapping": {
-        "user_pass": "-u '{user}' -p '{password}' -d {domain}",
+        "user_pass": "-u '${user}' -p '${password}' -d ${domain}",
         "null": "--no-auth",
-        "hash": "-H '{hash}' -u '{user}'",
-        "kerb": "-k -u '{user}'",
-        "aes": "-aes {key}",
-        "cert": "-c {cert}"
+        "hash": "-H '${hash}' -u '${user}'",
+        "kerb": "-k -u '${user}'",
+        "aes": "-aes ${key}",
+        "cert": "-c ${cert}"
     },
-    "_comment_auth_mapping": "Maps internal linWinPwn variables to tool flags. Placeholders like {user}, {password}, {domain}, {hash}, {key}, {cert} are replaced with shell variables like ${user}, ${password}, etc. If a method is MISSING from this mapping, the generated wrapper will BLOCK that authentication method with a warning.",
+    "_comment_auth_mapping": "Maps internal linWinPwn variables to tool flags. Placeholders like ${user}, ${password}, ${domain}, ${hash}, ${key}, ${cert} are replaced with the correct shell variables. You can also write them without the '$' (e.g. {user} instead of ${user}). If a method is MISSING from this mapping, the generated wrapper will BLOCK that authentication method with a warning.",
     "wrapper_function": {
         "name": "tool_scan_func"
     },
