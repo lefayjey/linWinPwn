@@ -4,9 +4,9 @@ import sys
 import os
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-LINWINPWN_PATH = os.path.join(SCRIPT_DIR, "../linWinPwn.sh")
-INSTALL_PATH = os.path.join(SCRIPT_DIR, "../install.sh")
-README_PATH = os.path.join(SCRIPT_DIR, "../README.md")
+LINWINPWN_PATH = os.path.join(SCRIPT_DIR, "./linWinPwn.sh")
+INSTALL_PATH = os.path.join(SCRIPT_DIR, "./install.sh")
+README_PATH = os.path.join(SCRIPT_DIR, "./README.md")
 
 C_RED, C_GREEN, C_BLUE, C_PURPLE, C_NC = "\033[0;31m", "\033[0;32m", "\033[0;34m", "\033[0;35m", "\033[0m"
 
@@ -44,7 +44,7 @@ def add_variable(content, tool_name, install_cmd, binary_name, tool_type):
 
 def patch_authenticate(content, tool_name, auth_mapping):
     print(f"{C_BLUE}[*] Patching authenticate() for {tool_name}...{C_NC}")
-    def fas(s): return s.format(user="${user}", password="${password}", domain="${domain}", hash="${hash}", key="${aeskey}", cert="${pfxcert}")
+    def fas(s): return s.format(user="${user}", password="${password}", domain="${domain}", hash="${hash}", key="${aeskey}", cert="${pfxcert}", krb5cc="${krb5cc}")
     def ibp(ap, rep, ct, check_str):
         m = re.search(r"^([ \t]*)" + ap, ct, flags=re.MULTILINE)
         if not m: return ct

@@ -93,6 +93,9 @@ install_tools() {
     pipx_install_or_upgrade git+https://github.com/cogiceo/daclsearch daclsearch
     pipx_install_or_upgrade git+https://github.com/sikumy/spearspray spearspray
     pipx_install_or_upgrade git+https://github.com/p0dalirius/ShareHound sharehound
+    pipx_install_or_upgrade git+https://github.com/mverschu/adwsdomaindump adwsdomaindump
+    pipx_install_or_upgrade git+https://github.com/l4rm4nd/PyADRecon pyadrecon
+    pipx_install_or_upgrade git+https://github.com/l4rm4nd/PyADRecon-ADWS pyadrecon_adws
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}

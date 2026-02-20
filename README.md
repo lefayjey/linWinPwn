@@ -283,6 +283,9 @@ Configuration Snippet
 | `DACLSearch`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `ScriptScout`           | ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
 | `relayking`             | ✅           | ✅       | ✅        | ✅             | ✅         | ❌         |
+| `ADWS Domain Dump`      | ❌            | ✅        | ✅          | ❌              | ❌           | ❌           |
+| `PyADRecon`             | ❌            | ✅        | ❌          | ✅              | ❌           | ❌           |
+| `PyADRecon-ADWS`        | ❌            | ✅        | ❌          | ✅              | ❌           | ❌           |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor, relayking
@@ -350,6 +353,9 @@ AD Enum menu
 29) Soaphound Enumeration using all collection methods (Noisy!)
 30) Soaphound Enumeration using ADWSOnly
 31) Run DACLSearch dump and cli
+32) ADWS Domain Dump Enumeration
+33) PyADRecon LDAP Enumeration
+34) PyADRecon ADWS Enumeration
 ```
 
 ADCS menu
@@ -473,20 +479,21 @@ Password Dump menu
 5) Dump SAM and SYSTEM using reg
 6) Dump NTDS using netexec
 7) Dump SAM and LSA secrets using netexec
-8) Dump SAM and LSA secrets using netexec without touching disk (regdump)
-9) Dump LSASS using lsassy
-10) Dump LSASS using handlekatz
-11) Dump LSASS using procdump
-12) Dump LSASS using nanodump
-13) Dump dpapi secrets using netexec
-14) Dump secrets using DonPAPI
-15) Dump secrets using DonPAPI (Disable Remote Ops operations)
-16) Dump secrets using hekatomb (only on DC)
-17) Search for juicy information using netexec
-18) Dump Veeam credentials (only from Veeam server)
-19) Dump Msol password (only from Azure AD-Connect server)
-20) Extract Bitlocker Keys
-21) Dump SAM and LSA secrets using winrm with netexec
+8) Dump LSA secrets using netexec
+9) Dump SAM and LSA secrets using netexec without touching disk (regdump)
+10) Dump LSASS using lsassy
+11) Dump LSASS using handlekatz
+12) Dump LSASS using procdump
+13) Dump LSASS using nanodump
+14) Dump dpapi secrets using netexec
+15) Dump secrets using DonPAPI
+16) Dump secrets using DonPAPI (Disable Remote Ops operations)
+17) Dump secrets using hekatomb (only on DC)
+18) Search for juicy information using netexec
+19) Dump Veeam credentials (only from Veeam server)
+20) Dump Msol password (only from Azure AD-Connect server)
+21) Extract Bitlocker Keys
+22) Dump SAM and LSA secrets using winrm with netexec
 ```
 
 Modification menu
@@ -624,6 +631,8 @@ Automated Mode:
     - [cogiceo](https://github.com/cogiceo/) - DACLSearch
     - [MarcoZufferli](https://github.com/MarcoZufferli) - ScriptScout
     - [depthsecurity](https://github.com/depthsecurity) - relayking
+    - [mverschu](https://github.com/mverschu) - ADWS Domain Dump
+    - [l4rm4nd](https://github.com/l4rm4nd) - PyADRecon, PyADRecon-ADWS
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
