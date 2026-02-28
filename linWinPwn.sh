@@ -47,6 +47,7 @@ scripts_dir="/opt/lwp-scripts"
 nmap=$(which nmap)
 john=$(which john)
 python3="${scripts_dir}/.venv/bin/python3"
+mount=$(which mount)
 if ! stat "${python3}" >/dev/null 2>&1; then python3=$(which python3); fi
 netexec=$(which netexec)
 impacket_findDelegation=$(which findDelegation.py)
@@ -152,6 +153,7 @@ relayking="$scripts_dir/RelayKing-Depth-master/relayking.py"
 adwsdomaindump=$(which adwsdomaindump)
 pyadrecon=$(which pyadrecon)
 pyadrecon_adws=$(which pyadrecon_adws)
+adpulse="$scripts_dir/ADPulse-main/ADPulse.py"
 
 print_banner() {
     echo -e "
@@ -161,7 +163,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.4.4 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.4.5 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -806,6 +808,7 @@ authenticate() {
         argument_adwsdomaindump="-u '${domain}\\${user}' -p '${password}'"
         argument_pyadrecon="-u '${user}' -p '${password}' -d ${domain}"
         argument_pyadrecon_adws="-u '${user}' -p '${password}' -d ${domain}"
+        argument_adpulse="--user '${user}' --password '${password}' --domain ${domain}"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}password of ${user}${NC}"
     fi
 
@@ -880,6 +883,7 @@ authenticate() {
             argument_daclsearch="-l ${domain} -u '${user}' -H '${hash}'"
             argument_rking="-d ${domain} -u '${user}' --hashes '${hash}'"
             argument_adwsdomaindump="-u '${domain}\\${user}' -p '${hash}'"
+            argument_adpulse="--user '${user}' --hash '${hash}' --domain ${domain}"
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -2092,6 +2096,22 @@ pyadrecon_adws_enum() {
         echo -e "${PURPLE}[-] pyadrecon_adws_enum does not support Null Session or NTLM Hash or AES Key${NC}"
     else
         run_command "${pyadrecon_adws} ${argument_pyadrecon_adws} -dc ${dc_FQDN} -o ${DomainRecon_dir}/pyADReconADWS" | tee "${DomainRecon_dir}/pyADReconADWS/pyADReconADWS_output_${dc_domain}.txt"
+    fi
+    
+    echo -e ""
+}
+
+adpulse_run() {
+    if ! stat "${adpulse}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of adpulse${NC}"
+        return
+    fi
+    mkdir -p "${DomainRecon_dir}/ADPulse"
+    echo -e "${BLUE}[*] Running adpulse_run...${NC}"
+    if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${cert_bool}" == true ]; then
+        echo -e "${PURPLE}[-] adpulse_run does not support Null Session or Kerberos or AES Key or Certificate authentication${NC}"
+    else
+        run_command "${python3} ${adpulse} ${argument_adpulse} --output-dir ${DomainRecon_dir}/ADPulse --dc-ip ${dc_ip} --report all"
     fi
     
     echo -e ""
@@ -3324,6 +3344,34 @@ scriptscout_scan(){
     echo -e ""
 }
 
+mount_share(){
+    echo -e "${BLUE}[*] Mounting SMB locally (requires sudo)${NC}"
+    if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+        echo -e "${PURPLE}[-] mounting SMB shares requires password authentication${NC}"
+    else
+        echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or DC01 or DC01.domain.com ${NC}"
+        read -rp ">> " mount_target </dev/tty
+        while [ "${mount_target}" == "" ]; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -rp ">> " mount_target </dev/tty
+        done
+        echo -e "${BLUE}[*] Please specify share to mount:${NC}"
+        read -rp ">> " mount_share </dev/tty
+        while [ "${mount_share}" == "" ]; do
+            echo -e "${RED}Invalid share.${NC} Please specify share to mount:"
+            read -rp ">> " mount_share </dev/tty
+        done
+        echo -e "${BLUE}[*] Please specify local folder (default: ${output_dir}/lwp_mount):${NC}"
+        read -rp ">> " mount_folder </dev/tty
+        if [[ ${mount_folder} == "" ]]; then mount_folder="${output_dir}/lwp_mount"; fi
+        mkdir -p "${mount_folder}" 2>/dev/null
+        run_command "sudo umount ${mount_folder} 2>/dev/null"
+        run_command "sudo ${mount} -t cifs -o username=${user},password=${password},domain=${domain} //${mount_target}/${mount_share} ${mount_folder}"
+    fi
+    echo -e ""
+}
+
 ###### vuln_checks: Vulnerability checks
 zerologon_check() {
     echo -e "${BLUE}[*] zerologon check. This may take a while... ${NC}"
@@ -3938,7 +3986,7 @@ restore_account() {
             echo -e "${CYAN}[*] Example: svc_sql ${NC}"
             account_restore=""
             read -rp ">> " account_restore </dev/tty
-            while [ "${account_enable}" == "" ]; do
+            while [ "${account_restore}" == "" ]; do
                 echo -e "${RED}Invalid name.${NC} Please specify target account:"
                 read -rp ">> " account_restore </dev/tty
             done
@@ -5414,6 +5462,7 @@ ad_menu() {
     check_tool_status "${adwsdomaindump}" "ADWS Domain Dump Enumeration" "32"
     check_tool_status "${pyadrecon}" "PyADRecon LDAP Enumeration" "33"
     check_tool_status "${pyadrecon_adws}" "PyADRecon ADWS Enumeration" "34"
+    check_tool_status "${adpulse}" "Run ADPulse Checks" "35"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5602,6 +5651,11 @@ ad_menu() {
 
     34)
         pyadrecon_adws_enum
+        ad_menu
+        ;;
+
+    35)
+        adpulse_run
         ad_menu
         ;;
 
@@ -6505,7 +6559,8 @@ shares_menu() {
     check_tool_status "${sharehound}" "ShareHound using ShotHound approach on all domain subnets" "8"
     check_tool_status "${impacket_smbclient}" "Open smbclient console on target" "9"
     check_tool_status "${smbclientng}" "Open smbclientng console on target" "10"
-    check_tool_status "${ScriptScout}" "ScriptScout check" "11"
+    check_tool_status "${ScriptScout}" "Search for LogonScript misconfigurations using ScriptScout" "11"
+    check_tool_status "${mount}" "Mount SMB share (requires sudo)" "12"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6574,6 +6629,11 @@ shares_menu() {
 
     11)
         scriptscout_scan
+        shares_menu
+        ;;
+
+    12)
+        mount_share
         shares_menu
         ;;
 
@@ -7604,6 +7664,7 @@ config_menu() {
         if ! stat "${adwsdomaindump}" >/dev/null 2>&1; then echo -e "${RED}[-] ADWS Domain Dump is not installed${NC}"; else echo -e "${GREEN}[+] ADWS Domain Dump is installed${NC}"; fi
         if ! stat "${pyadrecon}" >/dev/null 2>&1; then echo -e "${RED}[-] PyADRecon is not installed${NC}"; else echo -e "${GREEN}[+] PyADRecon is installed${NC}"; fi
         if ! stat "${pyadrecon_adws}" >/dev/null 2>&1; then echo -e "${RED}[-] PyADRecon-ADWS is not installed${NC}"; else echo -e "${GREEN}[+] PyADRecon-ADWS is installed${NC}"; fi
+        if ! stat "${adpulse}" >/dev/null 2>&1; then echo -e "${RED}[-] ADPulse is not installed${NC}"; else echo -e "${GREEN}[+] ADPulse is installed${NC}"; fi
         config_menu
         ;;
 

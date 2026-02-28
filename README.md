@@ -286,6 +286,7 @@ Configuration Snippet
 | `ADWS Domain Dump`      | ❌            | ✅        | ✅          | ❌              | ❌           | ❌           |
 | `PyADRecon`             | ❌            | ✅        | ❌          | ✅              | ❌           | ❌           |
 | `PyADRecon-ADWS`        | ❌            | ✅        | ❌          | ✅              | ❌           | ❌           |
+| `ADPulse`               | ❌            | ✅        | ✅          | ❌              | ❌           | ❌           |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor, relayking
@@ -356,6 +357,7 @@ AD Enum menu
 32) ADWS Domain Dump Enumeration
 33) PyADRecon LDAP Enumeration
 34) PyADRecon ADWS Enumeration
+35) Run ADPulse Checks
 ```
 
 ADCS menu
@@ -438,6 +440,7 @@ SMB Shares menu
 9) Open smbclient.py console on target
 10) Open p0dalirius's smbclientng console on target
 11) Search for LogonScript misconfigurations using ScriptScout
+12) Mount SMB share (requires sudo)
 ```
 
 Vuln Checks menu
@@ -634,6 +637,7 @@ Automated Mode:
     - [depthsecurity](https://github.com/depthsecurity) - relayking
     - [mverschu](https://github.com/mverschu) - ADWS Domain Dump
     - [l4rm4nd](https://github.com/l4rm4nd) - PyADRecon, PyADRecon-ADWS
+    - [dievus](https://github.com/dievus) - ADPulse
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
