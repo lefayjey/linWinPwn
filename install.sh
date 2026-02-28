@@ -189,7 +189,7 @@ install_tools() {
     chmod +x "$scripts_dir/NetworkHound-main/NetworkHound.py"
     chmod +x "$scripts_dir/scriptscout.py"
     chmod +x "$scripts_dir/RelayKing-Depth-master/relayking.py"
-    chmod +x "$scripts_dir/ADPulse.py"
+    chmod +x "$scripts_dir/ADPulse-main/ADPulse.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }
