@@ -96,6 +96,8 @@ install_tools() {
     pipx_install_or_upgrade git+https://github.com/mverschu/adwsdomaindump adwsdomaindump
     pipx_install_or_upgrade git+https://github.com/l4rm4nd/PyADRecon pyadrecon
     pipx_install_or_upgrade git+https://github.com/l4rm4nd/PyADRecon-ADWS pyadrecon_adws
+    pipx_install_or_upgrade git+https://github.com/aniqfakhrul/powerview.py powerview
+    pipx_install_or_upgrade git+https://github.com/adityatelange/evil-winrm-py evil-winrm-py
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}

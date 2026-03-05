@@ -287,6 +287,8 @@ Configuration Snippet
 | `PyADRecon`             | ❌            | ✅        | ❌          | ✅              | ❌           | ❌           |
 | `PyADRecon-ADWS`        | ❌            | ✅        | ❌          | ✅              | ❌           | ❌           |
 | `ADPulse`               | ❌            | ✅        | ✅          | ❌              | ❌           | ❌           |
+| `PowerView.py`          | ✅            | ✅        | ✅          | ✅              | ✅           | ✅           |
+| `evil-winrm-py`         | ❌            | ✅        | ✅          | ❌              | ❌           | ✅           |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor, relayking
@@ -358,6 +360,7 @@ AD Enum menu
 33) PyADRecon LDAP Enumeration
 34) PyADRecon ADWS Enumeration
 35) Run ADPulse Checks
+36) Open PowerView.py Console
 ```
 
 ADCS menu
@@ -536,6 +539,7 @@ Command Execution menu
 2) Open CMD console using wmiexec on target
 3) Open CMD console using psexec on target
 4) Open PowerShell console using evil-winrm on target
+5) Open PowerShell console using evil-winrm-py on target
 ```
 
 Network Scan menu
@@ -638,6 +642,8 @@ Automated Mode:
     - [mverschu](https://github.com/mverschu) - ADWS Domain Dump
     - [l4rm4nd](https://github.com/l4rm4nd) - PyADRecon, PyADRecon-ADWS
     - [dievus](https://github.com/dievus) - ADPulse
+    - [aniqfakhrul](https://github.com/aniqfakhrul) - PowerView.py
+    - [adityatelange](https://github.com/adityatelange) - evil-winrm-py
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
