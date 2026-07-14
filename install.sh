@@ -19,6 +19,9 @@ if command -v apt-get >/dev/null; then
 elif command -v pacman >/dev/null; then
     PKG_MANAGER="pacman"
     PACKAGES="python python-pip python-virtualenv nmap smbmap john libsasl openldap krb5 ntp wget zip unzip systemd python-pipx swig curl jq openssl"
+elif command -v dnf >/dev/null; then
+    PKG_MANAGER="dnf"
+    PACKAGES="python3 python3-devel python3-pip nmap john curl jq openssl wget zip unzip rlwrap krb5-devel openldap-devel cyrus-sasl-devel gcc"
 else
     echo -e "${RED}[Error]${NC} Unsupported Linux distribution"
     exit 1
@@ -46,6 +49,9 @@ install_tools() {
     elif [[ "$PKG_MANAGER" == "pacman" ]]; then
         echo -e "${BLUE}Installing tools using pacman...${NC}"
         sudo pacman -Sy --needed --noconfirm $PACKAGES
+    elif [[ "$PKG_MANAGER" == "dnf" ]]; then
+        echo -e "${BLUE}Installing tools using dnf...${NC}"
+        sudo dnf install -y $PACKAGES
     fi
 
     echo -e ""

