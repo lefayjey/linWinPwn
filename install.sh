@@ -114,7 +114,7 @@ install_tools() {
     sudo chown -R "$(whoami)":"$(whoami)" ${scripts_dir}
     python3 -m venv "${scripts_dir}/.venv"
     source "${scripts_dir}/.venv/bin/activate"
-    pip3 install PyYAML alive-progress xlsxwriter sectools typer[all] impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules smbprotocol[kerberos] pydantic lxml bloodhound-opengraph termcolor --upgrade
+    pip3 install PyYAML alive-progress xlsxwriter sectools typer[all] impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules smbprotocol[kerberos] pydantic lxml bloodhound-opengraph termcolor dnspython tqdm --upgrade
     pip3 install ldap3-bleeding-edge #LDAP Channel Binding
     deactivate
     
@@ -155,6 +155,8 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/MarcoZufferli/ScriptScout/refs/heads/main/scriptscout.py" -O "$scripts_dir/scriptscout.py"
     wget -q "https://github.com/depthsecurity/RelayKing-Depth/archive/refs/heads/master.zip" -O "$scripts_dir/RelayKing-Depth.zip"
     wget -q "https://github.com/dievus/ADPulse/archive/refs/heads/main.zip" -O "$scripts_dir/ADPulse.zip"
+    wget -q "https://raw.githubusercontent.com/p0dalirius/GhostSPN/main/GhostSPN.py" -O "$scripts_dir/GhostSPN.py"
+    wget -q "https://raw.githubusercontent.com/nnnnino/rbcdbrute/main/rbcdbrute.py" -O "$scripts_dir/rbcdbrute.py"
 
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
@@ -204,6 +206,8 @@ install_tools() {
     chmod +x "$scripts_dir/scriptscout.py"
     chmod +x "$scripts_dir/RelayKing-Depth-master/relayking.py"
     chmod +x "$scripts_dir/ADPulse-main/ADPulse.py"
+    chmod +x "$scripts_dir/GhostSPN.py"
+    chmod +x "$scripts_dir/rbcdbrute.py"
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }

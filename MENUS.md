@@ -61,6 +61,8 @@ AD Enum menu
 34) PyADRecon ADWS Enumeration
 35) Run ADPulse Checks
 36) Open PowerView.py Console
+37) Scan for GhostSPN
+38) Check DNS zones allowing nonsecure dynamic updates using netexec
 ```
 
 ADCS menu
@@ -89,6 +91,7 @@ GPO Menu
 2) GPO Enumeration using GPOwned
 3) GPOParser Enumeration
 4) GroupPolicyBackdoor Enumeration
+5) GPP Privilege Enumeration using netexec
 ```
 
 BruteForce menu
@@ -105,6 +108,7 @@ BruteForce menu
 10) Timeroast attack against NTP
 11) MSSQL RID Brute Force (Null session) using netexec
 12) Open SpearSpray console
+13) Run rbcdbrute attack (Requires RBCD already set up) (Noisy!)
 ```
 
 Kerberos Attacks menu
@@ -167,6 +171,7 @@ Vuln Checks menu
 17) RelayKing coerce scan
 18) Drop LNK, Library-MS and SC (on writeable share)
 19) onelogon check using netexec (only on DC)
+20) Enumerate common (useful) CVEs using netexec
 ```
 
 MSSQL Enumeration menu

@@ -201,12 +201,14 @@ linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p
 | `DACLSearch`            | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `ScriptScout`           | ❌           | ✅       | ❌        | ❌             | ❌         | ❌         |
 | `relayking`             | ✅           | ✅       | ✅        | ✅             | ✅         | ❌         |
-| `ADWS Domain Dump`      | ❌            | ✅        | ✅          | ❌              | ❌           | ❌           |
-| `PyADRecon`             | ❌            | ✅        | ❌          | ✅              | ❌           | ❌           |
-| `PyADRecon-ADWS`        | ❌            | ✅        | ❌          | ✅              | ❌           | ❌           |
-| `ADPulse`               | ❌            | ✅        | ✅          | ❌              | ❌           | ❌           |
-| `PowerView.py`          | ✅            | ✅        | ✅          | ✅              | ✅           | ✅           |
-| `evil-winrm-py`         | ❌            | ✅        | ✅          | ❌              | ❌           | ✅           |
+| `ADWS Domain Dump`      | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `PyADRecon`             | ❌           | ✅       | ❌        | ✅             | ❌         | ❌         |
+| `PyADRecon-ADWS`        | ❌           | ✅       | ❌        | ✅             | ❌         | ❌         |
+| `ADPulse`               | ❌           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `PowerView.py`          | ✅           | ✅       | ✅        | ✅             | ✅         | ✅         |
+| `evil-winrm-py`         | ❌           | ✅       | ✅        | ❌             | ❌         | ✅         |
+| `GhostSPN`              | ✅           | ✅       | ✅        | ❌             | ❌         | ❌         |
+| `rbcdbrute`             | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 
 #### LDAP Channel Binding support
 ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor, relayking
@@ -252,7 +254,7 @@ Automated Mode:
     - [franc-pentest](https://github.com/franc-pentest) - ldeep
     - [garrettfoster13](https://github.com/garrettfoster13/) - pre2k, aced, sccmhunter
     - [zblurx](https://github.com/zblurx/) - certsync
-    - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares, ExtractBitlockerKeys, LDAPWordlistHarvester, ldapconsole, pyLDAPmonitor, RDWAtool, smbclient-ng, FindUnusualSessions, ShareHound
+    - [p0dalirius](https://github.com/p0dalirius) - Coercer, FindUncommonShares, ExtractBitlockerKeys, LDAPWordlistHarvester, ldapconsole, pyLDAPmonitor, RDWAtool, smbclient-ng, FindUnusualSessions, ShareHound, GhostSPN
     - [blacklanternsecurity](https://github.com/blacklanternsecurity/) - MANSPIDER
     - [CravateRouge](https://github.com/CravateRouge) - bloodyAD
     - [shellster](https://github.com/shellster) - LDAPPER
@@ -280,6 +282,7 @@ Automated Mode:
     - [dievus](https://github.com/dievus) - ADPulse
     - [aniqfakhrul](https://github.com/aniqfakhrul) - PowerView.py
     - [adityatelange](https://github.com/adityatelange) - evil-winrm-py
+    - [nnnino](https://github.com/nnnnino) - rbcdbrute
 
 - References:
     -  https://orange-cyberdefense.github.io/ocd-mindmaps/
