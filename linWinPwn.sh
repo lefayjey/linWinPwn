@@ -418,9 +418,15 @@ run_command() {
         if [ -n "${netexec}" ] && [[ "$*" == *"${netexec}"* ]] && [ "${cmd_timeout}" != "0" ] \
             && { [ -n "${cmd_timeout}" ] || [[ "${LD_PRELOAD}" == *proxychains* ]]; }; then
             local to="${cmd_timeout:-1800}"
-            timeout -k 30 "${to}" /usr/bin/script -qc "$@" /dev/null
+            # Keep script in the foreground process group so its terminal setup does
+            # not get stopped by SIGTTOU before netexec can start.
+            timeout --foreground -k 30 "${to}" /usr/bin/script -qc "$@" /dev/null
             local rc=$?
-            [ "$rc" -eq 124 ] && echo -e "${RED}[-] netexec command timed out (${to}s) - continuing${NC}" > /dev/tty
+            # timeout returns 124 after a normal expiry and 137 if the kill-after
+            # grace period expires and it has to escalate to SIGKILL.
+            if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+                echo -e "${RED}[-] netexec command timed out (${to}s) - continuing${NC}" > /dev/tty
+            fi
             return $rc
         else
             /usr/bin/script -qc "$@" /dev/null
