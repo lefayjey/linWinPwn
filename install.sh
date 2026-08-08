@@ -15,13 +15,13 @@ install_dir="$(dirname "$(readlink -f "$0")")"
 # Detect Linux Distribution
 if command -v apt-get >/dev/null; then
     PKG_MANAGER="apt-get"
-    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpsec-ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl rlwrap"
+    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpsec-ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl rlwrap proxychains4"
 elif command -v pacman >/dev/null; then
     PKG_MANAGER="pacman"
-    PACKAGES="python python-pip python-virtualenv nmap smbmap john libsasl openldap krb5 ntp wget zip unzip systemd python-pipx swig curl jq openssl"
+    PACKAGES="python python-pip python-virtualenv nmap smbmap john libsasl openldap krb5 ntp wget zip unzip systemd python-pipx swig curl jq openssl rlwrap proxychains-ng"
 elif command -v dnf >/dev/null; then
     PKG_MANAGER="dnf"
-    PACKAGES="python3 python3-devel python3-pip nmap john curl jq openssl wget zip unzip rlwrap krb5-devel openldap-devel cyrus-sasl-devel gcc"
+    PACKAGES="python3 python3-devel python3-pip nmap john curl jq openssl wget zip unzip rlwrap krb5-devel openldap-devel cyrus-sasl-devel gcc proxychains-ng"
 else
     echo -e "${RED}[Error]${NC} Unsupported Linux distribution"
     exit 1
@@ -35,10 +35,10 @@ pipx_install_or_upgrade() {
 
 #Add to PATH
 echo -e "${BLUE}Adding "linWinPwn" to PATH ...${NC}"
-echo -e "rlwrap -Nn ${install_dir}/linWinPwn.sh \$@" | sudo tee "/usr/local/sbin/linWinPwn"
+echo -e "rlwrap -Nn ${install_dir}/linWinPwn.sh \"\$@\"" | sudo tee "/usr/local/sbin/linWinPwn"
 sudo chmod 755 /usr/local/sbin/linWinPwn
 echo -e "${BLUE}Adding "linWinPwn_proxychains" to PATH ...${NC}"
-echo -e "rlwrap -Nn proxychains -q ${install_dir}/linWinPwn.sh --dns-tcp \$@" | sudo tee "/usr/local/sbin/linWinPwn_proxychains"
+echo -e "rlwrap -Nn proxychains -q ${install_dir}/linWinPwn.sh --dns-tcp \"\$@\"" | sudo tee "/usr/local/sbin/linWinPwn_proxychains"
 sudo chmod 755 /usr/local/sbin/linWinPwn_proxychains
 sudo chmod +x ${install_dir}/linWinPwn.sh
 
