@@ -409,8 +409,23 @@ run_command() {
             echo "$(date '+%F %T'); $*" >> "$command_log"
             echo -e "${YELLOW}[i]${NC} Running command: $*" > /dev/tty
         fi
-        /usr/bin/script -qc "$@" /dev/null
-        return $?
+        # A netexec run proxied through proxychains can wedge (stuck worker holding the
+        # PTY that 'script' waits on), hanging the whole run so it never returns to the
+        # menu. Apply a per-command timeout, but only to netexec and only when proxied
+        # (the linWinPwn_proxychains wrapper sets LD_PRELOAD via 'proxychains -q'), so
+        # interactive consoles (smbclient/mssqlclient/wmiexec/...) are never killed.
+        # Override the duration with cmd_timeout=<seconds>; disable with cmd_timeout=0.
+        if [ -n "${netexec}" ] && [[ "$*" == *"${netexec}"* ]] && [ "${cmd_timeout}" != "0" ] \
+            && { [ -n "${cmd_timeout}" ] || [[ "${LD_PRELOAD}" == *proxychains* ]]; }; then
+            local to="${cmd_timeout:-1800}"
+            timeout -k 30 "${to}" /usr/bin/script -qc "$@" /dev/null
+            local rc=$?
+            [ "$rc" -eq 124 ] && echo -e "${RED}[-] netexec command timed out (${to}s) - continuing${NC}" > /dev/tty
+            return $rc
+        else
+            /usr/bin/script -qc "$@" /dev/null
+            return $?
+        fi
     else
         echo -e "${YELLOW}[i]${NC} Printing command: $*" > /dev/tty
     fi
