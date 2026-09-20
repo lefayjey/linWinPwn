@@ -102,12 +102,12 @@ install_tools() {
     pipx_install_or_upgrade git+https://github.com/synacktiv/gpoParser gpoParser
     pipx_install_or_upgrade git+https://github.com/cogiceo/daclsearch daclsearch
     pipx_install_or_upgrade git+https://github.com/sikumy/spearspray spearspray
-    pipx_install_or_upgrade $scripts_dir/ShareHound-main/Python ShareHound
     pipx_install_or_upgrade git+https://github.com/mverschu/adwsdomaindump adwsdomaindump
     pipx_install_or_upgrade git+https://github.com/l4rm4nd/PyADRecon pyadrecon
     pipx_install_or_upgrade git+https://github.com/l4rm4nd/PyADRecon-ADWS pyadrecon_adws
     pipx_install_or_upgrade git+https://github.com/aniqfakhrul/powerview.py powerview
     pipx_install_or_upgrade git+https://github.com/adityatelange/evil-winrm-py evil-winrm-py
+
     echo -e ""
     echo -e "${BLUE}Downloading tools and scripts using wget and unzipping...${NC}"
     sudo mkdir -p ${scripts_dir}
@@ -162,6 +162,7 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/nnnnino/rbcdbrute/main/rbcdbrute.py" -O "$scripts_dir/rbcdbrute.py"
 
     unzip -o "$scripts_dir/ShareHound.zip" -d "$scripts_dir"
+    pipx_install_or_upgrade $scripts_dir/ShareHound-main/Python ShareHound
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/orpheus.zip" -d "$scripts_dir"

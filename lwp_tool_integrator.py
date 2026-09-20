@@ -125,7 +125,9 @@ def add_tool_wrapper(content, func_name, var_name, parent_menu, auth_mapping, bi
     exec_cmd = f"${{{var_name}}}"
     if binary_name and (binary_name.endswith(".py") or True):  # Always use ${python3} for scripts in $scripts_dir
         exec_cmd = f"${{python3}} ${{{var_name}}}"
-    
+    else
+        exec_cmd = f"${{{var_name}}}"
+
     if unsupported_checks:
         action_block = f"    echo -e \"${{BLUE}}[*] Running {func_name}...${{NC}}\"\n    if {' || '.join(unsupported_checks)}; then\n        echo -e \"${{PURPLE}}[-] {func_name} does not support {' or '.join(unsupported_names)} authentication${{NC}}\"\n    else\n        run_command \"{exec_cmd} ${{argument_{var_name}}}\"\n    fi"
     else:

