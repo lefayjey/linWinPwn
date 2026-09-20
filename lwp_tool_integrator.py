@@ -41,7 +41,7 @@ def add_tool_variable(content, tool_name, install_cmd, binary_name, tool_type):
         return content
 
     if tool_type == "binary":
-        var_line = f"{tool_name}=$(which {binary_name})"
+        var_line = f"{tool_name}=$(command -v {binary_name})"
     else:
         var_line = f"{tool_name}=\"$scripts_dir/{binary_name}\""
 
@@ -70,9 +70,8 @@ def insert_line_before_anchor(anchor_pattern, new_line, content, duplicate_check
     match = re.search(r"^([ \t]*)" + anchor_pattern, content, flags=re.MULTILINE)
     if not match:
         return content
-    # Avoid duplicates — look in the 500 chars preceding the anchor
-    preceding = content[max(0, match.start() - 500):match.start()]
-    if duplicate_check in preceding:
+    # Avoid duplicates — check entire content for the duplicate_check string
+    if duplicate_check in content:
         return content
     indent = match.group(1)
     return content[:match.start()] + indent + new_line + content[match.start():]
@@ -103,7 +102,7 @@ def patch_auth_arguments(content, tool_name, auth_mapping):
 
     return content
 
-def add_tool_wrapper(content, func_name, var_name, parent_menu, auth_mapping):
+def add_tool_wrapper(content, func_name, var_name, parent_menu, auth_mapping, binary_name=None):
     print(f"{C_BLUE}[*] Adding wrapper {func_name}...{C_NC}")
     if f"{func_name}()" in content: return content
 
@@ -122,10 +121,15 @@ def add_tool_wrapper(content, func_name, var_name, parent_menu, auth_mapping):
             unsupported_checks.append(f"[ \"{bool_var}\" == true ]")
             unsupported_names.append(display_name)
 
+    # Determine if this is a Python script that needs ${python3} prefix
+    exec_cmd = f"${{{var_name}}}"
+    if binary_name and (binary_name.endswith(".py") or True):  # Always use ${python3} for scripts in $scripts_dir
+        exec_cmd = f"${{python3}} ${{{var_name}}}"
+    
     if unsupported_checks:
-        action_block = f"    echo -e \"${{BLUE}}[*] Running {func_name}...${{NC}}\"\n    if {' || '.join(unsupported_checks)}; then\n        echo -e \"${{PURPLE}}[-] {func_name} does not support {' or '.join(unsupported_names)} authentication${{NC}}\"\n    else\n        run_command \"${{{var_name}}} ${{argument_{var_name}}}\"\n    fi"
+        action_block = f"    echo -e \"${{BLUE}}[*] Running {func_name}...${{NC}}\"\n    if {' || '.join(unsupported_checks)}; then\n        echo -e \"${{PURPLE}}[-] {func_name} does not support {' or '.join(unsupported_names)} authentication${{NC}}\"\n    else\n        run_command \"{exec_cmd} ${{argument_{var_name}}}\"\n    fi"
     else:
-        action_block = f"    echo -e \"${{BLUE}}[*] Running {func_name}...${{NC}}\"\n    run_command \"${{{var_name}}} ${{argument_{var_name}}}\""
+        action_block = f"    echo -e \"${{BLUE}}[*] Running {func_name}...${{NC}}\"\n    run_command \"{exec_cmd} ${{argument_{var_name}}}\""
 
     wrapper_code = f"{func_name}() {{\n    if ! stat \"${{{var_name}}}\" >/dev/null 2>&1; then\n        echo -e \"${{RED}}[-] Please verify the installation of {var_name}${{NC}}\"\n        return\n    fi\n\n{action_block}\n    \n    echo -e \"\"\n}}\n"
 
@@ -189,26 +193,42 @@ def patch_installer(var_name, cmd, bin_name, tool_type):
                     matches = list(re.finditer(r"(chmod \+x .*?\n)", content))
                     if matches: content = content[:matches[0].start()] + "    " + extract_line + "\n\n" + content[matches[0].start():]
             
-    if tool_type == "script":
-        matches = list(re.finditer(r"(chmod \+x .*?\n)", content))
-        if matches: content = content[:matches[-1].end()] + f"    chmod +x \"$scripts_dir/{bin_name}\"\n" + content[matches[-1].end():]
+    # Apply chmod +x to all downloads to $scripts_dir (both scripts and binaries)
+    if "wget" in cmd:
+        match = re.search(r"-O\s+[\"']?(\$\{?scripts_dir\}?/[^\s\"']+)[\"']?", cmd)
+        if match:
+            bin_name = match.group(1).split("/")[-1]
+            # Remove archive extensions if present
+            if bin_name.endswith(".zip") or bin_name.endswith(".tar.gz") or bin_name.endswith(".tgz"):
+                pass  # Don't chmod archives
+            else:
+                matches = list(re.finditer(r"(chmod \+x .*?\n)", content))
+                if matches: content = content[:matches[-1].end()] + f"    chmod +x \"$scripts_dir/{bin_name}\"\n" + content[matches[-1].end():]
 
     write_file(INSTALL_PATH, content)
 
 def patch_readme_docs(tool_name, url, parent_menu, option_text, auth_mapping):
-    print(f"{C_BLUE}[*] Patching README.md for {tool_name}...{C_NC}")
+    print(f"{C_BLUE}[*] Patching documentation for {tool_name}...{C_NC}")
+    
+    # Target MENUS.md for menu entries (not README.md)
+    menus_path = os.path.join(SCRIPT_DIR, "./MENUS.md")
+    if os.path.exists(menus_path):
+        menus_content = read_file(menus_path)
+        
+        menu_labels = {"ad_menu": "AD Enum menu", "adcs_menu": "ADCS menu", "sccm_menu": "SCCM menu", "gpo_menu": "GPO Menu", "bruteforce_menu": "BruteForce menu", "kerberos_menu": "Kerberos Attacks menu", "shares_menu": "SMB Shares menu", "vulns_menu": "Vuln Checks menu", "mssql_menu": "MSSQL Enumeration menu", "pwd_menu": "Password Dump menu", "modif_menu": "Modification menu", "cmdexec_menu": "Command Execution menu", "netscan_menu": "Network Scan menu"}
+        menus_menu = menu_labels.get(parent_menu)
+        if menus_menu:
+            match = re.search(rf"({menus_menu}\n```\n)(.*?)(\n```)", menus_content, flags=re.DOTALL)
+            if match and option_text not in match.group(2):
+                lines = match.group(2).strip().split('\n')
+                last_match = re.match(r"(\d+|[a-zA-Z]+)\)", lines[-1]) if lines else None
+                next_num = str(int(last_match.group(1)) + 1) if last_match and last_match.group(1).isdigit() else (last_match.group(1) + "+" if last_match else "1")
+                menus_content = menus_content.replace(match.group(0), match.group(1) + match.group(2).strip() + "\n" + f"{next_num}) {option_text}" + match.group(3))
+                write_file(menus_path, menus_content)
+    
+    # Target README.md for tool credits and auth table only
     if not os.path.exists(README_PATH): return
     content = read_file(README_PATH)
-    
-    menu_labels = {"ad_menu": "AD Enum menu", "adcs_menu": "ADCS menu", "sccm_menu": "SCCM menu", "gpo_menu": "GPO Menu", "bruteforce_menu": "BruteForce menu", "kerberos_menu": "Kerberos Attacks menu", "shares_menu": "SMB Shares menu", "vulns_menu": "Vuln Checks menu", "mssql_menu": "MSSQL Enumeration menu", "pwd_menu": "Password Dump menu", "modif_menu": "Modification menu", "cmdexec_menu": "Command Execution menu", "netscan_menu": "Network Scan menu"}
-    readme_menu = menu_labels.get(parent_menu)
-    if readme_menu:
-        match = re.search(rf"({readme_menu}\n```\n)(.*?)(\n```)", content, flags=re.DOTALL)
-        if match and option_text not in match.group(2):
-            lines = match.group(2).strip().split('\n')
-            last_match = re.match(r"(\d+|[a-zA-Z]+)\)", lines[-1]) if lines else None
-            next_num = str(int(last_match.group(1)) + 1) if last_match and last_match.group(1).isdigit() else (last_match.group(1) + "+" if last_match else "1")
-            content = content.replace(match.group(0), match.group(1) + match.group(2).strip() + "\n" + f"{next_num}) {option_text}" + match.group(3))
 
     if url:
         author_match = re.search(r"github\.com/([^/]+)", url)
@@ -267,7 +287,7 @@ def main():
     content = read_file(LINWINPWN_PATH)
     content = add_tool_variable(content, config['variable_name'], config.get('install_cmd'), config['binary_name'], config.get('type', 'binary'))
     if config.get('auth_mapping'): content = patch_auth_arguments(content, config['variable_name'], config['auth_mapping'])
-    content = add_tool_wrapper(content, config['wrapper_function']['name'], config['variable_name'], parent_menu, config.get('auth_mapping', {}))
+    content = add_tool_wrapper(content, config['wrapper_function']['name'], config['variable_name'], parent_menu, config.get('auth_mapping', {}), config['binary_name'])
     content = patch_menu_entry(content, parent_menu, config['variable_name'], config['menu_info']['option_text'], config['wrapper_function']['name'])
     content = patch_dep_check(content, config['variable_name'], config['tool_name'])
     write_file(LINWINPWN_PATH, content)

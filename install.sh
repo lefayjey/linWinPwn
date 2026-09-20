@@ -15,13 +15,13 @@ install_dir="$(dirname "$(readlink -f "$0")")"
 # Detect Linux Distribution
 if command -v apt-get >/dev/null; then
     PKG_MANAGER="apt-get"
-    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpsec-ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl rlwrap"
+    PACKAGES="python3 python3-dev python3-pip python3-venv nmap smbmap john libsasl2-dev libldap2-dev libkrb5-dev ntpsec-ntpdate wget zip unzip systemd-timesyncd pipx swig curl jq openssl rlwrap bind9-dnsutils"
 elif command -v pacman >/dev/null; then
     PKG_MANAGER="pacman"
-    PACKAGES="python python-pip python-virtualenv nmap smbmap john libsasl openldap krb5 ntp wget zip unzip systemd python-pipx swig curl jq openssl"
+    PACKAGES="python python-pip python-virtualenv nmap smbmap john libsasl openldap krb5 ntp wget zip unzip systemd python-pipx swig curl jq openssl rlwrap dnsutils"
 elif command -v dnf >/dev/null; then
     PKG_MANAGER="dnf"
-    PACKAGES="python3 python3-devel python3-pip nmap john curl jq openssl wget zip unzip rlwrap krb5-devel openldap-devel cyrus-sasl-devel gcc"
+    PACKAGES="python3 python3-devel python3-pip nmap john curl jq openssl wget zip unzip rlwrap krb5-devel openldap-devel cyrus-sasl-devel gcc bind-utils"
 else
     echo -e "${RED}[Error]${NC} Unsupported Linux distribution"
     exit 1
@@ -30,15 +30,19 @@ fi
 pipx_install_or_upgrade() {
     local url="$1"
     local package_name="$2"
-    [[ $(pipx list) =~ $package_name ]] && pipx upgrade "$package_name" || pipx install "$url"
+    if pipx list --short | awk '{print $1}' | grep -qx "$package_name"; then
+        pipx upgrade "$package_name"
+    else
+        pipx install "$url"
+    fi
 }
 
 #Add to PATH
 echo -e "${BLUE}Adding "linWinPwn" to PATH ...${NC}"
-echo -e "rlwrap -Nn ${install_dir}/linWinPwn.sh \$@" | sudo tee "/usr/local/sbin/linWinPwn"
+printf '#!/bin/bash\nexec rlwrap -Nn "%s/linWinPwn.sh" "$@"\n' "${install_dir}" | sudo tee /usr/local/sbin/linWinPwn >/dev/null
 sudo chmod 755 /usr/local/sbin/linWinPwn
 echo -e "${BLUE}Adding "linWinPwn_proxychains" to PATH ...${NC}"
-echo -e "rlwrap -Nn proxychains -q ${install_dir}/linWinPwn.sh --dns-tcp \$@" | sudo tee "/usr/local/sbin/linWinPwn_proxychains"
+printf '#!/bin/bash\nexec rlwrap -Nn proxychains -q "%s/linWinPwn.sh" --dns-tcp "$@"\n' "${install_dir}" | sudo tee /usr/local/sbin/linWinPwn_proxychains >/dev/null
 sudo chmod 755 /usr/local/sbin/linWinPwn_proxychains
 sudo chmod +x ${install_dir}/linWinPwn.sh
 
@@ -69,16 +73,16 @@ install_tools() {
     echo -e "${BLUE}Installing python tools using pip and pipx...${NC}"
     pipx ensurepath
     pipx install git+https://github.com/deadjakk/ldapdomaindump --force #LDAP Channel Binding
-    /home/$(whoami)/.local/share/pipx/venvs/ldapdomaindump/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
+    pipx runpip ldapdomaindump install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     #pipx_install_or_upgrade git+https://github.com/dirkjanm/ldapdomaindump ldapdomaindump
     pipx_install_or_upgrade git+https://github.com/Pennyw0rth/netexec netexec
     pipx_install_or_upgrade git+https://github.com/fortra/impacket impacket
     pipx_install_or_upgrade git+https://github.com/zer1t0/certi certi
     pipx_install_or_upgrade git+https://github.com/ly4k/certipy certipy-ad
     pipx_install_or_upgrade git+https://github.com/dirkjanm/bloodhound.py bloodhound
-    /home/$(whoami)/.local/share/pipx/venvs/bloodhound/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
+    pipx runpip bloodhound install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx_install_or_upgrade "git+https://github.com/dirkjanm/BloodHound.py@bloodhound-ce" bloodhound-ce
-    /home/$(whoami)/.local/share/pipx/venvs/bloodhound-ce/bin/python3 -m pip install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
+    pipx runpip bloodhound-ce install git+https://github.com/ly4k/ldap3 #LDAP Channel Binding
     pipx_install_or_upgrade git+https://github.com/franc-pentest/ldeep ldeep
     pipx_install_or_upgrade git+https://github.com/garrettfoster13/pre2k pre2k
     pipx_install_or_upgrade git+https://github.com/zblurx/certsync certsync
@@ -98,8 +102,6 @@ install_tools() {
     pipx_install_or_upgrade git+https://github.com/synacktiv/gpoParser gpoParser
     pipx_install_or_upgrade git+https://github.com/cogiceo/daclsearch daclsearch
     pipx_install_or_upgrade git+https://github.com/sikumy/spearspray spearspray
-    wget -q "https://github.com/p0dalirius/ShareHound/archive/refs/heads/main.zip" -O "$scripts_dir/ShareHound.zip"
-    unzip -o "$scripts_dir/ShareHound.zip" -d "$scripts_dir"
     pipx_install_or_upgrade $scripts_dir/ShareHound-main/Python ShareHound
     pipx_install_or_upgrade git+https://github.com/mverschu/adwsdomaindump adwsdomaindump
     pipx_install_or_upgrade git+https://github.com/l4rm4nd/PyADRecon pyadrecon
@@ -117,7 +119,8 @@ install_tools() {
     pip3 install PyYAML alive-progress xlsxwriter sectools typer[all] impacket tabulate arc4 msldap pandas requests requests_ntlm requests_toolbelt cmd2 pycryptodome bs4 pyasn1_modules smbprotocol[kerberos] pydantic lxml bloodhound-opengraph termcolor dnspython tqdm --upgrade
     pip3 install ldap3-bleeding-edge #LDAP Channel Binding
     deactivate
-    
+
+    wget -q "https://github.com/p0dalirius/ShareHound/archive/refs/heads/main.zip" -O "$scripts_dir/ShareHound.zip"
     wget -q "https://github.com/ropnop/go-windapsearch/releases/latest/download/windapsearch-linux-amd64" -O "$scripts_dir/windapsearch"
     wget -q "https://github.com/ropnop/kerbrute/releases/latest/download/kerbrute_linux_amd64" -O "$scripts_dir/kerbrute"
     wget -q "https://raw.githubusercontent.com/cddmp/enum4linux-ng/master/enum4linux-ng.py" -O "$scripts_dir/enum4linux-ng.py"
@@ -158,6 +161,7 @@ install_tools() {
     wget -q "https://raw.githubusercontent.com/p0dalirius/GhostSPN/main/GhostSPN.py" -O "$scripts_dir/GhostSPN.py"
     wget -q "https://raw.githubusercontent.com/nnnnino/rbcdbrute/main/rbcdbrute.py" -O "$scripts_dir/rbcdbrute.py"
 
+    unzip -o "$scripts_dir/ShareHound.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/aced.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/sccmhunter.zip" -d "$scripts_dir"
     unzip -o "$scripts_dir/orpheus.zip" -d "$scripts_dir"
@@ -208,6 +212,9 @@ install_tools() {
     chmod +x "$scripts_dir/ADPulse-main/ADPulse.py"
     chmod +x "$scripts_dir/GhostSPN.py"
     chmod +x "$scripts_dir/rbcdbrute.py"
+    
+    # Cleanup downloaded archives
+    rm -f "$scripts_dir"/*.zip "$scripts_dir"/*.tar.gz
 }
 
 install_tools || { echo -e "\n${RED}[Failure]${NC} Installing tools failed.. exiting script!\n"; exit 1; }
