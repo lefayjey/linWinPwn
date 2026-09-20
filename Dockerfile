@@ -18,7 +18,7 @@ RUN chmod +x /opt/linWinPwn/install.sh \
     && rm -rf /root/.cache /tmp/* /var/tmp/*
 
 # 3. Copy main script and configs (fast rebuilds when scripts change)
-COPY linWinPwn.sh MENUS.md README.md /opt/linWinPwn/
+COPY linWinPwn.sh /opt/linWinPwn/
 RUN chmod +x /opt/linWinPwn/linWinPwn.sh \
     && mkdir -p /opt/lwp-output /opt/lwp-wordlists
 
