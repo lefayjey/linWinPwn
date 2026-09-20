@@ -125,7 +125,7 @@ def add_tool_wrapper(content, func_name, var_name, parent_menu, auth_mapping, bi
     exec_cmd = f"${{{var_name}}}"
     if binary_name and (binary_name.endswith(".py") or True):  # Always use ${python3} for scripts in $scripts_dir
         exec_cmd = f"${{python3}} ${{{var_name}}}"
-    else
+    else:
         exec_cmd = f"${{{var_name}}}"
 
     if unsupported_checks:
