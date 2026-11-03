@@ -2767,7 +2767,7 @@ gpoparser_enum() {
         if [ "${aeskey_bool}" == true ] || [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] gpoParser requires credentials and does not support Kerberos authentication using AES Key${NC}"
         else
-            run_command "${gpoParser} remote ${argument_gpopars} -s ${dc_FQDN} -o ${GPO_dir}/GPOParser_${user_var}.out -c ${GPO_dir}" | tee "${GPO_dir}/gpoparser_output_${user_var}.txt"
+            run_command "${gpoParser} remote ${argument_gpopars} -s ${dc_FQDN} -o ${GPO_dir}/GPOParser_${user_var}.json" | tee "${GPO_dir}/gpoparser_output_${user_var}.txt"
         fi
     fi
     echo -e ""
