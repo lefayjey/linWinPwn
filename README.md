@@ -98,6 +98,13 @@ linWinPwn -t <Domain_Controller_IP> --auto-config
 linWinPwn -t <Domain_Controller_IP> --ldaps
 ```
 
+**LDAP Signing / Channel Binding** - (see [LDAP Signing and Channel Binding support](#ldap-signing-and-channel-binding-support))
+
+```bash
+linWinPwn -t <Domain_Controller_IP> --ldap-sign
+linWinPwn -t <Domain_Controller_IP> --ldaps --ldap-bind
+```
+
 **Force Kerberos Auth** - Force using Kerberos authentication instead of NTLM (when possible)
 
 ```bash
@@ -211,10 +218,22 @@ linWinPwn_proxychains -t <Domain_Controller_IP>  -d <AD_domain> -u <AD_user> [-p
 | `rbcdbrute`             | ❌           | ✅       | ✅        | ✅             | ✅         | ❌         |
 | `xfreerdp`              | ❌           | ✅       | ✅        | ✅             | ❌         | ❌         |
 
-#### LDAP Channel Binding support
-ldap3: netexec, ldapdomaindump (NTLM), Certipy, pre2k, bloodhound, ldeep, GroupPolicyBackdoor, relayking
+#### LDAP Signing and Channel Binding support
+Tools that expose their own options get them according to `--ldap-sign` / `--ldap-bind` (or the auto-detected values):
 
-msldap: bloodyAD
+| Tool                    | LDAP Signing (`--ldap-sign`)                          | LDAP Channel Binding (`--ldap-bind`)                       |
+| ----------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| `Certipy`               | default on, `-no-ldap-signing` if not enforced        | default on, `-no-ldap-channel-binding` if not enforced     |
+| `PowerView.py`          | `--use-sign-and-seal`                                 | `--use-channel-binding`                                    |
+| `sccmhunter` (find, http) | `-signing` (LDAP only)                              | `-binding`                                                 |
+| `pre2k`                 | ❌                                                    | `-binding` (with `-ldaps`)                                 |
+| `bloodhound` (legacy)   | ❌                                                    | `--ldap-channel-binding` (with `--use-ldaps`)              |
+| `ldapdomaindump`        | ❌                                                    | `--ldap-channel-binding` (with `ldaps://`)                 |
+| `Adalanche`             | ❌                                                    | default on, `--channelbinding=false` if not enforced       |
+
+Tools that handle signing and channel binding automatically (no options needed): netexec, impacket (incl. badsuccessor), bloodhound-ce (channel binding automatic with `--use-ldaps`), bloodyAD (`-s`), ldeep (encrypted by default), GroupPolicyBackdoor.
+
+Other LDAP tools (aced, certsync, daclsearch, GhostSPN, GPOwned, godap, LDAPPER, ldapconsole, LDAPWordlistHarvester, ldapnomnom, mssqlrelay, PyADRecon, pyGPOAbuse, pyLDAPmonitor, RelayKing, ShareHound, SilentHound, spearspray, targetedKerberoast, windapsearch, ADCheck, FindUncommonShares, FindUnusualSessions) have no signing/channel binding option and only support switching to LDAPS with `--ldaps`.
 
 #### LDAP Custom port support
 netexec, ldapdomaindump, ldeep, windapsearch, godap, pre2k, ldapnomnom
