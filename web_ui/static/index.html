@@ -115,6 +115,7 @@
         <button data-tab="lwp" class="active">linWinPwn terminal</button>
         <button data-tab="shell">Embedded shell</button>
         <button data-tab="history">Command history <span id="histCount" class="tab-count">0</span></button>
+        <button data-tab="bh">BloodHound</button>
         <button data-tab="loot">Output / loot</button>
       </div>
 
@@ -181,6 +182,65 @@
             <button id="histClear" class="btn btn-ghost sm">clear</button>
           </div>
           <ol id="histList" class="hist-list"></ol>
+        </div>
+      </section>
+
+      <section class="tabpane hidden" data-tab="bh">
+        <div class="bh">
+          <!-- source picker -->
+          <div class="bh-src" id="bhSrc">
+            <div class="bh-intro">
+              <h3>Active Directory hygiene report</h3>
+              <p>Load a BloodHound collection (the zip linWinPwn produces, a folder of
+                 <code>*_users.json</code> files, or a single json) to get an inventory of the
+                 directory and the hygiene problems worth fixing, with the list of objects
+                 concerned.</p>
+              <p class="bh-scope">Inventory and hardening only. This does not compute attack paths:
+                 for those, import the same collection into BloodHound CE.</p>
+            </div>
+            <div class="bh-actions">
+              <label class="bh-drop" id="bhDrop">
+                <input type="file" id="bhFile" accept=".zip,.json" hidden>
+                <span class="bh-drop-ico">⬆</span>
+                <span>Drop a BloodHound zip here, or click to pick a file</span>
+                <span class="hint">.zip or .json · up to 512 MB</span>
+              </label>
+              <div class="bh-found">
+                <div class="bh-found-head">
+                  <span>Found in your output folder</span>
+                  <button class="btn btn-ghost sm" id="bhRescan">rescan</button>
+                </div>
+                <ul id="bhFoundList" class="bh-found-list"><li class="dim">scanning…</li></ul>
+              </div>
+            </div>
+            <div id="bhError" class="cfg-error hidden"></div>
+          </div>
+
+          <!-- report -->
+          <div class="bh-report hidden" id="bhReport">
+            <div class="bh-bar">
+              <span class="crumb" id="bhLabel"></span>
+              <span class="bh-sev" id="bhSevChips"></span>
+              <div class="spacer"></div>
+              <button class="btn btn-ghost sm" id="bhExport">export .md</button>
+              <button class="btn btn-ghost sm" id="bhNew">load another</button>
+            </div>
+            <div class="bh-body">
+              <div class="bh-stats" id="bhStats"></div>
+              <div class="bh-cols">
+                <div class="bh-col">
+                  <h4>Privileged groups</h4>
+                  <div id="bhPriv" class="bh-bars"></div>
+                </div>
+                <div class="bh-col">
+                  <h4>Operating systems</h4>
+                  <div id="bhOs" class="bh-bars"></div>
+                </div>
+              </div>
+              <h4 class="bh-h">Findings <span class="dim" id="bhCount"></span></h4>
+              <div id="bhChecks" class="bh-checks"></div>
+            </div>
+          </div>
         </div>
       </section>
 

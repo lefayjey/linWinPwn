@@ -378,6 +378,146 @@ function addHistory(cmd) {
   qs("#histList").appendChild(li);
 }
 
+
+/* ======================= BloodHound inventory ======================= */
+/* Defensive only: inventory + AD hygiene. No attack path analysis here. */
+const SEV_LABEL = {high:"high", medium:"medium", low:"low", info:"info"};
+
+async function bhDiscover() {
+  const ul = qs("#bhFoundList");
+  ul.innerHTML = `<li class="dim">scanning…</li>`;
+  const j = await api("/api/bh/discover").then(r=>r.json()).catch(()=>({}));
+  ul.innerHTML = "";
+  const rows = [];
+  (j.folders||[]).forEach(f => rows.push({label:`📁 ${f.path||"/"}`, sub:`${f.count} json`, path:f.path}));
+  (j.files||[]).filter(f=>f.name.toLowerCase().endsWith(".zip"))
+    .forEach(f => rows.push({label:`${f.uploaded?"⬆":"🗜"} ${f.name}`,
+                             sub:(f.uploaded?"uploaded · ":"") + fmtSize(f.size), path:f.path}));
+  if (!rows.length) { ul.innerHTML = `<li class="dim">no BloodHound output found yet</li>`; return; }
+  rows.slice(0,40).forEach(r => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span>${esc(r.label)}</span><span class="sz">${esc(r.sub)}</span>`;
+    li.onclick = () => bhScan(r.path);
+    ul.appendChild(li);
+  });
+}
+
+function bhBusy(msg) {
+  qs("#bhError").classList.add("hidden");
+  qs("#bhFoundList").innerHTML = `<li class="dim">${esc(msg)}</li>`;
+}
+function bhFail(msg) {
+  const e = qs("#bhError"); e.textContent = msg; e.classList.remove("hidden");
+  bhDiscover();
+}
+
+async function bhScan(path) {
+  bhBusy("analysing " + path + " …");
+  const r = await api("/api/bh/scan",{method:"POST",body:JSON.stringify({path})});
+  const j = await r.json().catch(()=>({}));
+  if (!j.ok) return bhFail(j.error || ("HTTP " + r.status));
+  bhRender(j.report);
+}
+
+async function bhUpload(file) {
+  if (!file) return;
+  bhBusy("uploading " + file.name + " …");
+  const fd = new FormData(); fd.append("file", file);
+  const r = await fetch(`/api/bh/upload?token=${encodeURIComponent(TOKEN)}`,
+    {method:"POST", headers:{"X-Auth-Token":TOKEN}, body:fd});
+  const j = await r.json().catch(()=>({}));
+  if (!j.ok) return bhFail(j.error || ("HTTP " + r.status));
+  bhRender(j.report);
+}
+
+function bhRender(rep) {
+  qs("#bhSrc").classList.add("hidden");
+  qs("#bhReport").classList.remove("hidden");
+  const st = rep.stats;
+  qs("#bhLabel").innerHTML = `<b>${esc(st.domains.join(", ") || rep.label)}</b>` +
+    (st.collected ? ` · collected ${esc(String(st.collected).slice(0,10))}` : "") +
+    ` · ${esc(rep.label)}`;
+  qs("#bhSevChips").innerHTML = ["high","medium","low","info"]
+    .filter(k => rep.severity[k])
+    .map(k => `<span class="sev-chip sev-${k}">${rep.severity[k]} ${SEV_LABEL[k]}</span>`).join("");
+
+  const stat = (v, l, s="") => `<div class="stat"><div class="v">${v}</div><div class="l">${l}</div>` +
+    (s ? `<div class="s">${s}</div>` : "") + `</div>`;
+  qs("#bhStats").innerHTML =
+    stat(st.users_enabled, "enabled users", `${st.users} total`) +
+    stat(st.computers_enabled, "enabled computers", `${st.computers} total`) +
+    stat(st.domain_admins, "domain admins") +
+    stat(st.dcs, "domain controllers") +
+    stat(st.groups, "groups") +
+    stat(st.ous, "OUs") +
+    stat(st.gpos, "GPOs") +
+    stat(rep.seconds < 1 ? Math.max(1, Math.round(rep.seconds*1000)) + "ms" : rep.seconds + "s",
+         "parse time", `${st.objects} objects`);
+
+  const bars = (rows, nameKey, max, warnFn) => {
+    const top = Math.max(1, ...rows.map(r=>r.count));
+    return rows.slice(0,max).map(r => {
+      const w = Math.round(100 * r.count / top);
+      const warn = warnFn && warnFn(r) ? " warn" : "";
+      return `<div class="bar-row"><span class="nm" title="${esc(r[nameKey])}">${esc(r[nameKey])}</span>` +
+             `<span class="bar-track"><span class="bar-fill${warn}" style="width:${w}%"></span></span>` +
+             `<span class="n">${r.count}</span></div>`;
+    }).join("") || `<div class="dim">none</div>`;
+  };
+  qs("#bhPriv").innerHTML = bars(rep.privileged_groups.filter(r=>r.count>0), "group", 10,
+    r => r.group === "Domain Admins" && r.count > 10);
+  const oldOs = /windows (xp|vista|7|8|2000|server 2003|server 2008|server 2012)|2003|2008|2012/i;
+  qs("#bhOs").innerHTML = bars(rep.os_breakdown, "os", 10, r => oldOs.test(r.os));
+
+  qs("#bhCount").textContent = `· ${rep.checks.length} checks`;
+  const box = qs("#bhChecks"); box.innerHTML = "";
+  rep.checks.forEach((c, i) => {
+    const el = document.createElement("div");
+    el.className = "chk";
+    const pct = c.pct !== null && c.pct !== undefined ? ` (${c.pct}%)` : "";
+    el.innerHTML =
+      `<div class="chk-head"><span class="sev-chip sev-${c.severity}">${SEV_LABEL[c.severity]}</span>` +
+      `<span class="t">${esc(c.title)}</span>` +
+      `<span class="c">${c.count}${pct}</span><span class="chev">▸</span></div>` +
+      `<div class="chk-body hidden">` +
+        `<p>${esc(c.why)}</p>` +
+        `<p class="fix"><b>Fix.</b> ${esc(c.fix)}</p>` +
+        (c.items.length ? `<ul class="chk-items">` + c.items.map(it =>
+            `<li><span class="nm">${esc(it.name||"")}</span>` +
+            (it.detail ? `<span class="dt">${esc(it.detail)}</span>` : "") + `</li>`).join("") +
+          `</ul>` + (c.truncated ? `<div class="chk-more">showing ${c.items.length} of ${c.count} — full list in the .md export</div>` : "")
+         : "") +
+      `</div>`;
+    const head = el.querySelector(".chk-head"), body = el.querySelector(".chk-body");
+    head.onclick = () => {
+      body.classList.toggle("hidden");
+      el.querySelector(".chev").textContent = body.classList.contains("hidden") ? "▸" : "▾";
+    };
+    if (i < 3) head.click();          // open the first few
+    box.appendChild(el);
+  });
+  qs(".bh").scrollTop = 0;
+}
+
+function wireBh() {
+  qs("#bhFile").onchange = e => bhUpload(e.target.files[0]);
+  const drop = qs("#bhDrop");
+  ["dragenter","dragover"].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave","drop"].forEach(ev => drop.addEventListener(ev, e => {
+    e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => bhUpload(e.dataTransfer.files[0]));
+  qs("#bhRescan").onclick = bhDiscover;
+  qs("#bhNew").onclick = () => {
+    qs("#bhReport").classList.add("hidden");
+    qs("#bhSrc").classList.remove("hidden");
+    qs("#bhFile").value = "";
+    bhDiscover();
+  };
+  qs("#bhExport").onclick = () =>
+    location.href = `/api/bh/export?token=${encodeURIComponent(TOKEN)}`;
+}
+
 /* ======================= config / session ======================= */
 function readConfig() {
   const v = id => (qs("#"+id)?.value||"").trim();
@@ -473,10 +613,12 @@ function switchTab(name){
     else shellTerm.refit();
   }
   if (name==="loot") loadLoot(lootPath);
+  if (name==="bh" && !BH_LOADED) { BH_LOADED = true; bhDiscover(); }
 }
 
 /* ======================= loot browser ======================= */
 let lootPath="";
+let BH_LOADED=false;
 async function loadLoot(path){
   lootPath = path||"";
   qs("#lootPath").textContent = "/"+lootPath;
@@ -502,6 +644,9 @@ async function previewFile(path){
   const dl = `<a href="/api/download?path=${encodeURIComponent(path)}&token=${encodeURIComponent(TOKEN)}">download</a>`;
   if (!j.ok){ view.textContent=j.error||"error"; return; }
   if (j.too_big){ view.innerHTML=`File too large to preview. ${dl}`; return; }
+  if (j.binary){ view.innerHTML =
+    `<div>${esc(path)}</div><div style="margin-top:8px;color:var(--dim)">` +
+    `Binary file, ${fmtSize(j.size)} — no text preview. ${dl}</div>`; return; }
   // linWinPwn writes colour codes into its logs: strip them for reading
   const text = (j.content||"").replace(ANSI_RE, "");
   view.innerHTML = `<div style="margin-bottom:8px">${esc(path)} · ${dl}</div>` + esc(text||"(empty)");
@@ -537,6 +682,7 @@ function wire(){
   qs("#histCopyAll").onclick=()=>navigator.clipboard?.writeText(HISTORY.map(h=>h.cmd).join("\n"));
   qs("#histClear").onclick=()=>{ HISTORY.length=0; qs("#histList").innerHTML=""; qs("#histCount").textContent="0"; };
   qs("#f_target").addEventListener("keydown",e=>{ if(e.key==="Enter") startSession(); });
+  wireBh();
 }
 
 async function init(){

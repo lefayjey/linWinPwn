@@ -31,10 +31,14 @@ import threading
 import time
 import secrets
 import shlex
+import shutil
+import zipfile
 from pathlib import Path
 
 from flask import Flask, request, jsonify, send_from_directory, abort, Response
 from flask_sock import Sock
+
+from bh_inventory import Inventory
 
 HERE = Path(__file__).resolve().parent
 REPO_ROOT = HERE.parent
@@ -48,8 +52,17 @@ DEFAULT_OUTPUT.mkdir(parents=True, exist_ok=True)
 
 AUTH_TOKEN = os.environ.get("LWP_WEB_TOKEN", "")  # empty = no auth (localhost only)
 
+# Uploaded BloodHound archives are untrusted data: they stay in their own
+# directory, are never executed, and are only ever parsed as JSON.
+BH_UPLOADS = DEFAULT_OUTPUT / "_bh_uploads"
+BH_UPLOADS.mkdir(parents=True, exist_ok=True)
+BH_MAX_UPLOAD = 512 * 1024 * 1024
+
 app = Flask(__name__, static_folder=None)
+app.config["MAX_CONTENT_LENGTH"] = BH_MAX_UPLOAD
 sock = Sock(app)
+
+BH_REPORT = {"data": None}      # last inventory report
 
 
 # --------------------------------------------------------------------------- #
@@ -500,10 +513,15 @@ def api_files():
     if p.stat().st_size > 2 * 1024 * 1024:
         return jsonify({"ok": True, "dir": False, "too_big": True, "path": rel})
     try:
-        text = p.read_text(errors="replace")
-        return jsonify({"ok": True, "dir": False, "content": text, "path": rel})
+        raw = p.read_bytes()
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
+    # binary (zip, pcap, kirbi, ccache...): offer the download instead of mojibake
+    if b"\0" in raw[:8192]:
+        return jsonify({"ok": True, "dir": False, "binary": True,
+                        "size": len(raw), "path": rel})
+    return jsonify({"ok": True, "dir": False,
+                    "content": raw.decode("utf-8", errors="replace"), "path": rel})
 
 
 @app.route("/api/download")
@@ -513,6 +531,160 @@ def api_download():
     if not p.exists() or p.is_dir():
         abort(404)
     return send_from_directory(p.parent, p.name, as_attachment=True)
+
+
+# --------------------------------------------------------------------------- #
+# BloodHound inventory (defensive: inventory + AD hygiene, no path analysis)
+# --------------------------------------------------------------------------- #
+def _looks_like_bh(path: Path):
+    """True for a collector zip or a *_users.json style file."""
+    low = path.name.lower()
+    if low.endswith(".zip"):
+        return True
+    return low.endswith(".json") and any(
+        low.endswith(k + ".json") for k in
+        ("users", "computers", "groups", "domains", "gpos", "ous", "containers",
+         "certtemplates", "enterprisecas"))
+
+
+@app.route("/api/bh/discover")
+def api_bh_discover():
+    """BloodHound output already present in the loot folder and in uploads."""
+    found = []
+    for base in (DEFAULT_OUTPUT,):
+        for p in base.rglob("*"):
+            try:
+                if not p.is_file() or not _looks_like_bh(p):
+                    continue
+                rel = p.relative_to(base)
+                found.append({"path": str(rel), "name": p.name,
+                              "size": p.stat().st_size, "mtime": int(p.stat().st_mtime),
+                              "dir": str(rel.parent),
+                              "uploaded": rel.parts[0] == BH_UPLOADS.name})
+            except OSError:
+                continue
+    found.sort(key=lambda f: -f["mtime"])
+    # group loose json by folder so one folder can be scanned as a set
+    folders = {}
+    for f in found:
+        if f["name"].lower().endswith(".json"):
+            folders.setdefault(f["dir"], 0)
+            folders[f["dir"]] += 1
+    return jsonify({"ok": True, "files": found[:200],
+                    "folders": [{"path": k, "count": v} for k, v in
+                                sorted(folders.items(), key=lambda kv: -kv[1])][:50]})
+
+
+@app.route("/api/bh/upload", methods=["POST"])
+def api_bh_upload():
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"ok": False, "error": "no file sent"}), 400
+    name = Path(f.filename).name
+    if not (name.lower().endswith(".zip") or name.lower().endswith(".json")):
+        return jsonify({"ok": False, "error": "only .zip or .json files are accepted"}), 400
+    # one folder per upload: a zip of loose json stays self-contained
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    dest_dir = BH_UPLOADS / f"{stamp}-{secrets.token_hex(3)}"
+    dest_dir.mkdir(parents=True)
+    dest = dest_dir / name
+    f.save(dest)
+    resp = _bh_analyse([dest], label=name)
+    body = resp[0] if isinstance(resp, tuple) else resp
+    if not body.get_json().get("ok"):
+        shutil.rmtree(dest_dir, ignore_errors=True)   # keep failed uploads off disk
+    else:
+        _bh_prune_uploads()
+    return resp
+
+
+def _bh_prune_uploads(keep=10):
+    """Keep only the most recent uploads so the folder does not grow forever."""
+    dirs = sorted((d for d in BH_UPLOADS.iterdir() if d.is_dir()),
+                  key=lambda d: d.stat().st_mtime, reverse=True)
+    for d in dirs[keep:]:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+@app.route("/api/bh/scan", methods=["POST"])
+def api_bh_scan():
+    body = request.get_json(force=True, silent=True) or {}
+    rel = body.get("path", "")
+    p = _safe_output_path(rel)
+    if not p.exists():
+        return jsonify({"ok": False, "error": "not found"}), 404
+    return _bh_analyse([p], label=p.name)
+
+
+def _bh_analyse(paths, label=""):
+    try:
+        inv = Inventory(paths, label=label)
+    except zipfile.BadZipFile:
+        return jsonify({"ok": False, "error": "not a readable zip archive"}), 400
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"could not parse: {e}"}), 500
+    rep = inv.report()
+    BH_REPORT["data"] = rep
+    return jsonify({"ok": True, "report": rep})
+
+
+@app.route("/api/bh/report")
+def api_bh_report():
+    if not BH_REPORT["data"]:
+        return jsonify({"ok": False, "error": "nothing analysed yet"}), 404
+    return jsonify({"ok": True, "report": BH_REPORT["data"]})
+
+
+@app.route("/api/bh/export")
+def api_bh_export():
+    """Markdown report, ready to paste into an audit deliverable."""
+    rep = BH_REPORT["data"]
+    if not rep:
+        return jsonify({"ok": False, "error": "nothing analysed yet"}), 404
+    st = rep["stats"]
+    L = [f"# Active Directory hygiene report",
+         "",
+         f"Source: `{rep['label']}`  ",
+         f"Domain(s): {', '.join(st['domains']) or 'unknown'}  ",
+         f"Collected: {st.get('collected') or 'unknown'}  ",
+         f"Analysed: {time.strftime('%Y-%m-%d %H:%M')}",
+         "",
+         "## Inventory",
+         "",
+         "| | Total | Enabled |",
+         "|---|---|---|",
+         f"| Users | {st['users']} | {st['users_enabled']} |",
+         f"| Computers | {st['computers']} | {st['computers_enabled']} |",
+         f"| Groups | {st['groups']} | |",
+         f"| OUs | {st['ous']} | |",
+         f"| GPOs | {st['gpos']} | |",
+         f"| Domain controllers | {st['dcs']} | |",
+         f"| Domain Admins | {st['domain_admins']} | |",
+         "",
+         "## Findings",
+         ""]
+    for c in rep["checks"]:
+        pct = f" ({c['pct']}% of the estate)" if c.get("pct") is not None else ""
+        L += [f"### [{c['severity'].upper()}] {c['title']} - {c['count']}{pct}", "",
+              c["why"], "", f"**Recommendation.** {c['fix']}", ""]
+        if c["items"]:
+            L.append("<details><summary>Affected objects</summary>")
+            L.append("")
+            for it in c["items"][:100]:
+                d = f" - {it['detail']}" if it.get("detail") else ""
+                L.append(f"- `{it.get('name','')}`{d}")
+            if c["count"] > 100:
+                L.append(f"- ... and {c['count'] - 100} more")
+            L += ["", "</details>", ""]
+    L += ["---", "",
+          "Inventory and hygiene only. For attack path analysis, import the same "
+          "collection into BloodHound CE."]
+    md = "\n".join(L)
+    fname = f"ad-hygiene-{time.strftime('%Y%m%d-%H%M')}.md"
+    return Response(md, mimetype="text/markdown",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
 # --------------------------------------------------------------------------- #

@@ -26,6 +26,7 @@ The dashboard does not rewrite any linWinPwn logic. The backend starts the real 
 - **linWinPwn terminal**: live output of the script (xterm.js, colors kept).
 - **Embedded shell**: a separate bash in the repo folder, for manual commands (netexec, impacket, certipy...). It keeps running when you switch tabs.
 - **Output / loot**: read-only browser of the output folder, with preview and download.
+- **BloodHound tab**: load a collection (the zip linWinPwn produces, a folder of `*_users.json`, or a single json) and get an inventory of the directory plus the AD hygiene problems worth fixing, each with the objects concerned and a remediation note. Export the whole thing as Markdown for a report. See the section below for what it does and does not do.
 - Secrets (`-p`, `-H`, `-A`, `--cert-pass`) are hidden in the command line shown back in the UI.
 
 ## Run it
@@ -65,6 +66,18 @@ Action buttons are active only when the script is back at a menu (`ready`). The 
 
 If you type in the terminal yourself, the UI still follows, since it reads the headers.
 
+## BloodHound tab
+
+Drop a collection on the tab, or pick one it finds in your output folder, and you get:
+
+- **Inventory**: users, computers, groups, OUs, GPOs, domain controllers, Domain Admins, with enabled vs total; size of each privileged group; breakdown of operating systems (obsolete ones in orange).
+- **Hygiene checks**, sorted by severity, each with why it matters, what to do about it, and the list of objects concerned: stale and never-used accounts, passwords that never expire or are over a year old, accounts that do not require a password, Kerberos pre-authentication disabled, user accounts used as services (SPN), privileged group membership, admin accounts not marked sensitive, krbtgt rotation, unconstrained and constrained delegation, unsupported operating systems, Windows 10 end of support, computers without LAPS, credentials left in description fields, domain functional level, trusts without SID filtering, and certificate services (CA accepting a requester-supplied subject, templates where the requester chooses the subject).
+- **Export** as Markdown, with the full object lists, ready to paste into a client report.
+
+Reads bloodhound-python, SharpHound v3+ and CE output. Uploads go to `lwp-output/_bh_uploads/`, are only ever parsed as JSON, and a failed upload is deleted; the last 10 are kept.
+
+**Scope.** This tab counts and describes. It does not compute attack paths, does not rank objects by exploitability, and does not link findings to attack tooling. For attack path analysis, import the same collection into BloodHound CE.
+
 ## Security
 
 This console runs offensive tooling and gives a full shell with the rights of the user who started it.
@@ -79,9 +92,11 @@ This console runs offensive tooling and gives a full shell with the rights of th
 |---|---|
 | `server.py` | Flask backend: PTY manager, websockets, session API, loot browser |
 | `menus.json` | Menu tree shown in the sidebar (mirrors `MENUS.md`) |
+| `bh_inventory.py` | BloodHound parser + AD hygiene checks (standard library only) |
 | `static/` | Dashboard (HTML/CSS/JS) and vendored xterm.js 5.5 (works offline) |
 | `run.sh` | Launcher (venv + token) |
 | `tests/check_menus.py` | Checks `menus.json` against the script |
+| `tests/test_bh_inventory.py` | Tests the hygiene checks on a synthetic collection |
 | `Dockerfile.webui` | Image with all linWinPwn tools plus the web UI |
 
 When linWinPwn adds new menu options, add them to `menus.json` (key + label), then run:
@@ -91,3 +106,9 @@ python3 web_ui/tests/check_menus.py
 ```
 
 It checks every button against the script's menus (reads the script only, runs nothing) and lists options missing from the dashboard.
+
+The BloodHound inventory has its own tests (synthetic collection, no network, no AD):
+
+```bash
+python3 web_ui/tests/test_bh_inventory.py
+```

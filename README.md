@@ -6,7 +6,7 @@ linWinPwn is a bash script that wraps a number of Active Directory tools for enu
 
 ## Web UI (dashboard)
 
-All interactive menus are also available in a web dashboard with an embedded terminal and shell. See [web_ui/README.md](web_ui/README.md).
+All interactive menus are also available in a web dashboard with an embedded terminal and shell, plus a BloodHound tab that turns a collection into an AD hygiene report. See [web_ui/README.md](web_ui/README.md).
 
 ```bash
 ./web_ui/run.sh   # then open the printed http://127.0.0.1:8777/?token=... URL
