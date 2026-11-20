@@ -196,6 +196,10 @@ def build_argv(cfg):
     if not LINWINPWN.exists():
         raise FileNotFoundError(f"linWinPwn.sh not found at {LINWINPWN}")
     argv = ["/bin/bash", str(LINWINPWN)]
+    # --offline wipes credentials when it is parsed, so it goes first: then the
+    # credentials typed in the form are kept and the printed commands use them.
+    if cfg.get("offline"):
+        argv.append("--offline")
 
     target = (cfg.get("target") or "").strip()
     if not target and not cfg.get("offline"):
@@ -234,7 +238,6 @@ def build_argv(cfg):
         "dns_tcp": "--dns-tcp",
         "use_ip": "--use-ip",
         "no_exec": "--no-exec",
-        "offline": "--offline",
         "verbose": "--verbose",
         "auto_config": "--auto-config",
     }
@@ -311,9 +314,24 @@ def api_config():
     })
 
 
+LAST_CFG = {}
+
+
+@app.route("/api/session/restart", methods=["POST"])
+def api_session_restart():
+    if not LAST_CFG:
+        return jsonify({"ok": False, "error": "no previous session config"}), 409
+    return _start(dict(LAST_CFG))
+
+
 @app.route("/api/session/start", methods=["POST"])
 def api_session_start():
     cfg = request.get_json(force=True, silent=True) or {}
+    return _start(cfg)
+
+
+def _start(cfg):
+    global LAST_CFG
     try:
         argv = build_argv(cfg)
     except Exception as e:
@@ -324,6 +342,7 @@ def api_session_start():
     except Exception as e:
         return jsonify({"ok": False, "error": f"launch failed: {e}"}), 500
     set_session("linwinpwn", sess)
+    LAST_CFG = dict(cfg)
     # Redact secrets before echoing the command line back to the UI.
     shown = []
     redact_next = False
@@ -345,6 +364,78 @@ def api_session_stop():
     if sess:
         sess.stop()
     return jsonify({"ok": True})
+
+
+def _children_map():
+    """ppid -> [pid] from /proc (no psutil dependency)."""
+    kids = {}
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            with open(f"/proc/{d}/stat") as f:
+                st = f.read()
+            ppid = int(st[st.rfind(")") + 2:].split()[1])
+        except (OSError, ValueError, IndexError):
+            continue
+        kids.setdefault(ppid, []).append(int(d))
+    return kids
+
+
+def _descendants(pid):
+    kids, out, stack = _children_map(), [], [pid]
+    while stack:
+        for c in kids.get(stack.pop(), []):
+            out.append(c)
+            stack.append(c)
+    return out
+
+
+def _cmdline(pid):
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return f.read().replace(b"\0", b" ").decode(errors="replace").strip()[:200]
+    except OSError:
+        return ""
+
+
+def _signal_all(pids, sig):
+    for p in pids:
+        try:
+            os.kill(p, sig)
+        except OSError:
+            pass
+
+
+def _escalate(pids):
+    """Ctrl+C first; if a tool ignores it, SIGTERM after 3s, SIGKILL after 5s."""
+    time.sleep(3)
+    alive = [p for p in pids if os.path.exists(f"/proc/{p}")]
+    if alive:
+        _signal_all(alive, signal.SIGTERM)
+        time.sleep(2)
+        _signal_all([p for p in alive if os.path.exists(f"/proc/{p}")], signal.SIGKILL)
+
+
+@app.route("/api/session/stop_task", methods=["POST"])
+def api_stop_task():
+    """Stop button = Ctrl+C for the running command only.
+
+    A real Ctrl+C reaches the whole foreground process group, and linWinPwn.sh
+    has no trap, so the script itself would die. Here SIGINT goes only to the
+    processes started by the script (the tool, its tee, subshells). The script
+    sees its command end and goes back to its menu; the session stays alive.
+    """
+    sess = get_session("linwinpwn")
+    if not sess or not sess.is_alive():
+        return jsonify({"ok": False, "error": "no running session"}), 409
+    pids = _descendants(sess.pid)
+    if not pids:
+        return jsonify({"ok": True, "stopped": []})
+    stopped = [{"pid": p, "cmd": _cmdline(p)} for p in pids]
+    _signal_all(pids, signal.SIGINT)
+    threading.Thread(target=_escalate, args=(pids,), daemon=True).start()
+    return jsonify({"ok": True, "stopped": stopped})
 
 
 @app.route("/api/session/status")

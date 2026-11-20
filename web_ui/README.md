@@ -19,7 +19,9 @@ The dashboard does not rewrite any linWinPwn logic. The backend starts the real 
   - `press ENTER to continue` becomes a "Continue" button
   - tool consoles (evil-winrm, smbclient, mssqlclient, LDAP console...) get a command field
 - **Run state**: `ready` (at a menu, buttons active), `running…`, `waiting for your answer`. The UI also reads the menu headers (`[AD Enum menu]`...) so it always knows which menu the script is in.
-- **Interrupt**: sends Ctrl+C to stop a long command. linWinPwn has no Ctrl+C handler, so the session is restarted with the same config automatically.
+- **■ Stop**: works like Ctrl+C on the running command only. You stay in the same menu and the session keeps running. If the tool ignores the signal it is forced after 3 to 5 seconds. (A real Ctrl+C would kill linWinPwn itself, since the script has no handler for it.)
+- **⟲ reset**: restarts the whole session with the same config, also after a page reload.
+- **Offline preview with your creds**: tick `Offline` + `No-exec` and fill the credentials: the script prints the exact commands it would run with them, without touching any target.
 - **Command history**: every command linWinPwn runs (already masked by the script), with copy buttons.
 - **linWinPwn terminal**: live output of the script (xterm.js, colors kept).
 - **Embedded shell**: a separate bash in the repo folder, for manual commands (netexec, impacket, certipy...). It keeps running when you switch tabs.
@@ -79,6 +81,13 @@ This console runs offensive tooling and gives a full shell with the rights of th
 | `menus.json` | Menu tree shown in the sidebar (mirrors `MENUS.md`) |
 | `static/` | Dashboard (HTML/CSS/JS) and vendored xterm.js 5.5 (works offline) |
 | `run.sh` | Launcher (venv + token) |
+| `tests/check_menus.py` | Checks `menus.json` against the script |
 | `Dockerfile.webui` | Image with all linWinPwn tools plus the web UI |
 
-When linWinPwn adds new menu options, add them to `menus.json` (key + label). Nothing else needs to change.
+When linWinPwn adds new menu options, add them to `menus.json` (key + label), then run:
+
+```bash
+python3 web_ui/tests/check_menus.py
+```
+
+It checks every button against the script's menus (reads the script only, runs nothing) and lists options missing from the dashboard.

@@ -204,3 +204,7 @@ input:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(57,208,216,.15)}
 .hist-list li{padding:7px 4px;border-bottom:1px solid var(--line);color:#cdd9ea;word-break:break-all}
 .hist-list li .ts{color:var(--dim);margin-right:8px}
 .hist-list li button{float:right;margin-left:8px}
+
+.btn-stop{background:#3a1416;border-color:#7a2a2c;color:#ff9b98}
+.btn-stop:hover{background:#4a1a1c;border-color:var(--noisy)}
+.btn-stop:disabled{background:transparent}

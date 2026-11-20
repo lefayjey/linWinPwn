@@ -279,6 +279,8 @@ function setRunState(s) {
   el.textContent = {off:"no session", running:"running…", ready:"ready", input:"waiting for your answer"}[s];
   qsa("#actionList .act").forEach(b => b.disabled = (s !== "ready"));
   qs("#lwpHome").disabled = s !== "ready" || CUR_MENU === null;
+  qs("#lwpStop").disabled = s === "off";
+  qs("#lwpReset").disabled = s === "off";
 }
 
 /* ======================= menu tree & actions ======================= */
@@ -407,6 +409,9 @@ async function startSession(cfgOverride) {
   if (!j.ok) { err.textContent = j.error||("HTTP "+r.status); err.classList.remove("hidden");
     qs("#cfgBody").parentElement.classList.remove("collapsed"); return; }
   LAST_CFG = cfg;
+  afterStart(j);
+}
+function afterStart(j) {
   SESSION_RUNNING = true; CUR_MENU = null; PLAIN = ""; LINE_ACC = ""; PROMPT_SIG = null;
   hidePanel(); RUN_STATE = "off"; setRunState("running");
   setTopStatus(true);
@@ -431,14 +436,31 @@ function setTopStatus(on){
   qs("#btnStart").textContent = on ? "Restart session ⟳" : "Start session ▸";
 }
 
-/* Ctrl+C kills the running tool AND the script (no trap in linWinPwn.sh),
-   so we restart the session with the same config right after. */
-async function interrupt() {
+/* Stop = Ctrl+C for the running command only (server sends SIGINT to the
+   processes started by the script, then forces them if they ignore it).
+   The script goes back to its menu and the session keeps running. */
+async function stopTask() {
   if (!SESSION_RUNNING) return;
-  lwpTerm.send("\x03");
-  await new Promise(r=>setTimeout(r,1500));
-  const s = await api("/api/session/status").then(r=>r.json()).catch(()=>null);
-  if (s && !s.running && LAST_CFG) { note("interrupted, restarting the session…"); startSession(LAST_CFG); }
+  const r = await api("/api/session/stop_task",{method:"POST"});
+  const j = await r.json().catch(()=>({}));
+  if (!j.ok) { note(`stop failed: ${j.error||r.status}`); return; }
+  if (!j.stopped.length) {
+    // nothing running: if a question is open, answer it with Ctrl+C semantics = go back
+    note(RUN_STATE==="input" ? "nothing is running (answer or leave the form)" : "nothing is running");
+    return;
+  }
+  const names = [...new Set(j.stopped.map(p=>p.cmd.split(" ")[0].split("/").pop()).filter(Boolean))];
+  note(`^C stopped: ${names.slice(0,6).join(", ")}`);
+}
+
+/* Reset = kill the whole session and start it again with the same config. */
+async function resetSession() {
+  if (!SESSION_RUNNING) return;
+  note("resetting the session…");
+  const r = await api("/api/session/restart",{method:"POST"});
+  const j = await r.json().catch(()=>({}));
+  if (!j.ok) { note(`reset failed: ${j.error||r.status}`); return; }
+  afterStart(j);
 }
 
 /* ======================= tabs ======================= */
@@ -480,7 +502,9 @@ async function previewFile(path){
   const dl = `<a href="/api/download?path=${encodeURIComponent(path)}&token=${encodeURIComponent(TOKEN)}">download</a>`;
   if (!j.ok){ view.textContent=j.error||"error"; return; }
   if (j.too_big){ view.innerHTML=`File too large to preview. ${dl}`; return; }
-  view.innerHTML = `<div style="margin-bottom:8px">${esc(path)} · ${dl}</div>` + esc(j.content||"(empty)");
+  // linWinPwn writes colour codes into its logs: strip them for reading
+  const text = (j.content||"").replace(ANSI_RE, "");
+  view.innerHTML = `<div style="margin-bottom:8px">${esc(path)} · ${dl}</div>` + esc(text||"(empty)");
 }
 function fmtSize(n){ if(n<1024)return n+"B"; if(n<1048576)return (n/1024).toFixed(1)+"K";
   return (n/1048576).toFixed(1)+"M"; }
@@ -492,7 +516,8 @@ function wire(){
   qs("#lwpClear").onclick = ()=>lwpTerm.term.clear();
   qs("#lwpHome").onclick  = ()=>{ if (RUN_STATE==="ready" && CUR_MENU!==null){ setRunState("running");
       api("/api/action",{method:"POST",body:JSON.stringify({keys:["back"]})}); } };
-  qs("#lwpInterrupt").onclick = interrupt;
+  qs("#lwpStop").onclick = stopTask;
+  qs("#lwpReset").onclick = resetSession;
   qs("#lwpTypeable").onchange = e => { if (e.target.checked) lwpTerm.term.focus(); };
   qs("#menuFilter").oninput = e=>{ renderTree(e.target.value); if (CURRENT) renderActions(CURRENT); };
 
