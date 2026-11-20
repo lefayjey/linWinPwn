@@ -605,6 +605,10 @@ async function resetSession() {
 
 /* ======================= tabs ======================= */
 function switchTab(name){
+  // leaving the linWinPwn tab with an open prompt: mark the tab so the user
+  // sees there is still a question waiting when they look away.
+  if (name !== "lwp" && !qs("#promptPanel").classList.contains("hidden"))
+    qs('#mainTabs button[data-tab="lwp"]').classList.add("attn");
   qsa("#mainTabs button").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
   qsa(".tabpane").forEach(p=>p.classList.toggle("hidden",p.dataset.tab!==name));
   if (name==="lwp") { qs('#mainTabs button[data-tab="lwp"]').classList.remove("attn"); lwpTerm.refit(); }
