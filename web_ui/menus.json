@@ -1,0 +1,344 @@
+{
+  "_comment": "Menu tree mirrored from linWinPwn.sh v1.4.17 (MENUS.md). 'key' is the exact string sent to the script's menu prompt. 'prompts' flags actions that ask follow-up questions on the script's stdin (answer them directly in the linWinPwn terminal). This file drives the dashboard sidebar only; the real logic stays in linWinPwn.sh.",
+  "nav": {
+    "main_key_to_enter_submenu": "the number shown at main menu",
+    "back_key": "back",
+    "home_hint": "From any submenu send 'back' to return to the main menu."
+  },
+  "menus": [
+    {
+      "id": "dns", "title": "DNS Enumeration", "enter": "1", "icon": "globe", "direct": true,
+      "desc": "Runs DNS enumeration via netexec directly from the main menu.",
+      "actions": [
+        {"key": "1", "label": "Run DNS Enumeration using netexec"}
+      ]
+    },
+    {
+      "id": "ad", "title": "Active Directory Enum", "enter": "2", "icon": "sitemap",
+      "desc": "LDAP / RPC / BloodHound enumeration.",
+      "actions": [
+        {"key": "A", "label": "Run default AD enumerations (batch)", "batch": true},
+        {"key": "1", "label": "BloodHound - all collection methods (Noisy!)", "noisy": true},
+        {"key": "2", "label": "BloodHound - DCOnly"},
+        {"key": "1ce", "label": "BloodHoundCE - all collection methods (Noisy!)", "noisy": true},
+        {"key": "2ce", "label": "BloodHoundCE - DCOnly"},
+        {"key": "3", "label": "ldapdomaindump LDAP Enumeration"},
+        {"key": "4", "label": "enum4linux-ng LDAP-MS-RPC Enumeration"},
+        {"key": "5", "label": "MS-RPC Users Enumeration (netexec)"},
+        {"key": "6", "label": "Password policy Enumeration (netexec)"},
+        {"key": "7", "label": "LDAP Users Enumeration (netexec)"},
+        {"key": "8", "label": "LDAP Enumeration (passnotreq, userdesc, maq, subnets, passpol, entra-id)"},
+        {"key": "9", "label": "Delegation Enumeration (findDelegation + netexec)"},
+        {"key": "10", "label": "bloodyAD All Enumeration"},
+        {"key": "11", "label": "bloodyAD write rights Enumeration"},
+        {"key": "12", "label": "bloodyAD write rights Enumeration (details)"},
+        {"key": "13", "label": "bloodyAD query DNS server"},
+        {"key": "14", "label": "bloodyAD enumerate object", "prompts": true},
+        {"key": "15", "label": "SilentHound LDAP Enumeration"},
+        {"key": "16", "label": "ldeep LDAP Enumeration"},
+        {"key": "17", "label": "windapsearch LDAP Enumeration"},
+        {"key": "18", "label": "LDAP Wordlist Harvester"},
+        {"key": "19", "label": "LDAP Enumeration using LDAPPER"},
+        {"key": "20", "label": "Adalanche Enumeration"},
+        {"key": "21", "label": "Enumeration of RDWA servers"},
+        {"key": "22", "label": "Open p0dalirius' LDAP Console", "console": true},
+        {"key": "23", "label": "Open p0dalirius' LDAP Monitor", "console": true},
+        {"key": "24", "label": "Open garrettfoster13's ACED console", "console": true},
+        {"key": "25", "label": "Open LDAPPER custom options", "console": true, "prompts": true},
+        {"key": "26", "label": "Run godap console", "console": true},
+        {"key": "27", "label": "Run ADCheck enumerations"},
+        {"key": "28", "label": "Run soapy enumerations"},
+        {"key": "29", "label": "Soaphound - all collection methods (Noisy!)", "noisy": true},
+        {"key": "30", "label": "Soaphound - ADWSOnly"},
+        {"key": "31", "label": "Run DACLSearch dump and cli", "console": true},
+        {"key": "32", "label": "ADWS Domain Dump Enumeration"},
+        {"key": "33", "label": "PyADRecon LDAP Enumeration"},
+        {"key": "34", "label": "PyADRecon ADWS Enumeration"},
+        {"key": "35", "label": "Run ADPulse Checks"},
+        {"key": "36", "label": "Open PowerView.py Console", "console": true},
+        {"key": "37", "label": "Scan for GhostSPN"},
+        {"key": "38", "label": "DNS zones allowing nonsecure dynamic updates (netexec)"},
+        {"key": "39", "label": "Enumeration of deleted accounts / tombstone (netexec)"}
+      ]
+    },
+    {
+      "id": "adcs", "title": "ADCS Enumeration", "enter": "3", "icon": "certificate",
+      "desc": "Certificate services enumeration and abuse.",
+      "actions": [
+        {"key": "A", "label": "Run default ADCS enumerations (batch)", "batch": true},
+        {"key": "P", "label": "Print ADCS Exploitation Steps"},
+        {"key": "1", "label": "ADCS Enumeration using netexec"},
+        {"key": "2", "label": "certi.py ADCS Enumeration"},
+        {"key": "3", "label": "Certipy ADCS Enumeration"},
+        {"key": "4", "label": "Certifried check"},
+        {"key": "5", "label": "Certipy LDAP shell via Schannel (cert auth)", "console": true},
+        {"key": "6", "label": "Extract CA and forge Golden Certificate (needs PKI admin)", "prompts": true},
+        {"key": "7", "label": "Dump LSASS using masky"},
+        {"key": "8", "label": "Dump NTDS using certsync"}
+      ]
+    },
+    {
+      "id": "sccm", "title": "SCCM Enumeration", "enter": "4", "icon": "server",
+      "desc": "SCCM / ConfigMgr enumeration and NAA credential dump.",
+      "actions": [
+        {"key": "A", "label": "Run default SCCM enumerations (batch)", "batch": true},
+        {"key": "1", "label": "SCCM Enumeration using netexec"},
+        {"key": "2", "label": "SCCM Enumeration using sccmhunter"},
+        {"key": "3", "label": "SCCM NAA credentials dump using sccmhunter"},
+        {"key": "4", "label": "SCCM Policies/NAA credentials dump using SCCMSecrets"}
+      ]
+    },
+    {
+      "id": "gpo", "title": "GPO Enumeration", "enter": "5", "icon": "shield",
+      "desc": "Group Policy enumeration and abuse.",
+      "actions": [
+        {"key": "A", "label": "Run default GPO enumerations (batch)", "batch": true},
+        {"key": "1", "label": "GPP Enumeration using netexec"},
+        {"key": "2", "label": "GPO Enumeration using GPOwned"},
+        {"key": "3", "label": "GPOParser Enumeration"},
+        {"key": "4", "label": "GroupPolicyBackdoor Enumeration", "prompts": true},
+        {"key": "5", "label": "GPP Privilege Enumeration using netexec"}
+      ]
+    },
+    {
+      "id": "brute", "title": "Brute Force Attacks", "enter": "6", "icon": "key",
+      "desc": "RID brute, user enumeration, password spraying.",
+      "actions": [
+        {"key": "A", "label": "Run default bruteforce attacks (batch)", "batch": true},
+        {"key": "1", "label": "RID Brute Force (Null session) - netexec"},
+        {"key": "2", "label": "User Enumeration using kerbrute (Null session)"},
+        {"key": "3", "label": "User=Pass check using kerbrute (Noisy!)", "noisy": true},
+        {"key": "4", "label": "User=Pass check using netexec (Noisy!)", "noisy": true},
+        {"key": "5", "label": "Identify Pre-Created Computer Accounts (netexec, Noisy!)", "noisy": true},
+        {"key": "6", "label": "Pre2k computers authentication check (Noisy!)", "noisy": true},
+        {"key": "7", "label": "User Enumeration using ldapnomnom (Null session)"},
+        {"key": "8", "label": "Password spraying using kerbrute (Noisy!)", "noisy": true, "prompts": true},
+        {"key": "9", "label": "Password spraying using netexec - ldap (Noisy!)", "noisy": true, "prompts": true},
+        {"key": "10", "label": "Timeroast attack against NTP"},
+        {"key": "11", "label": "MSSQL RID Brute Force (Null session) - netexec"},
+        {"key": "12", "label": "Open SpearSpray console", "console": true},
+        {"key": "13", "label": "Run rbcdbrute attack (RBCD already set up) (Noisy!)", "noisy": true, "prompts": true}
+      ]
+    },
+    {
+      "id": "kerberos", "title": "Kerberos Attacks", "enter": "7", "icon": "ticket",
+      "desc": "AS-REP roast, Kerberoast, ticket forging, delegation abuse.",
+      "actions": [
+        {"key": "A", "label": "Run default Kerberos attacks (batch)", "batch": true},
+        {"key": "1", "label": "AS-REP Roasting using GetNPUsers"},
+        {"key": "2", "label": "Kerberoast using GetUserSPNs"},
+        {"key": "3", "label": "Crack AS-REP Roast hashes using john"},
+        {"key": "4", "label": "Crack Kerberoast hashes using john"},
+        {"key": "5", "label": "NoPac check using netexec (only on DC)"},
+        {"key": "6", "label": "MS14-068 check (only on DC)"},
+        {"key": "7", "label": "CVE-2022-33679 exploit / AS-REP RC4 (Null session)"},
+        {"key": "8", "label": "AP-REQ hijack via DNS unsecure updates (krbjack)", "prompts": true},
+        {"key": "9", "label": "Custom Kerberoast using Orpheus"},
+        {"key": "10", "label": "Request TGS for current user", "prompts": true},
+        {"key": "11", "label": "Generate Golden Ticket (needs krbtgt hash / DCSync)", "prompts": true},
+        {"key": "12", "label": "Generate Silver Ticket (needs SPN hash / DCSync)", "prompts": true},
+        {"key": "13", "label": "S4U2self ticket (OPSEC Silver Ticket alt)", "prompts": true},
+        {"key": "14", "label": "Generate Diamond Ticket (needs krbtgt hash / DCSync)", "prompts": true},
+        {"key": "15", "label": "Generate Sapphire Ticket (needs krbtgt hash / DCSync)", "prompts": true},
+        {"key": "16", "label": "Child->Parent escalation via raiseChild (needs child DA)", "prompts": true},
+        {"key": "17", "label": "Impersonated ticket via Constrained Delegation", "prompts": true},
+        {"key": "18", "label": "Impersonated ticket via RBCD", "prompts": true},
+        {"key": "19", "label": "dMSA BadSuccessor impersonated TGS", "prompts": true}
+      ]
+    },
+    {
+      "id": "shares", "title": "SMB Shares", "enter": "8", "icon": "folder", "targetable": true,
+      "desc": "SMB share scanning and spidering.",
+      "actions": [
+        {"key": "A", "label": "Run default share enumerations (batch)", "batch": true},
+        {"key": "m", "label": "Modify target(s)", "prompts": true},
+        {"key": "1", "label": "SMB shares Scan using smbmap"},
+        {"key": "2", "label": "SMB shares Enumeration using netexec"},
+        {"key": "3", "label": "SMB shares Spidering using netexec"},
+        {"key": "4", "label": "SMB shares Scan using FindUncommonShares"},
+        {"key": "5", "label": "List all servers + FindUncommonShares"},
+        {"key": "6", "label": "SMB shares Scan using manspider"},
+        {"key": "7", "label": "SMB shares Scan using ShareHound"},
+        {"key": "8", "label": "SMB shares Scan using ShareHound (all subnets)"},
+        {"key": "9", "label": "Open smbclient.py console on target", "console": true},
+        {"key": "10", "label": "Open smbclientng console on target", "console": true},
+        {"key": "11", "label": "Search LogonScript misconfigs (ScriptScout)"},
+        {"key": "12", "label": "Mount SMB share (requires sudo)", "prompts": true}
+      ]
+    },
+    {
+      "id": "vulns", "title": "Vulnerability Checks", "enter": "9", "icon": "bug", "targetable": true,
+      "desc": "zerologon, MS17-010, PetitPotam, coerce, signing checks.",
+      "actions": [
+        {"key": "A", "label": "Run default vuln checks (batch)", "batch": true},
+        {"key": "m", "label": "Modify target(s)", "prompts": true},
+        {"key": "1", "label": "zerologon check (netexec, only on DC)"},
+        {"key": "2", "label": "MS17-010 check (netexec)"},
+        {"key": "3", "label": "Print Spooler / PrintNightmare checks (netexec)"},
+        {"key": "4", "label": "WebDAV check (netexec)"},
+        {"key": "5", "label": "coerce check (netexec)"},
+        {"key": "6", "label": "Run coerce attack (netexec)", "prompts": true},
+        {"key": "7", "label": "SMB signing check (netexec)"},
+        {"key": "8", "label": "ntlmv1, smbghost, remove-mic checks (netexec)"},
+        {"key": "9", "label": "RPC Dump + check interesting protocols"},
+        {"key": "10", "label": "Coercer RPC scan"},
+        {"key": "11", "label": "PushSubscription abuse via PrivExchange", "prompts": true},
+        {"key": "12", "label": "RunFinger scan"},
+        {"key": "13", "label": "Run LDAPNightmare check"},
+        {"key": "14", "label": "Sessions enumeration (netexec reg-sessions)"},
+        {"key": "15", "label": "Check for unusual sessions"},
+        {"key": "16", "label": "BadSuccessor vuln check (netexec + impacket)"},
+        {"key": "17", "label": "RelayKing coerce scan"},
+        {"key": "18", "label": "Drop LNK, Library-MS and SC (on writeable share)", "prompts": true},
+        {"key": "19", "label": "onelogon check (netexec, only on DC)"},
+        {"key": "20", "label": "Enumerate common useful CVEs (netexec)"},
+        {"key": "21", "label": "Enumerate obsolete OS from LDAP (netexec)"}
+      ]
+    },
+    {
+      "id": "mssql", "title": "MSSQL Enumeration", "enter": "10", "icon": "database", "targetable": true,
+      "desc": "MSSQL enumeration, relay checks, interactive clients.",
+      "actions": [
+        {"key": "A", "label": "Run default MSSQL checks (batch)", "batch": true},
+        {"key": "m", "label": "Modify target(s)", "prompts": true},
+        {"key": "1", "label": "MSSQL Enumeration using netexec"},
+        {"key": "2", "label": "MSSQL Relay check"},
+        {"key": "3", "label": "Open mssqlclient.py console on target", "console": true},
+        {"key": "4", "label": "Open mssqlpwner interactive", "console": true},
+        {"key": "5", "label": "Enumerate Domain objects via RID bruteforce"}
+      ]
+    },
+    {
+      "id": "pwd", "title": "Password Dump", "enter": "11", "icon": "unlock", "targetable": true,
+      "desc": "LAPS/gMSA/LSASS/NTDS/DPAPI secret dumping.",
+      "actions": [
+        {"key": "A", "label": "Run default password dumps (batch)", "batch": true},
+        {"key": "m", "label": "Modify target(s)", "prompts": true},
+        {"key": "1", "label": "LAPS Dump using netexec"},
+        {"key": "2", "label": "gMSA Dump using netexec"},
+        {"key": "3", "label": "DCSync using secretsdump (only on DC)"},
+        {"key": "4", "label": "Dump SAM and LSA using secretsdump"},
+        {"key": "5", "label": "Dump SAM and SYSTEM using reg"},
+        {"key": "6", "label": "Dump SAM and SYSTEM using regsecrets"},
+        {"key": "7", "label": "Dump NTDS using netexec"},
+        {"key": "8", "label": "Dump SAM and LSA secrets using netexec"},
+        {"key": "9", "label": "Dump LSA secrets using netexec"},
+        {"key": "10", "label": "Dump SAM/LSA via netexec regdump (no disk)"},
+        {"key": "11", "label": "Dump LSASS using lsassy"},
+        {"key": "12", "label": "Dump LSASS using handlekatz"},
+        {"key": "13", "label": "Dump LSASS using procdump"},
+        {"key": "14", "label": "Dump LSASS using nanodump"},
+        {"key": "15", "label": "Dump dpapi secrets using netexec"},
+        {"key": "16", "label": "Dump secrets using DonPAPI"},
+        {"key": "17", "label": "Dump secrets using DonPAPI (no RemoteOps)"},
+        {"key": "18", "label": "Dump secrets using hekatomb (only on DC)"},
+        {"key": "19", "label": "Search for juicy information using netexec"},
+        {"key": "20", "label": "Dump Veeam credentials (Veeam server only)"},
+        {"key": "21", "label": "Dump Msol password (Azure AD-Connect server only)"},
+        {"key": "22", "label": "Extract Bitlocker Keys"},
+        {"key": "23", "label": "Dump SAM and LSA secrets via winrm (netexec)"}
+      ]
+    },
+    {
+      "id": "modif", "title": "AD Object / Attr Modification", "enter": "12", "icon": "pencil",
+      "desc": "Password changes, group membership, RBCD, Shadow Credentials, DACL edits.",
+      "actions": [
+        {"key": "1", "label": "Change user/computer password (ForceChangePassword)", "prompts": true},
+        {"key": "2", "label": "Add user to group (AddMember)", "prompts": true},
+        {"key": "3", "label": "Remove user from group (AddMember)", "prompts": true},
+        {"key": "4", "label": "Add new computer (MAQ > 0)", "prompts": true},
+        {"key": "4ou", "label": "Add new computer to custom OU (MAQ>0 + GenericWrite OU)", "prompts": true},
+        {"key": "5", "label": "Add new DNS entry (Modification of DNS)", "prompts": true},
+        {"key": "6", "label": "Remove DNS entry (Modification of DNS)", "prompts": true},
+        {"key": "7", "label": "Enable account (GenericWrite)", "prompts": true},
+        {"key": "8", "label": "Disable account (GenericWrite)", "prompts": true},
+        {"key": "9", "label": "Change Owner of target (WriteOwner)", "prompts": true},
+        {"key": "10", "label": "Grant FullControl via dacledit (WriteDACL)", "prompts": true},
+        {"key": "11", "label": "Add GenericAll rights on target (Owner)", "prompts": true},
+        {"key": "12", "label": "Delete user/computer (GenericWrite)", "prompts": true},
+        {"key": "13", "label": "Restore deleted user/computer (GenericWrite OU)", "prompts": true},
+        {"key": "14", "label": "Targeted Kerberoast (Noisy!) (WriteSPN)", "noisy": true, "prompts": true},
+        {"key": "15", "label": "SPN-jacking via krbrelayx addspn (WriteSPN)", "prompts": true},
+        {"key": "16", "label": "Enable AS-REP roasting - DONT_REQ_PREAUTH", "prompts": true},
+        {"key": "17", "label": "Disable AS-REP roasting - remove DONT_REQ_PREAUTH", "prompts": true},
+        {"key": "18", "label": "Force RC4 tickets - supportedEncryptionTypes=4", "prompts": true},
+        {"key": "19", "label": "Perform RBCD attack (AllowedToAct)", "prompts": true},
+        {"key": "20", "label": "RBCD attack on SPN-less user (AllowedToAct & MAQ=0)", "prompts": true},
+        {"key": "21", "label": "ShadowCredentials attack (AddKeyCredentialLink)", "prompts": true},
+        {"key": "22", "label": "Remove added ShadowCredentials", "prompts": true},
+        {"key": "23", "label": "Abuse GPO to execute command (GenericWrite GPO)", "prompts": true},
+        {"key": "24", "label": "Add Unconstrained Delegation - TRUSTED_FOR_DELEGATION", "prompts": true},
+        {"key": "25", "label": "Add DCSync rights (GenericWrite)", "prompts": true},
+        {"key": "26", "label": "Add CIFS/HTTP SPNs to computer w/ Unconstrained Deleg", "prompts": true},
+        {"key": "27", "label": "Add userPrincipalName for Kerberos impersonation (Linux)", "prompts": true},
+        {"key": "28", "label": "Modify UPN for Certificate impersonation (ESC10)", "prompts": true},
+        {"key": "29", "label": "Add Constrained Delegation w/ protocol transition", "prompts": true},
+        {"key": "30", "label": "Add HOST/LDAP SPN of DC (Constrained Delegation)", "prompts": true},
+        {"key": "31", "label": "Add dMSA for BadSuccessor (Server 2025)", "prompts": true},
+        {"key": "32", "label": "Remove dMSA (clean after BadSuccessor)", "prompts": true},
+        {"key": "33", "label": "Modify custom attribute using bloodyad (GenericWrite)", "prompts": true},
+        {"key": "34", "label": "ESC4: Set altSecurityIdentities on target", "prompts": true},
+        {"key": "35", "label": "Modify msDS-GroupMSAMembership for GMSA read", "prompts": true},
+        {"key": "36", "label": "Move object to a different OU", "prompts": true}
+      ]
+    },
+    {
+      "id": "cmdexec", "title": "Command Execution", "enter": "13", "icon": "terminal",
+      "desc": "Interactive remote shells (smbexec, wmiexec, psexec, evil-winrm, RDP). These open consoles - use the terminal to interact.",
+      "actions": [
+        {"key": "1", "label": "CMD console using smbexec on target", "console": true, "prompts": true},
+        {"key": "2", "label": "CMD console using wmiexec on target", "console": true, "prompts": true},
+        {"key": "3", "label": "CMD console using psexec on target", "console": true, "prompts": true},
+        {"key": "4", "label": "PowerShell console using evil-winrm", "console": true, "prompts": true},
+        {"key": "5", "label": "PowerShell console using evil-winrm-py", "console": true, "prompts": true},
+        {"key": "6", "label": "RDP session using xfreerdp", "console": true, "prompts": true}
+      ]
+    },
+    {
+      "id": "netscan", "title": "Network Scan", "enter": "14", "icon": "network", "targetable": true,
+      "desc": "Port/service discovery across domain machines.",
+      "actions": [
+        {"key": "A", "label": "Run default network scans (batch)", "batch": true},
+        {"key": "m", "label": "Modify target(s)", "prompts": true},
+        {"key": "1", "label": "Identify hosts with accessible SMB (netexec)"},
+        {"key": "2", "label": "Identify hosts with accessible RDP (netexec)"},
+        {"key": "3", "label": "Identify hosts with accessible WinRM (netexec)"},
+        {"key": "4", "label": "Identify hosts with accessible SSH (netexec)"},
+        {"key": "5", "label": "Identify hosts with accessible FTP (netexec)"},
+        {"key": "6", "label": "Identify hosts with accessible VNC (netexec)"},
+        {"key": "7", "label": "Identify hosts with accessible MSSQL (netexec)"},
+        {"key": "8", "label": "Basic scan of domain machines (NetworkHound)"},
+        {"key": "9", "label": "Full scan of domain + Shadow IT (NetworkHound)"}
+      ]
+    },
+    {
+      "id": "auth", "title": "Authentication", "enter": "A", "icon": "fingerprint",
+      "desc": "Hash/key generation, TGT requests, certificate auth.",
+      "actions": [
+        {"key": "1", "label": "Generate NTLM hash of current user (Pass the hash)", "prompts": true},
+        {"key": "2", "label": "Crack NTLM hash of current user", "prompts": true},
+        {"key": "3", "label": "Generate AES Key using aesKrbKeyGen", "prompts": true},
+        {"key": "4", "label": "Generate TGT for current user (Pass/Overpass the hash)"},
+        {"key": "5", "label": "Request certificate (requires authentication)", "prompts": true},
+        {"key": "6", "label": "Extract NTLM hash from Certificate via PKINIT", "prompts": true}
+      ]
+    },
+    {
+      "id": "config", "title": "Configuration", "enter": "C", "icon": "gear",
+      "desc": "Session configuration, wordlists, hosts/resolv/krb5, LDAP port.",
+      "actions": [
+        {"key": "1", "label": "Check installation of tools and dependencies"},
+        {"key": "2", "label": "Synchronize time with Domain Controller (sudo)"},
+        {"key": "3", "label": "Add DC IP and Domain to /etc/hosts (sudo)"},
+        {"key": "4", "label": "Update resolv.conf (DC as DNS) (sudo)"},
+        {"key": "5", "label": "Update krb5.conf (realm + KDC) (sudo)"},
+        {"key": "6", "label": "Download default wordlists (non-kali)"},
+        {"key": "7", "label": "Change users wordlist file", "prompts": true},
+        {"key": "8", "label": "Change passwords wordlist file", "prompts": true},
+        {"key": "9", "label": "Change attacker's IP", "prompts": true},
+        {"key": "10", "label": "Switch between LDAP (389) and LDAPS (636)"},
+        {"key": "11", "label": "Show session information"}
+      ]
+    }
+  ]
+}

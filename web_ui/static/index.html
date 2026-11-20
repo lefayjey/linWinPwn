@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>linWinPwn · Web Console</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/vendor/xterm.css">
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div id="app">
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">lWP</span>
+      <div>
+        <div class="brand-title">linWinPwn <span class="brand-sub">Web Console</span></div>
+        <div class="brand-meta" id="brandMeta">Active Directory pentest dashboard</div>
+      </div>
+    </div>
+    <div class="session-status">
+      <span id="statusDot" class="dot dot-off"></span>
+      <span id="statusText">session stopped</span>
+      <button id="btnStop" class="btn btn-ghost" disabled>Stop</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- Sidebar: config + menu tree -->
+    <aside class="sidebar">
+      <section class="panel">
+        <div class="panel-head" data-toggle="cfgBody">
+          <h2>Session configuration</h2><span class="chev">▾</span>
+        </div>
+        <div class="panel-body" id="cfgBody">
+          <label>Target DC IP <span class="req">*</span>
+            <input id="f_target" placeholder="10.0.0.1" autocomplete="off"></label>
+          <div class="grid2">
+            <label>Domain<input id="f_domain" placeholder="corp.local" autocomplete="off"></label>
+            <label>User<input id="f_user" placeholder="(empty = null)" autocomplete="off"></label>
+          </div>
+
+          <div class="authbox">
+            <div class="authtabs" id="authTabs">
+              <button data-auth="password" class="active">Password</button>
+              <button data-auth="hash">NTLM</button>
+              <button data-auth="kerb">Ticket</button>
+              <button data-auth="aeskey">AES</button>
+              <button data-auth="cert">Cert</button>
+            </div>
+            <div class="authpane" data-pane="password">
+              <label>Password<input id="f_password" type="password" autocomplete="off"></label>
+            </div>
+            <div class="authpane hidden" data-pane="hash">
+              <label>LM:NT hash<input id="f_hash" placeholder="aad3b...:31d6c..." autocomplete="off"></label>
+            </div>
+            <div class="authpane hidden" data-pane="kerb">
+              <label>krb5cc ticket path<input id="f_kerb" placeholder="./krb5cc_ticket" autocomplete="off"></label>
+            </div>
+            <div class="authpane hidden" data-pane="aeskey">
+              <label>AES key<input id="f_aeskey" autocomplete="off"></label>
+            </div>
+            <div class="authpane hidden" data-pane="cert">
+              <label>PFX cert path<input id="f_cert" placeholder="./cert.pfx" autocomplete="off"></label>
+              <label>Cert password<input id="f_certpass" type="password" autocomplete="off"></label>
+            </div>
+          </div>
+
+          <details class="adv">
+            <summary>Advanced</summary>
+            <div class="grid2">
+              <label>Targets (-T)<input id="f_targets" placeholder="DC / All / IP=.. / File=.."></label>
+              <label>Interface<input id="f_interface" placeholder="eth0 / tun0"></label>
+              <label>Attacker IP<input id="f_attacker_ip"></label>
+              <label>DNS IP<input id="f_dns_ip"></label>
+              <label>LDAP port<input id="f_ldap_port" placeholder="389"></label>
+              <label>DC domain<input id="f_dc_domain"></label>
+              <label>Users wordlist<input id="f_user_wordlist"></label>
+              <label>Pass wordlist<input id="f_pass_wordlist"></label>
+              <label>Output dir<input id="f_output" placeholder="(default)"></label>
+            </div>
+            <div class="checks">
+              <label class="ck"><input type="checkbox" id="c_ldaps"> LDAPS</label>
+              <label class="ck"><input type="checkbox" id="c_ldap_sign"> LDAP sign</label>
+              <label class="ck"><input type="checkbox" id="c_ldap_bind"> LDAP bind</label>
+              <label class="ck"><input type="checkbox" id="c_force_kerb"> Force Kerb</label>
+              <label class="ck"><input type="checkbox" id="c_use_ip"> Use IP</label>
+              <label class="ck"><input type="checkbox" id="c_dns_tcp"> DNS TCP</label>
+              <label class="ck"><input type="checkbox" id="c_auto_config"> Auto-config</label>
+              <label class="ck"><input type="checkbox" id="c_verbose"> Verbose</label>
+              <label class="ck" title="Only print commands, never run them"><input type="checkbox" id="c_no_exec"> No-exec (dry run)</label>
+              <label class="ck" title="No target interaction; fake auth data"><input type="checkbox" id="c_offline"> Offline</label>
+              <label class="ck" title="Full automated enumeration, no interaction"><input type="checkbox" id="c_auto"> --auto mode</label>
+            </div>
+          </details>
+
+          <button id="btnStart" class="btn btn-primary btn-block">Start session ▸</button>
+          <div id="cfgError" class="cfg-error hidden"></div>
+        </div>
+      </section>
+
+      <section class="panel menu-panel">
+        <div class="panel-head"><h2>Modules</h2>
+          <input id="menuFilter" class="menu-filter" placeholder="filter…"></div>
+        <div class="panel-body no-pad">
+          <nav id="menuTree" class="menu-tree"></nav>
+        </div>
+      </section>
+    </aside>
+
+    <!-- Main: terminals + actions -->
+    <main class="main">
+      <div class="tabs" id="mainTabs">
+        <button data-tab="lwp" class="active">linWinPwn terminal</button>
+        <button data-tab="shell">Embedded shell</button>
+        <button data-tab="history">Command history <span id="histCount" class="tab-count">0</span></button>
+        <button data-tab="loot">Output / loot</button>
+      </div>
+
+      <section class="tabpane" data-tab="lwp">
+        <div class="pane-split">
+          <div class="term-wrap">
+            <div class="term-toolbar">
+              <span id="runState" class="state state-off">no session</span>
+              <span id="lwpCrumb" class="crumb">menu: <b>-</b></span>
+              <div class="spacer"></div>
+              <button class="btn btn-ghost sm" id="lwpHome" title="Return to the main menu">⌂ main menu</button>
+              <button class="btn btn-ghost sm" id="lwpInterrupt" title="Ctrl+C: stops the running command (the session restarts with the same config)">■ interrupt</button>
+              <button class="btn btn-ghost sm" id="lwpClear">clear view</button>
+              <label class="ck sm" title="Allow typing directly in the terminal"><input type="checkbox" id="lwpTypeable"> type in terminal</label>
+            </div>
+            <div id="termLwp" class="term"></div>
+
+            <!-- Web prompt panel: every question the script asks is answered here -->
+            <form id="promptPanel" class="prompt-panel hidden" autocomplete="off">
+              <div class="pp-head">
+                <span class="pp-kind" id="ppKind">question</span>
+                <span class="pp-title" id="ppTitle"></span>
+              </div>
+              <div class="pp-context" id="ppContext"></div>
+              <div class="pp-choices" id="ppChoices"></div>
+              <div class="pp-row" id="ppInputRow">
+                <input id="ppInput" class="pp-input" spellcheck="false">
+                <button type="button" class="btn btn-ghost sm" id="ppReveal" title="show/hide">👁</button>
+                <button type="submit" class="btn btn-primary" id="ppSend">Send ⏎</button>
+              </div>
+              <div class="pp-foot">
+                <span id="ppDefault" class="pp-default"></span>
+                <div class="spacer"></div>
+                <button type="button" class="btn btn-ghost sm" id="ppEnter">Enter (default / continue)</button>
+              </div>
+            </form>
+          </div>
+          <aside class="action-rail">
+            <div class="rail-head" id="railTitle">Select a module</div>
+            <div class="rail-desc" id="railDesc">Pick a module on the left, then click an action. When the script asks something, a form appears under the output.</div>
+            <div id="actionList" class="action-list"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="tabpane hidden" data-tab="shell">
+        <div class="term-wrap full">
+          <div class="term-toolbar">
+            <span class="crumb">bash · <span id="shellCwd">repo root</span></span>
+            <div class="spacer"></div>
+            <span class="hint">A real shell for manual tooling (netexec, impacket, …).</span>
+          </div>
+          <div id="termShell" class="term"></div>
+        </div>
+      </section>
+
+      <section class="tabpane hidden" data-tab="history">
+        <div class="loot">
+          <div class="loot-bar">
+            <span class="crumb">Commands run by linWinPwn in this browser session (secrets already masked by the script)</span>
+            <div class="spacer"></div>
+            <button id="histCopyAll" class="btn btn-ghost sm">copy all</button>
+            <button id="histClear" class="btn btn-ghost sm">clear</button>
+          </div>
+          <ol id="histList" class="hist-list"></ol>
+        </div>
+      </section>
+
+      <section class="tabpane hidden" data-tab="loot">
+        <div class="loot">
+          <div class="loot-bar">
+            <button id="lootUp" class="btn btn-ghost sm">↑ up</button>
+            <span id="lootPath" class="crumb">/</span>
+            <div class="spacer"></div>
+            <button id="lootRefresh" class="btn btn-ghost sm">refresh</button>
+          </div>
+          <div class="loot-split">
+            <ul id="lootList" class="loot-list"></ul>
+            <pre id="lootView" class="loot-view">Select a file to preview.</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="/static/vendor/xterm.js"></script>
+<script src="/static/vendor/addon-fit.js"></script>
+<script src="/static/vendor/addon-web-links.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>

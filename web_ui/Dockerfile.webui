@@ -1,0 +1,40 @@
+# linWinPwn + Web UI in one image.
+# Builds on the upstream tool image so every pentest tool is present, then
+# layers the Flask web console on top.
+#
+#   docker build -f web_ui/Dockerfile.webui -t linwinpwn-webui .
+#   docker run --rm -it --net=host \
+#       -e LWP_WEB_TOKEN=change-me \
+#       -v "$(pwd)/lwp-output:/opt/linWinPwn/lwp-output" \
+#       linwinpwn-webui
+#   # then open http://127.0.0.1:8777/?token=change-me
+FROM python:3.12-slim
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PATH="/root/.local/bin:/opt/lwp-scripts/.venv/bin:${PATH}" \
+    LWP_OUTPUT=/opt/linWinPwn/lwp-output
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential sudo wget unzip git curl nmap john libsasl2-dev libldap2-dev \
+    libkrb5-dev ntpsec-ntpdate pipx swig jq openssl rlwrap smbmap bind9-dnsutils \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/linWinPwn
+
+# Install the full toolset first (cached layer).
+COPY install.sh /opt/linWinPwn/
+RUN chmod +x /opt/linWinPwn/install.sh \
+    && /opt/linWinPwn/install.sh \
+    && rm -rf /root/.cache /tmp/* /var/tmp/*
+
+# Main script + helpers + web UI.
+COPY linWinPwn.sh /opt/linWinPwn/
+COPY helpers /opt/linWinPwn/helpers
+COPY web_ui /opt/linWinPwn/web_ui
+RUN chmod +x /opt/linWinPwn/linWinPwn.sh \
+    && pip install --no-cache-dir -r /opt/linWinPwn/web_ui/requirements.txt \
+    && mkdir -p /opt/linWinPwn/lwp-output
+
+EXPOSE 8777
+# Bind to 0.0.0.0 inside the container; keep the published port on localhost.
+ENTRYPOINT ["python", "/opt/linWinPwn/web_ui/server.py", "--host", "0.0.0.0", "--port", "8777"]

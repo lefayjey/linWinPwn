@@ -4,6 +4,14 @@
 
 linWinPwn is a bash script that wraps a number of Active Directory tools for enumeration (LDAP, RPC, ADCS, MSSQL, Kerberos, SCCM), vulnerability checks (noPac, ZeroLogon, MS17-010, MS14-068), object modifications (password change, add user to group, RBCD, Shadow Credentials) and password dumping (secretsdump, lsassy, nanodump, DonPAPI). The script streamlines the use of a large number of tools: impacket, bloodhound, netexec, enum4linux-ng, ldapdomaindump, lsassy, smbmap, kerbrute, certipy, silenthound, bloodyAD, DonPAPI and many others.
 
+## Web UI (dashboard)
+
+All interactive menus are also available in a web dashboard with an embedded terminal and shell. See [web_ui/README.md](web_ui/README.md).
+
+```bash
+./web_ui/run.sh   # then open the printed http://127.0.0.1:8777/?token=... URL
+```
+
 ## Setup
 
 Git clone the repository and install requirements using the `install.sh` script

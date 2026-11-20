@@ -1,0 +1,84 @@
+# linWinPwn Web Console
+
+A web dashboard for [linWinPwn](https://github.com/lefayjey/linWinPwn). Every menu and every option of the script (16 menus, 238 actions) is a button, and there is a real embedded shell next to it.
+
+Everything is done from the web: you pick menus and options with buttons, and every question the script asks is answered in a web form. The terminal only shows the output (typing in it is optional, behind the "type in terminal" checkbox).
+
+The dashboard does not rewrite any linWinPwn logic. The backend starts the real `linWinPwn.sh` inside a pseudo terminal, the buttons send the same keys you would type, and the browser reads the output to know what the script is waiting for.
+
+## Features
+
+- **Session form**: target DC, domain, user, and the 5 auth methods (password, NTLM hash, Kerberos ticket, AES key, PFX cert), plus every CLI flag (`--ldaps`, `--ldap-sign`, `--ldap-bind`, `--force-kerb`, `--use-ip`, `--dns-tcp`, `--auto-config`, `--verbose`, `--no-exec`, `--offline`, `--auto`, `-T`, `-I`, `-a`, wordlists, output dir...).
+- **Module sidebar**: all menus with a filter box. Each action has badges: `noisy`, `batch` (the `A` option of each menu), `prompts` (asks questions) and `console` (opens an interactive tool).
+- **Web forms for every question**: the UI reads the output and shows the right form under it:
+  - text question, with the default value shown and a "Use default" button (`press Enter to choose default value ...`)
+  - password / hash / key fields are masked (with a show button)
+  - yes / no (`y/N`) and two-choice questions (`'RC4' or 'AES'`) become buttons
+  - values listed above a question (for example your IPs) become clickable suggestions
+  - numbered lists (Modify target(s), LDAPPER options...) become buttons, plus a free text field
+  - `press ENTER to continue` becomes a "Continue" button
+  - tool consoles (evil-winrm, smbclient, mssqlclient, LDAP console...) get a command field
+- **Run state**: `ready` (at a menu, buttons active), `running…`, `waiting for your answer`. The UI also reads the menu headers (`[AD Enum menu]`...) so it always knows which menu the script is in.
+- **Interrupt**: sends Ctrl+C to stop a long command. linWinPwn has no Ctrl+C handler, so the session is restarted with the same config automatically.
+- **Command history**: every command linWinPwn runs (already masked by the script), with copy buttons.
+- **linWinPwn terminal**: live output of the script (xterm.js, colors kept).
+- **Embedded shell**: a separate bash in the repo folder, for manual commands (netexec, impacket, certipy...). It keeps running when you switch tabs.
+- **Output / loot**: read-only browser of the output folder, with preview and download.
+- Secrets (`-p`, `-H`, `-A`, `--cert-pass`) are hidden in the command line shown back in the UI.
+
+## Run it
+
+Put the `web_ui/` folder next to `linWinPwn.sh` (it already is in this repo), then:
+
+```bash
+./web_ui/run.sh
+```
+
+The first run creates a virtualenv and installs Flask. The script prints a URL with a random token:
+
+```
+http://127.0.0.1:8777/?token=<token>
+```
+
+Options: `./web_ui/run.sh --port 9000`, or set your own token with `LWP_WEB_TOKEN=mytoken ./web_ui/run.sh`.
+
+### Docker
+
+```bash
+docker build -f web_ui/Dockerfile.webui -t linwinpwn-webui .
+docker run --rm -it --net=host \
+  -e LWP_WEB_TOKEN=change-me \
+  -v "$(pwd)/lwp-output:/opt/linWinPwn/lwp-output" \
+  linwinpwn-webui
+# open http://127.0.0.1:8777/?token=change-me
+```
+
+## How a button works
+
+Action buttons are active only when the script is back at a menu (`ready`). The UI knows the current menu from the script's own headers:
+
+- Action in the menu you are already in: it sends only the action key (e.g. `1`).
+- Action in another menu: it sends `back`, then the menu number, then the action key.
+- **⌂ main menu** goes back to the main menu.
+
+If you type in the terminal yourself, the UI still follows, since it reads the headers.
+
+## Security
+
+This console runs offensive tooling and gives a full shell with the rights of the user who started it.
+
+- It listens on `127.0.0.1` only by default. Keep it that way. To use it from another machine, use an SSH tunnel (`ssh -L 8777:127.0.0.1:8777 kali`) instead of `--host 0.0.0.0`.
+- Always keep a token (`run.sh` makes one for you). Every API call and websocket checks it.
+- Use it only on engagements where you have written authorization.
+
+## Files
+
+| File | Role |
+|---|---|
+| `server.py` | Flask backend: PTY manager, websockets, session API, loot browser |
+| `menus.json` | Menu tree shown in the sidebar (mirrors `MENUS.md`) |
+| `static/` | Dashboard (HTML/CSS/JS) and vendored xterm.js 5.5 (works offline) |
+| `run.sh` | Launcher (venv + token) |
+| `Dockerfile.webui` | Image with all linWinPwn tools plus the web UI |
+
+When linWinPwn adds new menu options, add them to `menus.json` (key + label). Nothing else needs to change.
